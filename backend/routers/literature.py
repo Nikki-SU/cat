@@ -97,8 +97,8 @@ def list_literature_table(
     skip: int = 0, 
     limit: int = 100, 
     search: str = None,
-    sort_by: str = Query(default="created_at", regex="^(created_at|pubdate|title_cn|title_en|journal)$"),
-    sort_order: str = Query(default="desc", regex="^(asc|desc)$"),
+    sort_by: str = Query(default="created_at", pattern="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     from_date: str = None,
     until_date: str = None,
     db: Session = Depends(get_db)
@@ -321,9 +321,9 @@ def search_literature_table(
 
 @router.get("/table/export")
 def export_literature_table(
-    format: str = Query(default="xlsx", regex="^(xlsx|csv)$"),
-    sort_by: str = Query(default="created_at", regex="^(created_at|pubdate|title_cn|title_en|journal)$"),
-    sort_order: str = Query(default="desc", regex="^(asc|desc)$"),
+    format: str = Query(default="xlsx", pattern="^(xlsx|csv)$"),
+    sort_by: str = Query(default="created_at", pattern="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     from_date: str = None,
     until_date: str = None,
     columns: str = None,
@@ -387,9 +387,9 @@ def export_literature_table(
 @router.get("/table/export-by-tags")
 def export_literature_table_by_tags(
     tags: str,
-    format: str = Query(default="xlsx", regex="^(xlsx|csv)$"),
-    sort_by: str = Query(default="created_at", regex="^(created_at|pubdate|title_cn|title_en|journal)$"),
-    sort_order: str = Query(default="desc", regex="^(asc|desc)$"),
+    format: str = Query(default="xlsx", pattern="^(xlsx|csv)$"),
+    sort_by: str = Query(default="created_at", pattern="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_db)
 ):
     """

@@ -24,6 +24,10 @@ class Settings(BaseModel):
     # MinerU配置
     MINERU_API_TOKEN: Optional[str] = os.getenv("MINERU_API_TOKEN")
     
+    # 文件存储配置
+    ATTACHMENTS_DIR: str = os.getenv("ATTACHMENTS_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "attachments"))
+    STRUCTURED_DIR: str = os.getenv("STRUCTURED_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "structured"))
+    
     # 文献追踪配置
     CROSSREF_EMAIL: str = os.getenv("CROSSREF_EMAIL", "cat@example.com")
     TRACKING_INTERVAL: int = 24  # 小时
@@ -33,8 +37,8 @@ class Settings(BaseModel):
     DEFAULT_REVIEW_MODE: str = "interval"  # interval or strict
     
     # 显示配置
-    DEFAULT_DISPLAY_LANGUAGE: str = "cn"  # cn or en
-    DEFAULT_DISPLAY_DETAIL: str = "detailed"  # detailed or brief
+    DEFAULT_DISPLAY_LANGUAGE: str = os.getenv("DEFAULT_DISPLAY_LANGUAGE", "cn")  # cn or en
+    DEFAULT_DISPLAY_DETAIL: str = os.getenv("DEFAULT_DISPLAY_DETAIL", "detailed")  # detailed or brief
 
 
 settings = Settings()
