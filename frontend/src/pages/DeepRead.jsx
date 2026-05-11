@@ -1,985 +1,605 @@
 /**
- * 精读页面 - 重写版
- * 功能：
- * - Markdown渲染与编辑
- * - 笔记系统（行间/边栏模式）
- * - 划词功能（翻译、加入词汇本/长难句）
- * - 颜色-结构快捷设置
- * - 响应式布局
- * - 搜索功能
- */
-import { useState, useEffect, useRef, useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
-import rehypeRaw from 'rehype-raw'
-import remarkGfm from 'remark-gfm'
+ * 绮捐椤甸潰 - 閲嶆瀯鐗? * 
+ * 甯冨眬锛? * - 瀛﹁€呮ā寮? 宸︽爮(棰滆壊缁撴瀯+闀块毦鍙?鍗曡瘝) + 鍙虫爮(鏂囩尞+琛岄棿绗旇)
+ * - 鍙屾爮妯″紡: 宸︽爮(棰滆壊缁撴瀯+闀块毦鍙?鍗曡瘝) + 涓爮(绾枃鐚? + 鍙虫爮(杈规爮绗旇)
+ * 
+ * 鐗规€э細
+ * - 闃呰妯″紡锛氬師鏂囧彧璇伙紝鍙珮浜€佹壒娉ㄣ€佽皟鏁存牸寮? * - 缂栬緫妯″紡锛氱洿鎺ヤ慨鏀瑰師鏂? * - 鍗曡瘝/闀块毦鍙ヨ嚜鍔ㄦ牴鎹姸鎬佺潃鑹? */
+import { useState, useEffect, useRef, useMemo } from 'react'
+import useDeepReadStore, { 
+  LAYOUT_MODES, 
+  READ_MODES, 
+  COLOR_STRUCTURE,
+  WORD_STATUS_COLORS,
+  SENTENCE_STYLES
+} from '../stores/useDeepReadStore'
 import useAppStore from '../stores/useAppStore'
-import { structuredAPI, literatureAPI, learningAPI, attachmentAPI } from '../api/client'
-import { isMobile, isPortrait } from '../utils/helpers'
+import ObsidianEditor from '../components/ObsidianEditor'
 
-// 笔记模式
-const NOTE_MODES = {
-  inline: { id: 'inline', label: '行间模式', icon: '📝' },
-  sidebar: { id: 'sidebar', label: '边栏模式', icon: '📑' }
+// ==================== 瀛愮粍浠?====================
+
+// 棰滆壊-缁撴瀯闈㈡澘
+const ColorStructurePanel = ({ paragraphs, onColorClick }) => {
+  const getContentByColor = (colorId) => {
+    return paragraphs.filter(p => p.suggestedColor?.id === colorId)
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="font-semibold text-sm text-gray-700">馃帹 棰滆壊-缁撴瀯</h3>
+      {COLOR_STRUCTURE.map(cs => {
+        const content = getContentByColor(cs.id)
+        return (
+          <div key={cs.id} className="border rounded-lg overflow-hidden">
+            <button
+              onClick={() => onColorClick(cs)}
+              className="w-full px-3 py-2 flex items-center gap-2 text-sm font-medium"
+              style={{ backgroundColor: cs.color }}
+            >
+              <span className="w-3 h-3 rounded-full border border-gray-400" 
+                style={{ backgroundColor: cs.color }} />
+              <span style={{ color: cs.textColor }}>{cs.name}</span>
+              <span className="text-xs opacity-60 ml-auto">{content.length}</span>
+            </button>
+            <div className="max-h-32 overflow-auto text-xs p-2 bg-gray-50">
+              {content.map(p => (
+                <div key={p.id} className="truncate py-1 text-gray-600 border-b last:border-0">
+                  {p.plainText.substring(0, 60)}...
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
-// 布局模式
-const LAYOUT_MODES = {
-  standard: { id: 'standard', label: '标准', ratio: '1:0' },
-  split37: { id: 'split37', label: '3:7', ratio: '3:7' },
-  split352: { id: 'split352', label: '3:5:2', ratio: '3:5:2' }
+// 闀块毦鍙ュ垪琛?const SentenceList = ({ sentences, paragraphs, onSentenceClick }) => {
+  const sentencesWithContext = useMemo(() => {
+    return sentences.map(s => {
+      const paragraph = paragraphs.find(p => 
+        p.plainText.includes(s.sentence_en.substring(0, 30))
+      )
+      return { ...s, paragraphId: paragraph?.id }
+    })
+  }, [sentences, paragraphs])
+
+  return (
+    <div className="mt-4">
+      <h3 className="font-semibold text-sm text-gray-700 mb-2">
+        馃摑 闀块毦鍙?({sentences.length})
+      </h3>
+      <div className="space-y-2 max-h-60 overflow-auto">
+        {sentencesWithContext.map(s => (
+          <div 
+            key={s.id}
+            onClick={() => onSentenceClick(s)}
+            className="p-2 rounded bg-red-50 border border-red-200 cursor-pointer hover:bg-red-100"
+          >
+            <p className="text-xs text-red-700 line-clamp-2">{s.sentence_en}</p>
+            {s.sentence_cn && (
+              <p className="text-xs text-gray-500 mt-1">{s.sentence_cn}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
-// 高亮颜色
-const HIGHLIGHT_COLORS = [
-  { id: 'yellow', color: '#FEF08A', label: '黄色' },
-  { id: 'green', color: '#BBF7D0', label: '绿色' },
-  { id: 'blue', color: '#BFDBFE', label: '蓝色' },
-  { id: 'pink', color: '#FBCFE8', label: '粉色' },
-  { id: 'orange', color: '#FED7AA', label: '橙色' },
-  { id: 'purple', color: '#DDD6FE', label: '紫色' },
-]
+// 鍗曡瘝鍒楄〃
+const WordList = ({ words, paragraphs, onWordClick }) => {
+  const wordsWithContext = useMemo(() => {
+    return words.map(w => {
+      const paragraph = paragraphs.find(p => 
+        p.plainText.toLowerCase().includes(w.word_en.toLowerCase())
+      )
+      return { ...w, paragraphId: paragraph?.id }
+    })
+  }, [words, paragraphs])
 
-// 颜色-结构预设
-const COLOR_STRUCTURE_PRESETS = [
-  { name: '方法', color: '#BFDBFE', description: 'Methods' },
-  { name: '结果', color: '#BBF7D0', description: 'Results' },
-  { name: '讨论', color: '#FED7AA', description: 'Discussion' },
-  { name: '结论', color: '#FBCFE8', description: 'Conclusion' },
-  { name: '背景', color: '#E5E7EB', description: 'Background' },
-]
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'new': return 'text-red-600 font-bold border-b-2 border-red-500'
+      case 'learning': return 'text-amber-600 font-bold border-b-2 border-amber-500'
+      default: return 'text-gray-600'
+    }
+  }
+
+  return (
+    <div className="mt-4">
+      <h3 className="font-semibold text-sm text-gray-700 mb-2">
+        馃摎 鍗曡瘝 ({words.length})
+      </h3>
+      <div className="flex flex-wrap gap-1">
+        {wordsWithContext.map(w => (
+          <span
+            key={w.id}
+            onClick={() => onWordClick(w)}
+            className={`px-2 py-1 text-xs rounded cursor-pointer hover:bg-gray-100 ${getStatusStyle(w.status)}`}
+          >
+            {w.word_en}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// 甯﹀崟璇?闀块毦鍙ラ珮浜殑鏂囨湰娓叉煋
+const HighlightedText = ({ text, words, sentences }) => {
+  // 鏋勫缓姝ｅ垯鍖归厤
+  const wordList = words.map(w => w.word_en)
+  const sentenceList = sentences.map(s => s.sentence_en.substring(0, 50))
+  
+  // 绠€鍗曠殑鏇挎崲绛栫暐
+  let highlighted = text
+  
+  // 鏍囪闀块毦鍙ワ紙鍏堝鐞嗛暱鐨勶級
+  sentences.forEach(s => {
+    const pattern = s.sentence_en.substring(0, Math.min(s.sentence_en.length, 100))
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(${pattern})`, 'gi')
+    highlighted = highlighted.replace(regex, 
+      '<span class="sentence-highlight">$1</span>'
+    )
+  })
+  
+  // 鏍囪鍗曡瘝
+  words.forEach(w => {
+    const regex = new RegExp(`\\b(${w.word_en})\\b`, 'gi')
+    const style = w.status === 'new' 
+      ? 'word-new' 
+      : w.status === 'learning' 
+        ? 'word-learning' 
+        : 'word-mastered'
+    highlighted = highlighted.replace(regex, `<span class="${style}">$1</span>`)
+  })
+  
+  return <span dangerouslySetInnerHTML={{ __html: highlighted }} />
+}
+
+// 鏂囩尞娈佃惤娓叉煋
+const ParagraphRenderer = ({ 
+  paragraph, 
+  words, 
+  sentences, 
+  notes, 
+  isInlineMode,
+  onAddNote,
+  onTextSelect,
+  readMode
+}) => {
+  const paragraphWords = words.filter(w => 
+    paragraph.plainText.toLowerCase().includes(w.word_en.toLowerCase())
+  )
+  
+  const paragraphSentences = sentences.filter(s => 
+    paragraph.plainText.includes(s.sentence_en.substring(0, 30))
+  )
+  
+  const paragraphNotes = notes.filter(n => n.anchor_id === paragraph.id)
+
+  const renderContent = () => {
+    const { type, raw } = paragraph
+    
+    // 鏍规嵁绫诲瀷娓叉煋涓嶅悓鍏冪礌
+    switch (type) {
+      case 'heading':
+        const level = raw.match(/^(#+)/)?.[0].length || 1
+        const text = raw.replace(/^#+\s*/, '')
+        return <Heading level={level} text={text} words={paragraphWords} sentences={paragraphSentences} />
+      
+      case 'bullet':
+        return <li className="ml-4"><HighlightedText text={raw.replace(/^[-*]\s*/, '')} words={paragraphWords} sentences={paragraphSentences} /></li>
+      
+      case 'numbered':
+        return <li className="ml-4"><HighlightedText text={raw.replace(/^\d+\.\s*/, '')} words={paragraphWords} sentences={paragraphSentences} /></li>
+      
+      default:
+        return <p><HighlightedText text={raw} words={paragraphWords} sentences={paragraphSentences} /></p>
+    }
+  }
+
+  return (
+    <div 
+      id={paragraph.id}
+      data-anchor={paragraph.id}
+      className="paragraph-block group relative hover:bg-gray-50"
+      onMouseUp={readMode === 'read' ? (e) => onTextSelect(e, paragraph.id) : undefined}
+    >
+      {/* 娈佃惤鍐呭 */}
+      <div className={`${paragraph.suggestedColor ? `border-l-4 pl-3` : ''}`}
+        style={{ borderColor: paragraph.suggestedColor?.color }}>
+        {renderContent()}
+      </div>
+      
+      {/* 琛岄棿绗旇锛堝鑰呮ā寮忥級 */}
+      {isInlineMode && paragraphNotes.length > 0 && (
+        <div className="mt-2 ml-4 space-y-1">
+          {paragraphNotes.map(note => (
+            <InlineNote key={note.id} note={note} />
+          ))}
+        </div>
+      )}
+      
+      {/* 娣诲姞绗旇鎸夐挳锛堟偓娴級 */}
+      {readMode === 'read' && isInlineMode && (
+        <button
+          onClick={() => onAddNote(paragraph.id)}
+          className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 text-blue-500 text-xs"
+        >
+          +绗旇
+        </button>
+      )}
+    </div>
+  )
+}
+
+// 鏍囬缁勪欢
+const Heading = ({ level, text, words, sentences }) => {
+  const Tag = `h${Math.min(level + 1, 6)}`
+  return (
+    <Tag className="font-bold my-4">
+      <HighlightedText text={text} words={words} sentences={sentences} />
+    </Tag>
+  )
+}
+
+// 琛岄棿绗旇
+const InlineNote = ({ note }) => (
+  <div className="p-2 bg-blue-50 border-l-4 border-blue-400 rounded my-2 ml-4">
+    <ObsidianEditor value={note.content} readOnly />
+  </div>
+)
+
+// 杈规爮绗旇
+const SidebarNote = ({ note, paragraph, onEdit, onDelete }) => (
+  <div className="p-3 bg-white rounded shadow-sm border-l-4 border-blue-400">
+    <div className="text-xs text-gray-500 mb-1">
+      娈佃惤 {paragraph?.index + 1 || '?'}
+    </div>
+    <div className="prose prose-sm max-w-none">
+      <ObsidianEditor value={note.content} readOnly />
+    </div>
+    <div className="flex gap-2 mt-2">
+      <button onClick={() => onEdit(note)} className="text-xs text-blue-500">缂栬緫</button>
+      <button onClick={() => onDelete(note.id)} className="text-xs text-red-500">鍒犻櫎</button>
+    </div>
+  </div>
+)
+
+// 绗旇缂栬緫鍣?- 浣跨敤 ObsidianEditor
+const NoteEditor = ({ onSave, onCancel, initialContent = '' }) => {
+  const [content, setContent] = useState(initialContent)
+  
+  return (
+    <div className="p-3 bg-yellow-50 rounded border border-yellow-200">
+      <ObsidianEditor
+        value={content}
+        onChange={setContent}
+        placeholder="杈撳叆绗旇锛堟敮鎸佸浘鐗囥€佷唬鐮併€佹€濈淮瀵煎浘銆佸弻閾惧紩鐢ㄧ瓑锛?.."
+        className="min-h-[150px]"
+      />
+      <div className="flex gap-2 mt-2">
+        <button 
+          onClick={() => onSave(content)}
+          className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+        >
+          淇濆瓨
+        </button>
+        <button 
+          onClick={onCancel}
+          className="px-3 py-1 bg-gray-200 rounded text-sm"
+        >
+          鍙栨秷
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ==================== 涓荤粍浠?====================
 
 function DeepRead() {
-  const { settings, literatureTable, fetchLiteratureTable } = useAppStore()
+  const {
+    selectedLiterature,
+    paragraphs,
+    words,
+    sentences,
+    notes,
+    layoutMode,
+    readMode,
+    isProtected,
+    selectedColor,
+    loadLiterature,
+    setLayoutMode,
+    setReadMode,
+    toggleEditMode,
+    addNote,
+    addHighlight,
+    getWordsForParagraph,
+    getSentencesForParagraph,
+    getNotesForParagraph,
+    getContentByColor,
+    saveContent
+  } = useDeepReadStore()
   
-  // 文献选择
-  const [selectedLiterature, setSelectedLiterature] = useState(null)
-  const [recentReadings, setRecentReadings] = useState([])
+  const { literatureTable } = useAppStore()
   
-  // 内容相关
-  const [structuredContent, setStructuredContent] = useState('')
-  const [notes, setNotes] = useState([])
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  
-  // 模式相关
-  const [noteMode, setNoteMode] = useState(NOTE_MODES.inline)
-  const [layoutMode, setLayoutMode] = useState(LAYOUT_MODES.split37)
-  const [isEditing, setIsEditing] = useState(false)
-  
-  // 搜索相关
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchMode, setSearchMode] = useState('content') // content | all | notes
-  const [searchResults, setSearchResults] = useState([])
-  const [currentHighlight, setCurrentHighlight] = useState(0)
-  
-  // 划词相关
-  const [selectedText, setSelectedText] = useState('')
-  const [showContextMenu, setShowContextMenu] = useState(false)
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
-  const [translateResult, setTranslateResult] = useState('')
-  const [showTranslateModal, setShowTranslateModal] = useState(false)
-  
-  // 颜色-结构
-  const [selectedColor, setSelectedColor] = useState(HIGHLIGHT_COLORS[0])
-  const [colorMappings, setColorMappings] = useState(COLOR_STRUCTURE_PRESETS)
-  
-  // 上传相关
-  const [showUploadModal, setShowUploadModal] = useState(false)
-  const [uploadingFile, setUploadingFile] = useState(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [parseProgress, setParseProgress] = useState(0)
-  const [attachments, setAttachments] = useState([])
-  const [showAttachmentPanel, setShowAttachmentPanel] = useState(false)
-  const [currentParseTask, setCurrentParseTask] = useState(null)
-  const [parseStatus, setParseStatus] = useState(null)
-  
-  // 笔记编辑
-  const [editingNote, setEditingNote] = useState(null)
-  const [newNoteContent, setNewNoteContent] = useState('')
-  
+  // 鏈湴鐘舵€?  const [editingNote, setEditingNote] = useState(null)
+  const [selectedParagraph, setSelectedParagraph] = useState(null)
+  const [editContent, setEditContent] = useState('')
   const contentRef = useRef(null)
-  const textareaRef = useRef(null)
   
-  // 加载数据
-  useEffect(() => {
-    fetchLiteratureTable()
-    loadRecentReadings()
-    loadAttachments()
-  }, [])
-  
-  // 加载最近阅读
-  const loadRecentReadings = () => {
-    const stored = localStorage.getItem('recentReadings')
-    if (stored) {
-      setRecentReadings(JSON.parse(stored))
-    }
-  }
-  
-  // 保存最近阅读
-  const saveRecentReading = (item) => {
-    const updated = [
-      { ...item, lastRead: new Date().toISOString() },
-      ...recentReadings.filter(r => r.doi !== item.doi)
-    ].slice(0, 10)
-    setRecentReadings(updated)
-    localStorage.setItem('recentReadings', JSON.stringify(updated))
-  }
-  
-  // 选择文献
+  // 鍔犺浇鏂囩尞
   const handleSelectLiterature = async (item) => {
-    // 保存当前未保存的内容
-    if (hasUnsavedChanges && selectedLiterature) {
-      if (!confirm('当前有未保存的内容，确定要离开吗？')) {
-        return
-      }
-    }
-    
-    setSelectedLiterature(item)
-    saveRecentReading(item)
-    
-    // 加载结构化内容
-    try {
-      const content = await structuredAPI.getLiterature(item.doi)
-      setStructuredContent(content?.content || '')
-      
-      // 加载笔记
-      const notesData = await structuredAPI.listNotes({ doi: item.doi })
-      setNotes(notesData || [])
-      
-      // 加载附件
-      loadAttachments(item.doi)
-    } catch (error) {
-      console.error('Failed to load content:', error)
-      setStructuredContent('')
-      setNotes([])
-    }
-    
-    setHasUnsavedChanges(false)
-    setIsEditing(false)
+    await loadLiterature(item)
+    setEditContent(item.content || '')
   }
   
-  // 加载附件列表
-  const loadAttachments = async (doi = null) => {
-    try {
-      const targetDoi = doi || selectedLiterature?.doi
-      if (!targetDoi) return
-      const list = await attachmentAPI.getByDoi(targetDoi)
-      setAttachments(list || [])
-    } catch (error) {
-      console.error('Failed to load attachments:', error)
-    }
-  }
-  
-  // 解析附件
-  const handleParseAttachment = async (attachmentId) => {
-    if (!selectedLiterature) return
-    
-    try {
-      const result = await attachmentAPI.parse(attachmentId)
-      if (result.success) {
-        setCurrentParseTask(result.task_id)
-        setParseStatus({ status: 'pending', progress: 0, message: '准备解析...' })
-        // 开始轮询
-        pollParseStatus(result.task_id)
-      }
-    } catch (error) {
-      alert('提交解析任务失败: ' + error.message)
-    }
-  }
-  
-  // 轮询解析状态
-  const pollParseStatus = async (taskId) => {
-    const poll = async () => {
-      try {
-        const status = await attachmentAPI.getParseStatus(taskId)
-        setParseStatus(status)
-        
-        if (status.status === 'done') {
-          setCurrentParseTask(null)
-          // 刷新内容
-          const content = await structuredAPI.getLiterature(selectedLiterature.doi)
-          setStructuredContent(content?.content || '')
-          alert('解析完成！')
-          return
-        } else if (status.status === 'failed') {
-          setCurrentParseTask(null)
-          alert('解析失败: ' + status.message)
-          return
-        }
-        
-        // 继续轮询
-        if (currentParseTask) {
-          setTimeout(poll, 2000)
-        }
-      } catch (error) {
-        console.error('Poll status failed:', error)
-      }
-    }
-    
-    poll()
-  }
-  
-  // 解析并提取
-  const handleParseAndExtract = async (attachmentId) => {
-    if (!selectedLiterature) return
-    
-    try {
-      const result = await attachmentAPI.parseAndExtract(attachmentId, 10, 20)
-      if (result.success) {
-        setCurrentParseTask(result.task_id)
-        setParseStatus({ status: 'pending', progress: 0, message: '准备解析...' })
-        // 开始轮询
-        pollParseStatus(result.task_id)
-      }
-    } catch (error) {
-      alert('提交任务失败: ' + error.message)
-    }
-  }
-  
-  // 删除附件
-  const handleDeleteAttachment = async (attachmentId) => {
-    if (!confirm('确定删除此附件？')) return
-    
-    try {
-      await attachmentAPI.delete(attachmentId)
-      loadAttachments()
-      alert('删除成功')
-    } catch (error) {
-      alert('删除失败: ' + error.message)
-    }
-  }
-  
-  // 保存内容
-  const handleSaveContent = async () => {
-    if (!selectedLiterature) return
-    
-    try {
-      await structuredAPI.updateLiterature(selectedLiterature.doi, {
-        content: structuredContent
-      })
-      setHasUnsavedChanges(false)
-      setIsEditing(false)
-      alert('保存成功')
-    } catch (error) {
-      console.error('Failed to save:', error)
-      alert('保存失败')
-    }
-  }
-  
-  // 内容变化
-  const handleContentChange = (value) => {
-    setStructuredContent(value || '')
-    setHasUnsavedChanges(true)
-  }
-  
-  // 文本选择
-  const handleTextSelection = useCallback(() => {
-    const selection = window.getSelection()
-    const text = selection.toString().trim()
-    if (text && text.length > 0) {
-      setSelectedText(text)
-      
-      // 获取选择位置
-      const range = selection.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
-      setContextMenuPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.bottom + 10
-      })
-    }
-  }, [])
-  
-  // 右键菜单
-  const handleContextMenu = (e) => {
-    e.preventDefault()
+  // 鏂囨湰閫夋嫨
+  const handleTextSelect = (e, paragraphId) => {
     const selection = window.getSelection()
     const text = selection.toString().trim()
     if (text) {
-      setSelectedText(text)
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
-      setShowContextMenu(true)
+      // 娣诲姞楂樹寒鎴栨樉绀鸿彍鍗?      console.log('閫変腑:', text, '鍦ㄦ钀?', paragraphId)
     }
   }
   
-  // 关闭右键菜单
-  useEffect(() => {
-    const handleClick = () => setShowContextMenu(false)
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
-  }, [])
-  
-  // 翻译选中文本
-  const handleTranslate = async () => {
-    if (!selectedText) return
-    setShowTranslateModal(true)
-    setTranslateResult('翻译中...')
-    
-    try {
-      const response = await fetch('/api/v1/ai/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: selectedText })
-      })
-      const result = await response.json()
-      setTranslateResult(result.translation || result.error || '翻译失败')
-    } catch (error) {
-      setTranslateResult('翻译失败: ' + error.message)
-    }
+  // 娣诲姞绗旇
+  const handleAddNote = async (paragraphId, content) => {
+    await addNote({
+      anchor_id: paragraphId,
+      note_type: 'markdown',
+      content,
+      position: ''
+    })
+    setEditingNote(null)
   }
   
-  // 加入词汇本
-  const handleAddToWordList = async () => {
-    if (!selectedText || !selectedLiterature) return
-    
-    try {
-      const response = await fetch('/api/v1/ai/complete-word', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          word_en: selectedText,
-          context: structuredContent.substring(0, 500)
-        })
-      })
-      const result = await response.json()
-      
-      if (result.success) {
-        await learningAPI.createWord({
-          word_en: selectedText,
-          word_cn: result.word_cn,
-          definition_en: result.definition_en,
-          definition_cn: result.definition_cn,
-          sentence: result.sentence,
-          doi: selectedLiterature.doi,
-          status: 'new'
-        })
-        alert('已添加到单词本')
-      } else {
-        // 直接添加
-        await learningAPI.createWord({
-          word_en: selectedText,
-          doi: selectedLiterature.doi,
-          status: 'new'
-        })
-        alert('已添加到单词本（请手动补全信息）')
-      }
-    } catch (error) {
-      console.error('Failed to add word:', error)
-      alert('添加失败')
-    }
+  // 淇濆瓨缂栬緫
+  const handleSaveEdit = async () => {
+    await saveContent(editContent)
   }
   
-  // 加入长难句
-  const handleAddToSentenceList = async () => {
-    if (!selectedText || !selectedLiterature) return
-    
-    try {
-      const response = await fetch('/api/v1/ai/translate-sentence', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sentence_en: selectedText })
-      })
-      const result = await response.json()
-      
-      await learningAPI.createSentence({
-        sentence_en: selectedText,
-        sentence_cn: result.sentence_cn || '',
-        doi: selectedLiterature.doi,
-        status: 'new'
-      })
-      alert('已添加到长难句本')
-    } catch (error) {
-      console.error('Failed to add sentence:', error)
-      alert('添加失败')
-    }
-  }
-  
-  // 添加笔记
-  const handleAddNote = async () => {
-    if (!newNoteContent.trim() || !selectedLiterature) return
-    
-    try {
-      const note = await structuredAPI.createNote({
-        doi: selectedLiterature.doi,
-        note_type: 'markdown',
-        content: newNoteContent,
-        position: ''
-      })
-      setNotes([...notes, note])
-      setNewNoteContent('')
-      setEditingNote(null)
-    } catch (error) {
-      console.error('Failed to add note:', error)
-      alert('添加失败')
-    }
-  }
-  
-  // 删除笔记
-  const handleDeleteNote = async (noteId) => {
-    if (!confirm('确定要删除这条笔记吗？')) return
-    
-    try {
-      await structuredAPI.deleteNote(noteId)
-      setNotes(notes.filter(n => n.id !== noteId))
-    } catch (error) {
-      console.error('Failed to delete note:', error)
-      alert('删除失败')
-    }
-  }
-  
-  // 搜索
-  const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([])
-      return
-    }
-    
-    const results = []
-    const query = searchQuery.toLowerCase()
-    
-    // 搜索文献
-    if (searchMode === 'content' || searchMode === 'all') {
-      literatureTable.forEach(item => {
-        if (
-          item.title_cn?.toLowerCase().includes(query) ||
-          item.title_en?.toLowerCase().includes(query) ||
-          item.doi?.toLowerCase().includes(query)
-        ) {
-          results.push({ type: 'literature', item })
-        }
-      })
-    }
-    
-    // 搜索笔记
-    if (searchMode === 'notes' || searchMode === 'all') {
-      notes.forEach(note => {
-        if (note.content?.toLowerCase().includes(query)) {
-          results.push({ type: 'note', note, literature: selectedLiterature })
-        }
-      })
-    }
-    
-    setSearchResults(results)
-    setCurrentHighlight(0)
-  }
-  
-  // 下一个搜索结果
-  const handleNextResult = () => {
-    if (searchResults.length > 0) {
-      setCurrentHighlight((prev) => (prev + 1) % searchResults.length)
-    }
-  }
-  
-  // 上一个搜索结果
-  const handlePrevResult = () => {
-    if (searchResults.length > 0) {
-      setCurrentHighlight((prev) => (prev - 1 + searchResults.length) % searchResults.length)
-    }
-  }
-  
-  // 上传文件
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file || !selectedLiterature) return
-    
-    setUploadingFile(file)
-    setIsUploading(true)
-    setParseProgress(0)
-    
-    try {
-      // 先上传文件
-      const uploadResponse = await attachmentAPI.upload(selectedLiterature.doi, file)
-      
-      if (uploadResponse.id) {
-        setParseProgress(30)
-        setAttachments(prev => [...prev, uploadResponse])
-        
-        // 询问是否解析
-        if (confirm('文件上传成功！是否立即解析为结构性文献？')) {
-          await handleParseAttachment(uploadResponse.id)
-        }
-      }
-    } catch (error) {
-      console.error('Upload failed:', error)
-      alert('上传失败: ' + error.message)
-    } finally {
-      setIsUploading(false)
-      setUploadingFile(null)
-      setShowUploadModal(false)
-    }
-  }
-  
-  // 响应式布局判断
-  const isMobileDevice = isMobile()
-  const isPortraitMode = isPortrait()
-  
-  // 渲染笔记内容
-  const renderNotes = () => {
-    if (noteMode === NOTE_MODES.inline) {
-      // 行间模式 - 在内容末尾显示笔记
-      return (
-        <div className="mt-4 space-y-2">
-          {notes.map(note => (
-            <div key={note.id} className="p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-r">
-              <div className="flex justify-between items-start">
-                <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {note.content}
-                  </ReactMarkdown>
-                </div>
-                <button
-                  onClick={() => handleDeleteNote(note.id)}
-                  className="text-xs text-status-error hover:bg-red-50 px-1 ml-2"
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-          ))}
-          
-          {/* 添加笔记 */}
-          <div className="p-3 bg-gray-50 rounded-lg">
-            <textarea
-              value={newNoteContent}
-              onChange={(e) => setNewNoteContent(e.target.value)}
-              placeholder="输入笔记内容（支持Markdown）..."
-              className="input min-h-[80px]"
-            />
-            <button
-              onClick={handleAddNote}
-              disabled={!newNoteContent.trim()}
-              className="btn btn-primary mt-2"
-            >
-              添加笔记
-            </button>
-          </div>
-        </div>
-      )
-    }
-    
-    // 边栏模式
-    return (
-      <div className="h-full overflow-auto p-4 bg-gray-50">
-        <h3 className="font-semibold mb-3">📝 笔记</h3>
-        
-        <div className="space-y-2">
-          {notes.map(note => (
-            <div key={note.id} className="p-3 bg-white rounded shadow-sm">
-              <div className="flex justify-between items-start">
-                <span className="text-xs text-text-secondary">
-                  {new Date(note.created_at).toLocaleDateString()}
-                </span>
-                <button
-                  onClick={() => handleDeleteNote(note.id)}
-                  className="text-xs text-status-error hover:bg-red-50 px-1"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="prose prose-sm max-w-none mt-2">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {note.content}
-                </ReactMarkdown>
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        <div className="mt-4">
-          <textarea
-            value={newNoteContent}
-            onChange={(e) => setNewNoteContent(e.target.value)}
-            placeholder="添加新笔记..."
-            className="input min-h-[100px]"
-          />
-          <button
-            onClick={handleAddNote}
-            disabled={!newNoteContent.trim()}
-            className="btn btn-primary w-full mt-2"
-          >
-            添加
-          </button>
-        </div>
-      </div>
-    )
-  }
+  // 褰撳墠甯冨眬閰嶇疆
+  const currentLayout = LAYOUT_MODES[layoutMode]
+  const isInlineMode = currentLayout.notePosition === 'inline'
   
   return (
-    <div className="h-full flex flex-col">
-      {/* 顶部搜索栏 */}
-      <div className="bg-white border-b px-4 py-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="搜索文献或笔记..."
-            className="input flex-1"
-          />
-          <select
-            value={searchMode}
-            onChange={(e) => setSearchMode(e.target.value)}
-            className="text-sm px-2 border rounded"
-          >
-            <option value="content">只搜文献</option>
-            <option value="all">文献+笔记</option>
-            <option value="notes">只搜笔记</option>
-          </select>
-          <button onClick={handleSearch} className="btn btn-primary">搜索</button>
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* 椤堕儴宸ュ叿鏍?*/}
+      <header className="bg-white border-b px-4 py-2 flex items-center gap-4">
+        {/* 鏂囩尞閫夋嫨 */}
+        <select 
+          className="border rounded px-3 py-1 min-w-[200px]"
+          onChange={e => handleSelectLiterature(literatureTable.find(l => l.doi === e.target.value))}
+          value={selectedLiterature?.doi || ''}
+        >
+          <option value="">閫夋嫨鏂囩尞...</option>
+          {literatureTable.map(l => (
+            <option key={l.doi} value={l.doi}>{l.title_cn || l.title_en || l.doi}</option>
+          ))}
+        </select>
+        
+        {/* 甯冨眬鍒囨崲 */}
+        <div className="flex border rounded">
+          {Object.values(LAYOUT_MODES).map(mode => (
+            <button
+              key={mode.id}
+              onClick={() => setLayoutMode(mode.id)}
+              className={`px-3 py-1 text-sm ${layoutMode === mode.id ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+            >
+              {mode.label}
+            </button>
+          ))}
         </div>
         
-        {/* 搜索结果导航 */}
-        {searchResults.length > 0 && (
-          <div className="flex justify-between items-center mt-2 text-sm">
-            <span className="text-text-secondary">
-              找到 {searchResults.length} 个结果
-            </span>
-            <div className="flex gap-1">
-              <button onClick={handlePrevResult} className="px-2 py-1 bg-gray-100 rounded">↑</button>
-              <span>{currentHighlight + 1}/{searchResults.length}</span>
-              <button onClick={handleNextResult} className="px-2 py-1 bg-gray-100 rounded">↓</button>
-            </div>
-          </div>
+        {/* 缂栬緫妯″紡寮€鍏?*/}
+        <button
+          onClick={toggleEditMode}
+          className={`px-3 py-1 rounded text-sm flex items-center gap-1 ${
+            readMode === 'edit' ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
+          }`}
+        >
+          {readMode === 'edit' ? '鉁忥笍 缂栬緫涓? : '馃摉 闃呰'}
+        </button>
+        
+        {readMode === 'edit' && (
+          <button
+            onClick={handleSaveEdit}
+            className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+          >
+            馃捑 淇濆瓨
+          </button>
         )}
-      </div>
+      </header>
       
-      {/* 主内容区 */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* 左侧边栏 - 文献列表和颜色设置 */}
-        <div className="w-64 border-r overflow-auto bg-gray-50 hidden md:block">
-          {/* 文献选择 */}
-          <div className="p-4">
-            <h3 className="font-semibold mb-2">📚 文献列表</h3>
-            <div className="space-y-1">
-              {literatureTable.slice(0, 20).map(item => (
-                <button
-                  key={item.doi}
-                  onClick={() => handleSelectLiterature(item)}
-                  className={`w-full text-left p-2 rounded text-sm truncate ${
-                    selectedLiterature?.doi === item.doi 
-                      ? 'bg-primary-blue text-white' 
-                      : 'hover:bg-gray-200'
-                  }`}
-                >
-                  {item.title_cn || item.title_en || item.doi}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* 涓诲唴瀹瑰尯 */}
+      {selectedLiterature ? (
+        <div className={`flex-1 overflow-hidden grid ${currentLayout.grid}`}>
           
-          {/* 颜色-结构快捷设置 */}
-          <div className="p-4 border-t">
-            <h3 className="font-semibold mb-2">🎨 颜色-结构</h3>
-            <div className="space-y-2">
-              {colorMappings.map((mapping, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <div 
-                    className="w-4 h-4 rounded" 
-                    style={{ backgroundColor: mapping.color }}
-                  />
-                  <span className="text-sm">{mapping.name}</span>
-                  <span className="text-xs text-text-secondary">{mapping.description}</span>
-                </div>
-              ))}
-            </div>
-            
-            {/* 高亮颜色选择 */}
-            <div className="mt-4">
-              <p className="text-sm font-medium mb-2">选择高亮色</p>
-              <div className="flex flex-wrap gap-1">
-                {HIGHLIGHT_COLORS.map(color => (
-                  <button
-                    key={color.id}
-                    onClick={() => setSelectedColor(color)}
-                    className={`w-6 h-6 rounded border-2 ${
-                      selectedColor.id === color.id ? 'border-gray-800' : 'border-transparent'
-                    }`}
-                    style={{ backgroundColor: color.color }}
-                    title={color.label}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* 中间主内容区 */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* 工具栏 */}
-          <div className="bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap">
-            {/* 保存按钮 */}
-            <button
-              onClick={handleSaveContent}
-              disabled={!hasUnsavedChanges || !selectedLiterature}
-              className="btn btn-primary text-sm"
-            >
-              💾 保存 {hasUnsavedChanges && '*'}
-            </button>
-            
-            {/* 编辑模式切换 */}
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              disabled={!selectedLiterature}
-              className={`btn text-sm ${isEditing ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              {isEditing ? '📖 阅读模式' : '✏️ 编辑模式'}
-            </button>
-            
-            {/* 笔记模式切换 */}
-            <div className="flex border rounded overflow-hidden">
-              <button
-                onClick={() => setNoteMode(NOTE_MODES.inline)}
-                className={`px-2 py-1 text-sm ${noteMode === NOTE_MODES.inline ? 'bg-primary-blue text-white' : 'bg-gray-100'}`}
-              >
-                {NOTE_MODES.inline.icon} 行间
-              </button>
-              <button
-                onClick={() => setNoteMode(NOTE_MODES.sidebar)}
-                className={`px-2 py-1 text-sm ${noteMode === NOTE_MODES.sidebar ? 'bg-primary-blue text-white' : 'bg-gray-100'}`}
-              >
-                {NOTE_MODES.sidebar.icon} 边栏
-              </button>
-            </div>
-            
-            {/* 布局切换（仅PC端） */}
-            {!isMobileDevice && (
-              <div className="flex border rounded overflow-hidden ml-auto">
-                {Object.values(LAYOUT_MODES).map(mode => (
-                  <button
-                    key={mode.id}
-                    onClick={() => setLayoutMode(mode)}
-                    className={`px-2 py-1 text-sm ${layoutMode.id === mode.id ? 'bg-primary-blue text-white' : 'bg-gray-100'}`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            
-            {/* 上传按钮 */}
-            <button
-              onClick={() => setShowUploadModal(true)}
-              disabled={!selectedLiterature}
-              className="btn btn-secondary text-sm"
-            >
-              📤 上传
-            </button>
-            
-            {/* 附件按钮 */}
-            <button
-              onClick={() => setShowAttachmentPanel(!showAttachmentPanel)}
-              disabled={!selectedLiterature}
-              className={`btn text-sm ${showAttachmentPanel ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              📎 附件 {attachments.length > 0 && `(${attachments.length})`}
-            </button>
-          </div>
+          {/* ========== 宸︽爮锛氶鑹茬粨鏋?+ 闀块毦鍙?+ 鍗曡瘝 ========== */}
+          <aside className="bg-white border-r overflow-y-auto p-4">
+            <ColorStructurePanel 
+              paragraphs={paragraphs}
+              onColorClick={(cs) => console.log('閫変腑棰滆壊:', cs)}
+            />
+            <SentenceList 
+              sentences={sentences}
+              paragraphs={paragraphs}
+              onSentenceClick={(s) => {
+                // 婊氬姩鍒板搴旀钀?                document.getElementById(s.paragraphId)?.scrollIntoView({ behavior: 'smooth' })
+              }}
+            />
+            <WordList 
+              words={words}
+              paragraphs={paragraphs}
+              onWordClick={(w) => {
+                document.getElementById(w.paragraphId)?.scrollIntoView({ behavior: 'smooth' })
+              }}
+            />
+          </aside>
           
-          {/* 附件面板 */}
-          {showAttachmentPanel && attachments.length > 0 && (
-            <div className="bg-white border-b px-4 py-2">
-              <div className="flex flex-wrap gap-2">
-                {attachments.map(att => (
-                  <div key={att.id} className="flex items-center gap-2 bg-gray-100 rounded px-2 py-1">
-                    <span className="text-sm truncate max-w-[150px]" title={att.filename}>
-                      📄 {att.filename}
-                    </span>
-                    <button
-                      onClick={() => handleParseAttachment(att.id)}
-                      disabled={currentParseTask}
-                      className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                      title="解析为结构性文献"
-                    >
-                      解析
-                    </button>
-                    <button
-                      onClick={() => handleParseAndExtract(att.id)}
-                      disabled={currentParseTask}
-                      className="text-xs px-2 py-0.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                      title="解析+AI提取"
-                    >
-                      AI提取
-                    </button>
-                    <button
-                      onClick={() => handleDeleteAttachment(att.id)}
-                      className="text-xs px-2 py-0.5 text-red-500 hover:bg-red-100 rounded"
-                      title="删除"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-              
-              {/* 解析进度 */}
-              {currentParseTask && parseStatus && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all"
-                      style={{ width: `${parseStatus.progress || 0}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-gray-600">
-                    {parseStatus.progress || 0}% - {parseStatus.message || '处理中...'}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* 内容区域 */}
-          <div 
-            className="flex-1 overflow-auto p-4"
-            onMouseUp={handleTextSelection}
-            onContextMenu={handleContextMenu}
-          >
-            {selectedLiterature ? (
-              <div className="max-w-4xl mx-auto">
-                {/* 文献标题 */}
-                <h1 className="text-xl font-bold mb-4">
+          {/* ========== 瀛﹁€呮ā寮忥細鍙虫爮(鏂囩尞+琛岄棿绗旇) ========== */}
+          {isInlineMode && (
+            <main className="overflow-y-auto p-6" ref={contentRef}>
+              <div className="max-w-3xl mx-auto">
+                <h1 className="text-2xl font-bold mb-6">
                   {selectedLiterature.title_cn || selectedLiterature.title_en}
                 </h1>
                 
-                {/* 内容 */}
-                {isEditing ? (
+                {readMode === 'edit' ? (
+                  // 缂栬緫妯″紡
                   <textarea
-                    ref={textareaRef}
-                    value={structuredContent}
-                    onChange={(e) => handleContentChange(e.target.value)}
-                    className="input w-full min-h-[500px] font-mono text-sm"
-                    placeholder="在此输入Markdown内容..."
+                    value={editContent}
+                    onChange={e => setEditContent(e.target.value)}
+                    className="w-full min-h-[600px] p-4 border rounded font-mono text-sm"
                   />
                 ) : (
-                  <div className="prose prose-lg max-w-none" ref={contentRef}>
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeRaw]}
-                    >
-                      {structuredContent || '暂无内容，请点击编辑模式添加内容或上传PDF文件解析。'}
-                    </ReactMarkdown>
+                  // 闃呰妯″紡
+                  <div className="prose prose-lg max-w-none space-y-4">
+                    {paragraphs.map(p => (
+                      <ParagraphRenderer
+                        key={p.id}
+                        paragraph={p}
+                        words={getWordsForParagraph(p.id)}
+                        sentences={getSentencesForParagraph(p.id)}
+                        notes={getNotesForParagraph(p.id)}
+                        isInlineMode={true}
+                        onAddNote={(id) => setEditingNote({ paragraphId: id, content: '' })}
+                        onTextSelect={handleTextSelect}
+                        readMode={readMode}
+                      />
+                    ))}
+                    
+                    {/* 鏂板缓绗旇缂栬緫鍣?*/}
+                    {editingNote && (
+                      <div className="mt-4">
+                        <NoteEditor
+                          onSave={(content) => handleAddNote(editingNote.paragraphId, content)}
+                          onCancel={() => setEditingNote(null)}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
+            </main>
+          )}
+          
+          {/* ========== 鍙屾爮妯″紡锛氫腑鏍?绾枃鐚? + 鍙虫爮(杈规爮绗旇) ========== */}
+          {!isInlineMode && (
+            <>
+              {/* 涓爮锛氱函鏂囩尞 */}
+              <main className="overflow-y-auto p-6" ref={contentRef}>
+                <div className="max-w-3xl mx-auto">
+                  <h1 className="text-2xl font-bold mb-6">
+                    {selectedLiterature.title_cn || selectedLiterature.title_en}
+                  </h1>
+                  
+                  {readMode === 'edit' ? (
+                    <textarea
+                      value={editContent}
+                      onChange={e => setEditContent(e.target.value)}
+                      className="w-full min-h-[600px] p-4 border rounded font-mono text-sm"
+                    />
+                  ) : (
+                    <div className="prose prose-lg max-w-none space-y-4">
+                      {paragraphs.map(p => (
+                        <ParagraphRenderer
+                          key={p.id}
+                          paragraph={p}
+                          words={getWordsForParagraph(p.id)}
+                          sentences={getSentencesForParagraph(p.id)}
+                          notes={[]} // 鍙屾爮妯″紡涓嶆樉绀鸿闂寸瑪璁?                          isInlineMode={false}
+                          onTextSelect={handleTextSelect}
+                          readMode={readMode}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </main>
+              
+              {/* 鍙虫爮锛氳竟鏍忕瑪璁?*/}
+              <aside className="bg-gray-50 border-l overflow-y-auto p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-semibold">馃摑 绗旇</h3>
+                  <button 
+                    onClick={() => setEditingNote({ paragraphId: paragraphs[0]?.id, content: '' })}
+                    className="text-sm px-2 py-1 bg-blue-500 text-white rounded"
+                  >
+                    + 娣诲姞
+                  </button>
+                </div>
                 
-                {/* 行间笔记模式 */}
-                {noteMode === NOTE_MODES.inline && renderNotes()}
-              </div>
-            ) : (
-              <div className="text-center text-text-secondary mt-20">
-                <p className="text-4xl mb-4">📖</p>
-                <p>请从左侧选择一篇文献开始阅读</p>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* 右侧边栏 - 边栏模式笔记 */}
-        {noteMode === NOTE_MODES.sidebar && selectedLiterature && (
-          <div className="w-72 border-l bg-gray-50">
-            {renderNotes()}
-          </div>
-        )}
-      </div>
-      
-      {/* 右键菜单 */}
-      {showContextMenu && (
-        <div
-          className="fixed z-50 bg-white rounded-lg shadow-lg border py-1 min-w-[160px]"
-          style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
-        >
-          <button
-            onClick={() => { handleTranslate(); setShowContextMenu(false); }}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-          >
-            🌐 翻译
-          </button>
-          <button
-            onClick={() => { handleAddToWordList(); setShowContextMenu(false); }}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-          >
-            📚 加入词汇本
-          </button>
-          <button
-            onClick={() => { handleAddToSentenceList(); setShowContextMenu(false); }}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
-          >
-            📝 加入长难句
-          </button>
-        </div>
-      )}
-      
-      {/* 翻译弹窗 */}
-      {showTranslateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
-            <div className="px-4 py-3 border-b flex justify-between items-center">
-              <h3 className="font-semibold">🌐 翻译结果</h3>
-              <button onClick={() => setShowTranslateModal(false)} className="text-gray-500 hover:text-gray-700">
-                ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="mb-3 p-3 bg-gray-50 rounded text-sm">
-                <p className="font-medium mb-1">原文：</p>
-                <p>{selectedText}</p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded text-sm">
-                <p className="font-medium mb-1">译文：</p>
-                <p>{translateResult}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 上传弹窗 */}
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="px-4 py-3 border-b flex justify-between items-center">
-              <h3 className="font-semibold">📤 上传文件</h3>
-              <button onClick={() => setShowUploadModal(false)} className="text-gray-500 hover:text-gray-700">
-                ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={handleUpload}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-primary-blue file:text-white hover:file:bg-primary-blue/90"
-              />
-              {isUploading && (
-                <div className="mt-4">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-primary-blue h-2 rounded-full transition-all"
-                      style={{ width: `${parseProgress}%` }}
+                <div className="space-y-3">
+                  {notes.map(note => {
+                    const paragraph = paragraphs.find(p => p.id === note.anchor_id)
+                    return (
+                      <SidebarNote
+                        key={note.id}
+                        note={note}
+                        paragraph={paragraph}
+                        onEdit={(n) => setEditingNote({ ...n, editing: true })}
+                        onDelete={async (id) => {
+                          // 瀹炵幇鍒犻櫎閫昏緫
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+                
+                {/* 缂栬緫鍣?*/}
+                {editingNote && (
+                  <div className="mt-4">
+                    <NoteEditor
+                      initialContent={editingNote.content}
+                      onSave={(content) => handleAddNote(editingNote.paragraphId, content)}
+                      onCancel={() => setEditingNote(null)}
                     />
                   </div>
-                  <p className="text-sm text-center mt-2">
-                    {uploadingFile?.name} - {parseProgress}%
-                  </p>
-                </div>
-              )}
-              <p className="text-xs text-text-secondary mt-4">
-                支持 PDF、Word、TXT 格式。上传后将自动解析内容。
-              </p>
-            </div>
-          </div>
+                )}
+              </aside>
+            </>
+          )}
+          
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-gray-400">
+          <p>璇烽€夋嫨涓€绡囨枃鐚紑濮嬮槄璇?/p>
         </div>
       )}
       
-      {/* 移动端文献选择 */}
-      {isMobileDevice && (
-        <div className="md:hidden fixed bottom-4 right-4">
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="w-14 h-14 bg-primary-blue text-white rounded-full shadow-lg flex items-center justify-center text-2xl"
-          >
-            📚
-          </button>
-        </div>
-      )}
+      {/* 鍏ㄥ眬鏍峰紡 */}
+      <style>{`
+        .word-new {
+          color: #DC2626;
+          font-weight: bold;
+          border-bottom: 2px solid #DC2626;
+        }
+        .word-learning {
+          color: #D97706;
+          font-weight: bold;
+          border-bottom: 2px solid #F59E0B;
+        }
+        .word-mastered {
+          color: inherit;
+        }
+        .sentence-highlight {
+          color: #DC2626;
+          background: rgba(254, 226, 226, 0.3);
+          border-radius: 2px;
+          padding: 1px 2px;
+        }
+        .paragraph-block {
+          position: relative;
+          padding: 8px 0;
+        }
+      `}</style>
     </div>
   )
 }
