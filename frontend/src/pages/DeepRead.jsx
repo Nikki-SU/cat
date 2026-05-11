@@ -135,11 +135,40 @@ const WordList = ({ words, paragraphs, onWordClick }) => {
   )
 }
 
-// 带单词/长难句高亮的文本渲染
-const HighlightedText = ({ text, words, sentences }) => {
+// 带单词/长难句高亮的文本渲染 + 句子着色
+const HighlightedText = ({ text, words, sentences, colorScheme = 'none' }) => {
   if (!text) return null
   
-  // 简单的替换策略
+  // 分割句子
+  const sentenceList = splitSentences(text)
+  
+  // 如果关闭着色或只有一句，直接渲染
+  if (!isSentenceColoringEnabled(colorScheme) || sentenceList.length <= 1) {
+    return <span>{renderColoredText(text, words, sentences)}</span>
+  }
+  
+  // 逐句渲染并着色
+  return (
+    <span>
+      {sentenceList.map((sentence, idx) => (
+        <span
+          key={idx}
+          style={{
+            backgroundColor: getSentenceBackgroundColor(idx, colorScheme),
+            padding: '2px 4px',
+            borderRadius: '3px',
+            display: 'inline',
+          }}
+        >
+          {renderColoredText(sentence, words, sentences)}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+// 渲染带单词/长难句高亮的文本（内部函数）
+const renderColoredText = (text, words, sentences) => {
   let highlighted = text
   
   // 标记长难句（先处理长的）
@@ -173,6 +202,26 @@ const HighlightedText = ({ text, words, sentences }) => {
   
   return <span dangerouslySetInnerHTML={{ __html: highlighted }} />
 }
+  })
+  
+  // 标记单词
+  words?.forEach(w => {
+    if (!w.word_en) return
+    try {
+      const regex = new RegExp(`\\b(${w.word_en})\\b`, 'gi')
+      const style = w.status === 'new' 
+        ? 'word-new' 
+        : w.status === 'learning' 
+          ? 'word-learning' 
+          : 'word-mastered'
+      highlighted = highlighted.replace(regex, `<span class="${style}">$1</span>`)
+    } catch (e) {
+      // 忽略正则错误
+    }
+  })
+  
+  return <span dangerouslySetInnerHTML={{ __html: highlighted }} />
+}
 
 // 文献段落渲染
 const ParagraphRenderer = ({ 
@@ -183,7 +232,8 @@ const ParagraphRenderer = ({
   isInlineMode,
   onAddNote,
   onTextSelect,
-  readMode
+  readMode,
+  colorScheme  // 新增
 }) => {
   const paragraphWords = words || []
   const paragraphSentences = sentences || []
@@ -198,16 +248,16 @@ const ParagraphRenderer = ({
       case 'heading':
         const level = raw.match(/^(#+)/)?.[0].length || 1
         const text = raw.replace(/^#+\s*/, '')
-        return <Heading level={level} text={text} words={paragraphWords} sentences={paragraphSentences} />
+        return <Heading level={level} text={text} words={paragraphWords} sentences={paragraphSentences} colorScheme={colorScheme} />
       
       case 'bullet':
-        return <li className="ml-4"><HighlightedText text={raw.replace(/^[-*]\s*/, '')} words={paragraphWords} sentences={paragraphSentences} /></li>
+        return <li className="ml-4"><HighlightedText text={raw.replace(/^[-*]\s*/, '')} words={paragraphWords} sentences={paragraphSentences} colorScheme={colorScheme} /></li>
       
       case 'numbered':
-        return <li className="ml-4"><HighlightedText text={raw.replace(/^\d+\.\s*/, '')} words={paragraphWords} sentences={paragraphSentences} /></li>
+        return <li className="ml-4"><HighlightedText text={raw.replace(/^\d+\.\s*/, '')} words={paragraphWords} sentences={paragraphSentences} colorScheme={colorScheme} /></li>
       
       default:
-        return <p><HighlightedText text={raw} words={paragraphWords} sentences={paragraphSentences} /></p>
+        return <p><HighlightedText text={raw} words={paragraphWords} sentences={paragraphSentences} colorScheme={colorScheme} /></p>
     }
   }
 
@@ -247,11 +297,11 @@ const ParagraphRenderer = ({
 }
 
 // 标题组件
-const Heading = ({ level, text, words, sentences }) => {
+const Heading = ({ level, text, words, sentences, colorScheme }) => {
   const Tag = `h${Math.min(level + 1, 6)}`
   return (
     <Tag className="font-bold my-4">
-      <HighlightedText text={text} words={words} sentences={sentences} />
+      <HighlightedText text={text} words={words} sentences={sentences} colorScheme={colorScheme} />
     </Tag>
   )
 }
@@ -323,10 +373,12 @@ function DeepRead() {
     readMode,
     isProtected,
     selectedColor,
+    sentenceColorScheme,  // 新增
     loadLiterature,
     setLayoutMode,
     setReadMode,
     toggleEditMode,
+    setSentenceColorScheme,  // 新增
     addNote,
     deleteNote,
     updateNote,
@@ -499,6 +551,23 @@ function DeepRead() {
             💾 保存
           </button>
         )}
+        
+        {/* 句子着色切换 */}
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm text-gray-600">句子着色:</span>
+          <select
+            value={sentenceColorScheme}
+            onChange={(e) => setSentenceColorScheme(e.target.value)}
+            className="text-sm border rounded px-2 py-1"
+            title="选择句子交替着色方案，帮助区分不同句子"
+          >
+            {Object.values(SENTENCE_COLOR_SCHEMES).map(scheme => (
+              <option key={scheme.id} value={scheme.id}>
+                {scheme.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </header>
       
       {/* 主内容区 */}
@@ -552,6 +621,7 @@ function DeepRead() {
                         onAddNote={(id) => setEditingNote({ paragraphId: id, content: '' })}
                         onTextSelect={handleTextSelect}
                         readMode={readMode}
+                        colorScheme={sentenceColorScheme}
                       />
                     ))}
                     
@@ -598,6 +668,7 @@ function DeepRead() {
                           isInlineMode={false}
                           onTextSelect={handleTextSelect}
                           readMode={readMode}
+                          colorScheme={sentenceColorScheme}
                         />
                       ))}
                     </div>
