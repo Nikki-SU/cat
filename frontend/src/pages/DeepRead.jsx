@@ -569,4 +569,267 @@ function DeepRead() {
                       ? 'bg-primary-blue text-white' 
                       : 'hover:bg-gray-200'
                   }`}
- 
+                >
+                  {item.title_cn || item.title_en || item.doi}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* 颜色-结构快捷设置 */}
+          <div className="p-4 border-t">
+            <h3 className="font-semibold mb-2">🎨 颜色-结构</h3>
+            <div className="space-y-2">
+              {colorMappings.map((mapping, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <div 
+                    className="w-4 h-4 rounded" 
+                    style={{ backgroundColor: mapping.color }}
+                  />
+                  <span className="text-sm">{mapping.name}</span>
+                  <span className="text-xs text-text-secondary">{mapping.description}</span>
+                </div>
+              ))}
+            </div>
+            
+            {/* 高亮颜色选择 */}
+            <div className="mt-4">
+              <p className="text-sm font-medium mb-2">选择高亮色</p>
+              <div className="flex flex-wrap gap-1">
+                {HIGHLIGHT_COLORS.map(color => (
+                  <button
+                    key={color.id}
+                    onClick={() => setSelectedColor(color)}
+                    className={`w-6 h-6 rounded border-2 ${
+                      selectedColor.id === color.id ? 'border-gray-800' : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: color.color }}
+                    title={color.label}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* 中间主内容区 */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* 工具栏 */}
+          <div className="bg-white border-b px-4 py-2 flex items-center gap-2 flex-wrap">
+            {/* 保存按钮 */}
+            <button
+              onClick={handleSaveContent}
+              disabled={!hasUnsavedChanges || !selectedLiterature}
+              className="btn btn-primary text-sm"
+            >
+              💾 保存 {hasUnsavedChanges && '*'}
+            </button>
+            
+            {/* 编辑模式切换 */}
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              disabled={!selectedLiterature}
+              className={`btn text-sm ${isEditing ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              {isEditing ? '📖 阅读模式' : '✏️ 编辑模式'}
+            </button>
+            
+            {/* 笔记模式切换 */}
+            <div className="flex border rounded overflow-hidden">
+              <button
+                onClick={() => setNoteMode(NOTE_MODES.inline)}
+                className={`px-2 py-1 text-sm ${noteMode === NOTE_MODES.inline ? 'bg-primary-blue text-white' : 'bg-gray-100'}`}
+              >
+                {NOTE_MODES.inline.icon} 行间
+              </button>
+              <button
+                onClick={() => setNoteMode(NOTE_MODES.sidebar)}
+                className={`px-2 py-1 text-sm ${noteMode === NOTE_MODES.sidebar ? 'bg-primary-blue text-white' : 'bg-gray-100'}`}
+              >
+                {NOTE_MODES.sidebar.icon} 边栏
+              </button>
+            </div>
+            
+            {/* 布局切换（仅PC端） */}
+            {!isMobileDevice && (
+              <div className="flex border rounded overflow-hidden ml-auto">
+                {Object.values(LAYOUT_MODES).map(mode => (
+                  <button
+                    key={mode.id}
+                    onClick={() => setLayoutMode(mode)}
+                    className={`px-2 py-1 text-sm ${layoutMode.id === mode.id ? 'bg-primary-blue text-white' : 'bg-gray-100'}`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {/* 上传按钮 */}
+            <button
+              onClick={() => setShowUploadModal(true)}
+              disabled={!selectedLiterature}
+              className="btn btn-secondary text-sm"
+            >
+              📤 上传
+            </button>
+          </div>
+          
+          {/* 内容区域 */}
+          <div 
+            className="flex-1 overflow-auto p-4"
+            onMouseUp={handleTextSelection}
+            onContextMenu={handleContextMenu}
+          >
+            {selectedLiterature ? (
+              <div className="max-w-4xl mx-auto">
+                {/* 文献标题 */}
+                <h1 className="text-xl font-bold mb-4">
+                  {selectedLiterature.title_cn || selectedLiterature.title_en}
+                </h1>
+                
+                {/* 内容 */}
+                {isEditing ? (
+                  <textarea
+                    ref={textareaRef}
+                    value={structuredContent}
+                    onChange={(e) => handleContentChange(e.target.value)}
+                    className="input w-full min-h-[500px] font-mono text-sm"
+                    placeholder="在此输入Markdown内容..."
+                  />
+                ) : (
+                  <div className="prose prose-lg max-w-none" ref={contentRef}>
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
+                    >
+                      {structuredContent || '暂无内容，请点击编辑模式添加内容或上传PDF文件解析。'}
+                    </ReactMarkdown>
+                  </div>
+                )}
+                
+                {/* 行间笔记模式 */}
+                {noteMode === NOTE_MODES.inline && renderNotes()}
+              </div>
+            ) : (
+              <div className="text-center text-text-secondary mt-20">
+                <p className="text-4xl mb-4">📖</p>
+                <p>请从左侧选择一篇文献开始阅读</p>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* 右侧边栏 - 边栏模式笔记 */}
+        {noteMode === NOTE_MODES.sidebar && selectedLiterature && (
+          <div className="w-72 border-l bg-gray-50">
+            {renderNotes()}
+          </div>
+        )}
+      </div>
+      
+      {/* 右键菜单 */}
+      {showContextMenu && (
+        <div
+          className="fixed z-50 bg-white rounded-lg shadow-lg border py-1 min-w-[160px]"
+          style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
+        >
+          <button
+            onClick={() => { handleTranslate(); setShowContextMenu(false); }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+          >
+            🌐 翻译
+          </button>
+          <button
+            onClick={() => { handleAddToWordList(); setShowContextMenu(false); }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+          >
+            📚 加入词汇本
+          </button>
+          <button
+            onClick={() => { handleAddToSentenceList(); setShowContextMenu(false); }}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+          >
+            📝 加入长难句
+          </button>
+        </div>
+      )}
+      
+      {/* 翻译弹窗 */}
+      {showTranslateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="px-4 py-3 border-b flex justify-between items-center">
+              <h3 className="font-semibold">🌐 翻译结果</h3>
+              <button onClick={() => setShowTranslateModal(false)} className="text-gray-500 hover:text-gray-700">
+                ✕
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="mb-3 p-3 bg-gray-50 rounded text-sm">
+                <p className="font-medium mb-1">原文：</p>
+                <p>{selectedText}</p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded text-sm">
+                <p className="font-medium mb-1">译文：</p>
+                <p>{translateResult}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 上传弹窗 */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-4 py-3 border-b flex justify-between items-center">
+              <h3 className="font-semibold">📤 上传文件</h3>
+              <button onClick={() => setShowUploadModal(false)} className="text-gray-500 hover:text-gray-700">
+                ✕
+              </button>
+            </div>
+            <div className="p-4">
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={handleUpload}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-primary-blue file:text-white hover:file:bg-primary-blue/90"
+              />
+              {isUploading && (
+                <div className="mt-4">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-primary-blue h-2 rounded-full transition-all"
+                      style={{ width: `${parseProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-center mt-2">
+                    {uploadingFile?.name} - {parseProgress}%
+                  </p>
+                </div>
+              )}
+              <p className="text-xs text-text-secondary mt-4">
+                支持 PDF、Word、TXT 格式。上传后将自动解析内容。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 移动端文献选择 */}
+      {isMobileDevice && (
+        <div className="md:hidden fixed bottom-4 right-4">
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="w-14 h-14 bg-primary-blue text-white rounded-full shadow-lg flex items-center justify-center text-2xl"
+          >
+            📚
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default DeepRead

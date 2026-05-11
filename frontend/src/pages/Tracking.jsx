@@ -409,4 +409,409 @@ function Tracking() {
                       <span className={`px-2 py-1 rounded text-xs ${
                         result.valid ? 'bg-primary-green text-white' : 'bg-status-error text-white'
                       }`}>
-                        {result.va
+                        {result.valid ? '✓ 有效' : '✕ 无效'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 py-3 border-t flex justify-end gap-2">
+            <button onClick={() => setShowValidation(false)} className="btn btn-secondary">
+              关闭
+            </button>
+            {validationResults.some(r => !r.valid) && (
+              <button onClick={handleStartTracking} className="btn btn-primary">
+                忽略无效期刊，继续追踪
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Tab切换
+  const tabs = [
+    { id: 'search', label: '🔍 文献检索', icon: '🔍' },
+    { id: 'tracking', label: '⚙️ 追踪设置', icon: '⚙️' },
+    { id: 'results', label: '📋 追踪结果', icon: '📋' },
+  ]
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Tab导航 */}
+      <div className="bg-white border-b px-4">
+        <div className="flex gap-1 overflow-x-auto">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-3 text-sm whitespace-nowrap border-b-2 ${
+                activeTab === tab.id 
+                  ? 'border-primary-blue text-primary-blue' 
+                  : 'border-transparent text-text-secondary hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto p-4">
+        {/* 文献检索 */}
+        {activeTab === 'search' && (
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* DOI直接添加 */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="font-semibold mb-4">📥 DOI直接添加</h2>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={doiDirectInput}
+                  onChange={(e) => setDoiDirectInput(e.target.value)}
+                  placeholder="输入DOI（如：10.1000/xyz123）"
+                  className="input flex-1"
+                />
+                <button
+                  onClick={handleAddByDOI}
+                  disabled={isAddingByDoi}
+                  className="btn btn-primary"
+                >
+                  {isAddingByDoi ? '添加中...' : '添加'}
+                </button>
+              </div>
+            </div>
+
+            {/* 文献检索跳转 */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="font-semibold mb-4">🔍 文献检索跳转</h2>
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="输入DOI或关键词"
+                  className="input flex-1"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <button onClick={handleSearch} className="btn btn-primary">
+                  搜索
+                </button>
+              </div>
+              
+              {/* 跳转模式选择 */}
+              <div className="flex flex-wrap gap-2">
+                {jumpModes.map(mode => (
+                  <button
+                    key={mode.id}
+                    onClick={() => setJumpMode(mode.id)}
+                    className={`px-3 py-2 rounded-lg border text-sm ${
+                      jumpMode === mode.id 
+                        ? 'border-primary-blue bg-primary-blue/10 text-primary-blue' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {mode.label}
+                    <span className="block text-xs text-text-secondary">{mode.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 最近添加 */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="font-semibold mb-4">📚 文献库最近添加</h2>
+              <div className="space-y-2">
+                {literatureTable.slice(0, 10).map(item => (
+                  <div key={item.doi} className="p-3 bg-gray-50 rounded-lg">
+                    <p className="font-medium text-sm truncate">
+                      {item.title_cn || item.title_en || '无标题'}
+                    </p>
+                    <p className="text-xs text-text-secondary mt-1">
+                      {item.journal} • {item.first_author || '未知作者'}
+                    </p>
+                  </div>
+                ))}
+                {literatureTable.length === 0 && (
+                  <p className="text-center text-text-secondary py-8">暂无文献</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 追踪设置 */}
+        {activeTab === 'tracking' && (
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* 期刊合集选择 */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="font-semibold">📰 期刊合集</h2>
+                <button
+                  onClick={() => handleSaveAsNewGroup('journal')}
+                  className="text-sm text-primary-blue hover:underline"
+                >
+                  保存当前配置
+                </button>
+              </div>
+              
+              {/* 合集选择 */}
+              <select
+                value={selectedJournalGroup?.id || ''}
+                onChange={(e) => {
+                  const group = journalGroups.find(g => g.id === e.target.value)
+                  setSelectedJournalGroup(group || null)
+                  setIsTempModified(false)
+                }}
+                className="input w-full mb-3"
+              >
+                <option value="">选择期刊合集...</option>
+                {journalGroups.map(group => (
+                  <option key={group.id} value={group.id}>
+                    {group.name} ({group.journals?.length || 0}个期刊)
+                  </option>
+                ))}
+              </select>
+              
+              {/* 期刊列表 */}
+              <div className="space-y-2">
+                <p className="text-sm text-text-secondary">
+                  当前期刊 ({tempJournals.length})：
+                </p>
+                <textarea
+                  value={tempJournals.join('\n')}
+                  onChange={(e) => {
+                    setTempJournals(e.target.value.split('\n').map(j => j.trim()).filter(j => j))
+                    setIsTempModified(true)
+                  }}
+                  placeholder="每行一个期刊名..."
+                  className="input min-h-[120px]"
+                />
+              </div>
+            </div>
+
+            {/* 关键词合集选择 */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="font-semibold">🔑 关键词合集</h2>
+                <button
+                  onClick={() => handleSaveAsNewGroup('keyword')}
+                  className="text-sm text-primary-blue hover:underline"
+                >
+                  保存当前配置
+                </button>
+              </div>
+              
+              {/* 合集选择 */}
+              <select
+                value={selectedKeywordGroup?.id || ''}
+                onChange={(e) => {
+                  const group = keywordGroups.find(g => g.id === e.target.value)
+                  setSelectedKeywordGroup(group || null)
+                  setIsTempModified(false)
+                }}
+                className="input w-full mb-3"
+              >
+                <option value="">选择关键词合集...</option>
+                {keywordGroups.map(group => (
+                  <option key={group.id} value={group.id}>
+                    {group.name} ({group.keywords?.length || 0}个关键词)
+                  </option>
+                ))}
+              </select>
+              
+              {/* 关键词列表 */}
+              <div className="space-y-2">
+                <p className="text-sm text-text-secondary">
+                  当前关键词 ({tempKeywords.length})：
+                </p>
+                <textarea
+                  value={tempKeywords.join('\n')}
+                  onChange={(e) => {
+                    setTempKeywords(e.target.value.split('\n').map(k => k.trim()).filter(k => k))
+                    setIsTempModified(true)
+                  }}
+                  placeholder="每行一个关键词..."
+                  className="input min-h-[100px]"
+                />
+              </div>
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="font-semibold mb-4">🚀 开始追踪</h2>
+              
+              {/* 追踪进度 */}
+              {isTracking && (
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm">
+                    正在追踪: {trackingProgress.journal}
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    进度: {trackingProgress.current}/{trackingProgress.total} 
+                    {trackingProgress.count > 0 && ` • 已找到 ${trackingProgress.count} 篇`}
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div 
+                      className="bg-primary-blue h-2 rounded-full transition-all"
+                      style={{ width: `${(trackingProgress.current / trackingProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={handleValidateJournals}
+                  disabled={isTracking}
+                  className="btn btn-secondary flex-1"
+                >
+                  🔍 验证期刊
+                </button>
+                <button
+                  onClick={handleStartTracking}
+                  disabled={isTracking || getTrackingJournals().length === 0}
+                  className="btn btn-primary flex-1"
+                >
+                  {isTracking ? '追踪中...' : '▶️ 开始追踪'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 追踪结果 */}
+        {activeTab === 'results' && (
+          <div className="max-w-3xl mx-auto">
+            {/* 结果操作栏 */}
+            {Object.keys(trackingResults).length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-4 mb-4 flex justify-between items-center">
+                <div>
+                  <span className="font-semibold">
+                    共 {Object.values(trackingResults).flat().length} 篇文献
+                  </span>
+                  <span className="text-sm text-text-secondary ml-2">
+                    （来自 {Object.keys(trackingResults).length} 个期刊）
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleClearResults} className="btn btn-secondary text-sm">
+                    清空
+                  </button>
+                  <button onClick={handleConfirmResults} className="btn btn-primary text-sm">
+                    ✓ 确认添加全部
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 按期刊分组显示结果 */}
+            <div className="space-y-4">
+              {Object.entries(trackingResults).map(([journal, works]) => (
+                <div key={journal} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+                    <h3 className="font-semibold">{journal}</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleBatchAction(journal, 'added')}
+                        className="text-xs text-primary-blue hover:underline"
+                      >
+                        全选
+                      </button>
+                      <button
+                        onClick={() => handleBatchAction(journal, 'removed')}
+                        className="text-xs text-status-error hover:underline"
+                      >
+                        取消全部
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="divide-y">
+                    {works.map((work, idx) => {
+                      const pending = pendingRecords[journal]?.find(w => w.doi === work.doi)
+                      const action = pending?.action || 'added'
+                      
+                      return (
+                        <div 
+                          key={work.doi || idx} 
+                          className={`p-4 flex items-start gap-3 ${
+                            action === 'added' ? 'bg-white' : 'bg-gray-50'
+                          }`}
+                        >
+                          {/* 操作按钮 */}
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => handleRecordAction(journal, work.doi, 'added')}
+                              className={`w-8 h-6 rounded text-xs ${
+                                action === 'added' 
+                                  ? 'bg-primary-green text-white' 
+                                  : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                              }`}
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() => handleRecordAction(journal, work.doi, 'removed')}
+                              className={`w-8 h-6 rounded text-xs ${
+                                action === 'removed' 
+                                  ? 'bg-status-error text-white' 
+                                  : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                              }`}
+                            >
+                              -
+                            </button>
+                          </div>
+                          
+                          {/* 文献信息 */}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm line-clamp-2">
+                              {work.title_cn || work.title_en || work.title || '无标题'}
+                            </p>
+                            <p className="text-xs text-text-secondary mt-1">
+                              {work.first_author && `作者: ${work.first_author}`}
+                              {work.pubdate && ` • ${work.pubdate}`}
+                            </p>
+                            <p className="text-xs text-text-secondary">
+                              DOI: {work.doi}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 空状态 */}
+            {Object.keys(trackingResults).length === 0 && (
+              <div className="text-center text-text-secondary py-20">
+                <p className="text-4xl mb-4">📋</p>
+                <p>暂无追踪结果</p>
+                <p className="text-sm mt-2">
+                  在「追踪设置」中配置期刊和关键词后开始追踪
+                </p>
+                <button
+                  onClick={() => setActiveTab('tracking')}
+                  className="btn btn-primary mt-4"
+                >
+                  去设置追踪
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 期刊验证弹窗 */}
+      {renderValidationModal()}
+    </div>
+  )
+}
+
+export default Tracking
