@@ -58,6 +58,11 @@ export const literatureAPI = {
   
   // 获取文献详情（含关联状态）
   getTableEntryDetails: (doi) => apiClient.get(`/literature/table/${doi}/details`),
+  
+  // 导出
+  exportTable: (params) => `${API_BASE_URL}/literature/table/export`,
+  exportTableByTags: (tags, format = 'xlsx') => 
+    `${API_BASE_URL}/literature/table/export-by-tags?tags=${tags}&format=${format}`,
 }
 
 // ==================== 追踪 API ====================
@@ -114,6 +119,10 @@ export const cardAPI = {
   createTemplate: (data) => apiClient.post('/cards/templates', data),
   updateTemplate: (id, data) => apiClient.put(`/cards/templates/${id}`, data),
   deleteTemplate: (id) => apiClient.delete(`/cards/templates/${id}`),
+  
+  // 使用模板生成卡片
+  generateFromTemplate: (templateId, doi) => 
+    apiClient.post(`/cards/templates/${templateId}/generate`),
 }
 
 // ==================== 附件 API ====================
@@ -213,14 +222,112 @@ export const noteAPI = {
 
 // ==================== 组织 API ====================
 export const organizationAPI = {
+  // 标签
   listTags: (params) => apiClient.get('/organization/tags', { params }),
   getTag: (id) => apiClient.get(`/organization/tags/${id}`),
   createTag: (data) => apiClient.post('/organization/tags', data),
   updateTag: (id, data) => apiClient.put(`/organization/tags/${id}`, data),
   deleteTag: (id) => apiClient.delete(`/organization/tags/${id}`),
+  getTagsByDoi: (doi) => apiClient.get(`/organization/tags/by-doi/${doi}`),
+  getTagsByName: (name) => apiClient.get(`/organization/tags/by-name/${name}`),
+  getAllTagNames: () => apiClient.get('/organization/tags/all-names'),
+  batchCreateTags: (tags) => apiClient.post('/organization/tags/batch', tags),
 
+  // 合集
   listCollections: (params) => apiClient.get('/organization/collections', { params }),
   getCollection: (id) => apiClient.get(`/organization/collections/${id}`),
   createCollection: (data) => apiClient.post('/organization/collections', data),
   updateCollection: (id, data) => apiClient.put(`/organization/collections/${id}`, data),
-  delete
+  deleteCollection: (id) => apiClient.delete(`/organization/collections/${id}`),
+  getCollectionItems: (id) => apiClient.get(`/organization/collections/${id}/items`),
+  addItemToCollection: (id, data) => apiClient.post(`/organization/collections/${id}/items`, data),
+  removeItemFromCollection: (id, itemId) => apiClient.delete(`/organization/collections/${id}/items/${itemId}`),
+  filterCollectionItems: (id, params) => apiClient.get(`/organization/collections/${id}/filter`, { params }),
+
+  // 期刊合集
+  listJournalGroups: (params) => apiClient.get('/organization/journal-groups', { params }),
+  getJournalGroup: (id) => apiClient.get(`/organization/journal-groups/${id}`),
+  createJournalGroup: (data) => apiClient.post('/organization/journal-groups', data),
+  updateJournalGroup: (id, data) => apiClient.put(`/organization/journal-groups/${id}`, data),
+  deleteJournalGroup: (id) => apiClient.delete(`/organization/journal-groups/${id}`),
+  validateJournalGroup: (id) => apiClient.post(`/organization/journal-groups/${id}/validate`),
+
+  // 关键词合集
+  listKeywordGroups: (params) => apiClient.get('/organization/keyword-groups', { params }),
+  getKeywordGroup: (id) => apiClient.get(`/organization/keyword-groups/${id}`),
+  createKeywordGroup: (data) => apiClient.post('/organization/keyword-groups', data),
+  updateKeywordGroup: (id, data) => apiClient.put(`/organization/keyword-groups/${id}`, data),
+  deleteKeywordGroup: (id) => apiClient.delete(`/organization/keyword-groups/${id}`),
+}
+
+// ==================== AI API ====================
+export const aiAPI = {
+  // 配置
+  configure: (apiKey, apiBase, model) => 
+    apiClient.post('/ai/config', null, { params: { api_key: apiKey, api_base: apiBase, model } }),
+  test: () => apiClient.post('/ai/test'),
+  
+  // 翻译
+  translate: (text, targetLang) => apiClient.post('/ai/translate', null, { params: { text, target_lang: targetLang } }),
+  translateDoi: (doi) => apiClient.post(`/ai/translate-doi`, null, { params: { doi } }),
+  
+  // 单词
+  completeWord: (wordEn, context) => apiClient.post('/ai/complete-word', null, { params: { word_en: wordEn, context } }),
+  
+  // 长难句
+  translateSentence: (sentenceEn) => apiClient.post('/ai/translate-sentence', null, { params: { sentence_en: sentenceEn } }),
+  
+  // 分句
+  splitSentences: (text) => apiClient.post('/ai/split-sentences', null, { params: { text } }),
+  
+  // 期刊验证
+  suggestJournalCorrection: (journalName) => 
+    apiClient.post('/ai/suggest-journal-correction', null, { params: { journal_name: journalName } }),
+  
+  // 术语提取
+  extractTerms: (text) => apiClient.post('/ai/extract-terms', null, { params: { text } }),
+  
+  // 卡片生成
+  generateCard: (literatureData, templatePrompt) => 
+    apiClient.post('/ai/generate-card', { literature_data: literatureData, template_prompt: templatePrompt }),
+  generateCardFromTemplate: (templateId, doi) => 
+    apiClient.post(`/ai/generate-card-from-template/${templateId}`, null, { params: { doi } }),
+  
+  // 翻译评价
+  evaluateTranslation: (original, translation) => 
+    apiClient.post('/ai/evaluate-translation', { original, translation }),
+  
+  // 通用对话
+  chat: (messages, temperature, maxTokens) => 
+    apiClient.post('/ai/chat', { messages }, { params: { temperature, max_tokens: maxTokens } }),
+  
+  // 笔记辅助
+  summarizeContent: (content, maxLength) => 
+    apiClient.post('/ai/summarize-content', null, { params: { content, max_length: maxLength } }),
+  extractKeyPoints: (content, numPoints) => 
+    apiClient.post('/ai/extract-key-points', null, { params: { content, num_points: numPoints } }),
+}
+
+// ==================== 备份同步 API ====================
+export const backupAPI = {
+  createBackup: () => apiClient.post('/backup/create'),
+  listBackups: () => apiClient.get('/backup/list'),
+  downloadBackup: (filename) => `${API_BASE_URL}/backup/download/${filename}`,
+  restoreBackup: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return apiClient.post('/backup/restore', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+}
+
+export const syncAPI = {
+  push: (changes) => apiClient.post('/sync/push', { changes }),
+  pull: (lastSyncTime) => apiClient.post('/sync/pull', null, { params: { last_sync_time: lastSyncTime } }),
+  getStatus: () => apiClient.get('/sync/status'),
+  resolveConflict: (tableName, recordId, resolution, localData, remoteData) => 
+    apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_id: recordId, resolution, local_data: localData, remote_data: remoteData }),
+}
+
+export default apiClient

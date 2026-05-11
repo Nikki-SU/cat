@@ -5,23 +5,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, or_, and_
 from typing import List, Optional
 from datetime import datetime
-from io import StringIO, BytesIO
-import csv
+from io import BytesIO
 import os
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill
 
 from database import get_db
 from models.literature import LiteratureEntry, LiteratureTableEntry
-from models.attachment import LiteratureAttachment
-from models.structured import StructuredLiterature
-from models.card import LiteratureCard
-from models.note import GeneralNote
+from models.organization import Tag
 from schemas.literature import (
     LiteratureEntryCreate, LiteratureEntryUpdate, LiteratureEntryResponse,
     LiteratureTableEntryCreate, LiteratureTableEntryUpdate, LiteratureTableEntryResponse,
     LiteratureSearchParams
 )
+from services.export_service import export_service
 
 router = APIRouter(prefix="/literature", tags=["文献"])
 
@@ -108,18 +103,7 @@ def list_literature_table(
     until_date: str = None,
     db: Session = Depends(get_db)
 ):
-    """
-    获取文献表列表
-    
-    Args:
-        skip: 跳过记录数
-        limit: 返回记录数
-        search: 搜索关键词
-        sort_by: 排序字段
-        sort_order: 排序方向
-        from_date: 开始日期
-        until_date: 结束日期
-    """
+    """获取文献表列表"""
     query = db.query(LiteratureTableEntry)
     
     # 搜索
@@ -127,4 +111,331 @@ def list_literature_table(
         search_pattern = f"%{search}%"
         query = query.filter(
             or_(
-             
+                LiteratureTableEntry.doi.like(search_pattern),
+                LiteratureTableEntry.title_cn.like(search_pattern),
+                LiteratureTableEntry.title_en.like(search_pattern),
+                LiteratureTableEntry.journal.like(search_pattern),
+                LiteratureTableEntry.first_author.like(search_pattern)
+            )
+        )
+    
+    # 日期过滤
+    if from_date:
+        query = query.filter(LiteratureTableEntry.created_at >= from_date)
+    if until_date:
+        query = query.filter(LiteratureTableEntry.created_at <= until_date)
+    
+    # 排序
+    sort_column = getattr(LiteratureTableEntry, sort_by)
+    if sort_order == "desc":
+        query = query.order_by(desc(sort_column))
+    else:
+        query = query.order_by(asc(sort_column))
+    
+    return query.offset(skip).limit(limit).all()
+
+
+@router.get("/table/{doi}", response_model=LiteratureTableEntryResponse)
+def get_literature_table_entry(doi: str, db: Session = Depends(get_db)):
+    """获取单个文献表条目"""
+    entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="文献不存在")
+    return entry
+
+
+@router.post("/table", response_model=LiteratureTableEntryResponse)
+def create_literature_table_entry(data: LiteratureTableEntryCreate, db: Session = Depends(get_db)):
+    """创建文献表条目"""
+    entry = LiteratureTableEntry(**data.model_dump())
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@router.post("/table/batch")
+def batch_create_literature_table_entries(
+    entries: List[LiteratureTableEntryCreate],
+    db: Session = Depends(get_db)
+):
+    """批量创建文献表条目"""
+    created = []
+    for data in entries:
+        # 检查是否已存在
+        existing = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == data.doi).first()
+        if not existing:
+            entry = LiteratureTableEntry(**data.model_dump())
+            db.add(entry)
+            created.append(entry)
+    
+    db.commit()
+    for entry in created:
+        db.refresh(entry)
+    
+    return {"created": len(created), "entries": created}
+
+
+@router.put("/table/{doi}", response_model=LiteratureTableEntryResponse)
+def update_literature_table_entry(doi: str, data: LiteratureTableEntryUpdate, db: Session = Depends(get_db)):
+    """更新文献表条目"""
+    entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="文献不存在")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(entry, key, value)
+    entry.updated_at = datetime.now()
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@router.delete("/table/{doi}")
+def delete_literature_table_entry(
+    doi: str, 
+    cascade: bool = Query(default=False),
+    db: Session = Depends(get_db)
+):
+    """删除文献表条目"""
+    entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="文献不存在")
+    
+    if cascade:
+        # 级联删除关联数据
+        from models.attachment import LiteratureAttachment
+        from models.structured import StructuredLiterature
+        from models.card import LiteratureCard
+        from models.note import GeneralNote
+        from models.organization import Tag, CollectionItem
+        
+        # 删除附件
+        db.query(LiteratureAttachment).filter(LiteratureAttachment.doi == doi).delete()
+        # 删除结构化文献
+        db.query(StructuredLiterature).filter(StructuredLiterature.doi == doi).delete()
+        # 删除文献卡片
+        db.query(LiteratureCard).filter(LiteratureCard.doi == doi).delete()
+        # 删除笔记
+        db.query(GeneralNote).filter(GeneralNote.doi == doi).delete()
+        # 删除标签
+        db.query(Tag).filter(Tag.doi == doi).delete()
+        # 删除合集条目
+        db.query(CollectionItem).filter(CollectionItem.doi == doi).delete()
+    
+    db.delete(entry)
+    db.commit()
+    return {"message": "删除成功"}
+
+
+@router.get("/table/{doi}/details")
+def get_literature_table_entry_details(doi: str, db: Session = Depends(get_db)):
+    """获取文献详情（含关联状态）"""
+    from models.attachment import LiteratureAttachment
+    from models.structured import StructuredLiterature
+    from models.card import LiteratureCard
+    from models.note import GeneralNote
+    from models.organization import Tag
+    
+    entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="文献不存在")
+    
+    attachments = db.query(LiteratureAttachment).filter(LiteratureAttachment.doi == doi).count()
+    has_structured = db.query(StructuredLiterature).filter(StructuredLiterature.doi == doi).first() is not None
+    has_card = db.query(LiteratureCard).filter(LiteratureCard.doi == doi).first() is not None
+    has_notes = db.query(GeneralNote).filter(GeneralNote.doi == doi).count() > 0
+    tags = db.query(Tag).filter(Tag.doi == doi).all()
+    
+    return {
+        **entry.__dict__,
+        "attachments_count": attachments,
+        "has_structured": has_structured,
+        "has_card": has_card,
+        "has_notes": has_notes,
+        "tags": tags
+    }
+
+
+# ==================== 文献表搜索 ====================
+
+@router.get("/table/search")
+def search_literature_table(
+    q: str,
+    search_notes: bool = Query(default=False),
+    search_content: bool = Query(default=False),
+    db: Session = Depends(get_db)
+):
+    """搜索文献表"""
+    search_pattern = f"%{q}%"
+    
+    query = db.query(LiteratureTableEntry).filter(
+        or_(
+            LiteratureTableEntry.doi.like(search_pattern),
+            LiteratureTableEntry.title_cn.like(search_pattern),
+            LiteratureTableEntry.title_en.like(search_pattern),
+            LiteratureTableEntry.journal.like(search_pattern),
+            LiteratureTableEntry.first_author.like(search_pattern)
+        )
+    )
+    
+    results = query.limit(50).all()
+    
+    # 如果需要搜索笔记内容
+    if search_notes or search_content:
+        from models.note import GeneralNote
+        from models.structured import StructuredLiterature
+        
+        note_query = db.query(GeneralNote).filter(
+            or_(
+                GeneralNote.title.like(search_pattern),
+                GeneralNote.content.like(search_pattern) if search_content else False
+            )
+        ).all()
+        
+        structured_query = db.query(StructuredLiterature).filter(
+            or_(
+                StructuredLiterature.content.like(search_pattern) if search_content else False
+            )
+        ).all()
+        
+        # 获取关联的DOI
+        note_dois = {n.doi for n in note_query if n.doi}
+        structured_dois = {s.doi for s in structured_query if s.doi}
+        
+        # 合并结果
+        all_dois = note_dois | structured_dois
+        additional_results = db.query(LiteratureTableEntry).filter(
+            LiteratureTableEntry.doi.in_(all_dois)
+        ).all()
+        
+        # 去重
+        existing_dois = {r.doi for r in results}
+        for item in additional_results:
+            if item.doi not in existing_dois:
+                results.append(item)
+    
+    return results
+
+
+# ==================== 导出功能 ====================
+
+@router.get("/table/export")
+def export_literature_table(
+    format: str = Query(default="xlsx", regex="^(xlsx|csv)$"),
+    sort_by: str = Query(default="created_at", regex="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_order: str = Query(default="desc", regex="^(asc|desc)$"),
+    from_date: str = None,
+    until_date: str = None,
+    columns: str = None,
+    db: Session = Depends(get_db)
+):
+    """
+    导出文献表
+    
+    Args:
+        format: 导出格式 (xlsx/csv)
+        sort_by: 排序字段
+        sort_order: 排序方向
+        from_date: 开始日期
+        until_date: 结束日期
+        columns: 逗号分隔的列名
+    """
+    query = db.query(LiteratureTableEntry)
+    
+    # 日期过滤
+    if from_date:
+        query = query.filter(LiteratureTableEntry.created_at >= from_date)
+    if until_date:
+        query = query.filter(LiteratureTableEntry.created_at <= until_date)
+    
+    # 排序
+    sort_column = getattr(LiteratureTableEntry, sort_by)
+    if sort_order == "desc":
+        query = query.order_by(desc(sort_column))
+    else:
+        query = query.order_by(asc(sort_column))
+    
+    entries = [e.__dict__ for e in query.all()]
+    
+    # 处理列
+    column_list = columns.split(",") if columns else None
+    
+    if format == "csv":
+        output = export_service.export_literature_table_csv(
+            entries, column_list, sort_by, sort_order, from_date, until_date
+        )
+        return StreamingResponse(
+            output,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=literature_table.csv"
+            }
+        )
+    else:
+        output = export_service.export_literature_table(
+            entries, column_list, sort_by, sort_order, from_date, until_date
+        )
+        return StreamingResponse(
+            output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename=literature_table.xlsx"
+            }
+        )
+
+
+@router.get("/table/export-by-tags")
+def export_literature_table_by_tags(
+    tags: str,
+    format: str = Query(default="xlsx", regex="^(xlsx|csv)$"),
+    sort_by: str = Query(default="created_at", regex="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_order: str = Query(default="desc", regex="^(asc|desc)$"),
+    db: Session = Depends(get_db)
+):
+    """
+    按标签导出文献表
+    
+    Args:
+        tags: 逗号分隔的标签名
+        format: 导出格式
+        sort_by: 排序字段
+        sort_order: 排序方向
+    """
+    tag_list = [t.strip() for t in tags.split(",")]
+    
+    # 获取包含这些标签的DOI
+    dois = set()
+    for tag_name in tag_list:
+        tag_records = db.query(Tag).filter(Tag.name == tag_name).all()
+        for tag in tag_records:
+            if tag.doi:
+                dois.add(tag.doi)
+    
+    if not dois:
+        return {"message": "没有找到匹配的文献", "count": 0}
+    
+    # 获取文献条目
+    query = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi.in_(dois))
+    
+    sort_column = getattr(LiteratureTableEntry, sort_by)
+    if sort_order == "desc":
+        query = query.order_by(desc(sort_column))
+    else:
+        query = query.order_by(asc(sort_column))
+    
+    entries = [e.__dict__ for e in query.all()]
+    
+    if format == "csv":
+        output = export_service.export_literature_table_csv(entries, None, sort_by, sort_order)
+        return StreamingResponse(
+            output,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=literature_by_tags.csv"}
+        )
+    else:
+        output = export_service.export_literature_table(entries, None, sort_by, sort_order)
+        return StreamingResponse(
+            output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=literature_by_tags.xlsx"}
+        )

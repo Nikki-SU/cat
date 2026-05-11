@@ -1,8 +1,9 @@
 """
-AI 服务 - 翻译和其他AI功能
+AI 服务 - 翻译和其他AI功能（增强版）
 """
 import httpx
 import json
+import asyncio
 from typing import Optional, Dict, Any, List
 from config import settings
 
@@ -27,17 +28,61 @@ class AIService:
         self.api_key = api_key or settings.OPENAI_API_KEY
         self.api_base = api_base or settings.OPENAI_API_BASE
         self.model = model
-        self.client = httpx.AsyncClient(timeout=60.0)
+        self.client = httpx.AsyncClient(timeout=120.0)
+        self.max_retries = 3
     
     async def close(self):
         """关闭客户端"""
         await self.client.aclose()
     
+    async def _request_with_retry(
+        self, 
+        payload: Dict[str, Any],
+        retries: int = None
+    ) -> Dict[str, Any]:
+        """带重试的请求"""
+        retries = retries or self.max_retries
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        for attempt in range(retries):
+            try:
+                response = await self.client.post(
+                    f"{self.api_base}/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    return {"success": True, "data": response.json()}
+                
+                # 速率限制时重试
+                if response.status_code == 429 and attempt < retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                
+                return {
+                    "success": False, 
+                    "error": f"API请求失败: {response.status_code} - {response.text}"
+                }
+                
+            except httpx.HTTPError as e:
+                if attempt < retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return {"success": False, "error": f"请求失败: {str(e)}"}
+        
+        return {"success": False, "error": "重试次数耗尽"}
+    
     async def chat(
         self, 
         messages: List[Dict[str, str]], 
         temperature: float = 0.7,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        stream: bool = False
     ) -> Dict[str, Any]:
         """
         发送聊天请求
@@ -46,17 +91,13 @@ class AIService:
             messages: 消息列表 [{"role": "user", "content": "..."}]
             temperature: 温度参数
             max_tokens: 最大token数
+            stream: 是否流式响应
             
         Returns:
             响应结果 {success, content, error}
         """
         if not self.api_key:
             return {"success": False, "error": "API密钥未配置"}
-        
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
         
         payload = {
             "model": self.model,
@@ -65,26 +106,29 @@ class AIService:
             "max_tokens": max_tokens
         }
         
-        try:
-            response = await self.client.post(
-                f"{self.api_base}/chat/completions",
-                headers=headers,
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                return {
-                    "success": False, 
-                    "error": f"API请求失败: {response.status_code} - {response.text}"
-                }
-            
-            result = response.json()
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            
-            return {"success": True, "content": content}
-            
-        except httpx.HTTPError as e:
-            return {"success": False, "error": f"请求失败: {str(e)}"}
+        if stream:
+            payload["stream"] = True
+        
+        result = await self._request_with_retry(payload)
+        
+        if not result["success"]:
+            return result
+        
+        data = result["data"]
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
+        # Token使用统计
+        usage = data.get("usage", {})
+        
+        return {
+            "success": True, 
+            "content": content,
+            "usage": {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0)
+            }
+        }
     
     async def translate(self, text: str, target_lang: str = "Chinese") -> Dict[str, Any]:
         """
@@ -111,7 +155,7 @@ class AIService:
         
         result = await self.chat(messages, temperature=0.3)
         if result["success"]:
-            return {"success": True, "translation": result["content"]}
+            return {"success": True, "translation": result["content"], "usage": result.get("usage")}
         return result
     
     async def translate_title_abstract(self, title: str, abstract: str = None) -> Dict[str, Any]:
@@ -125,11 +169,9 @@ class AIService:
         Returns:
             翻译结果 {success, title_cn, abstract_cn, error}
         """
-        content_parts = [
-            f"Title: {title}",
-        ]
+        content_parts = [f"Title: {title}"]
         if abstract:
-            content_parts.append(f"Abstract: {abstract[:2000]}")  # 限制摘要长度
+            content_parts.append(f"Abstract: {abstract[:2000]}")
         
         prompt = f"""Translate the following academic paper metadata to Chinese. 
 Return in JSON format with keys 'title_cn' and 'abstract_cn'.
@@ -142,14 +184,8 @@ IMPORTANT:
 3. Use academic Chinese terminology"""
         
         messages = [
-            {
-                "role": "system", 
-                "content": "You are a professional academic translator."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": "You are a professional academic translator."},
+            {"role": "user", "content": prompt}
         ]
         
         result = await self.chat(messages, temperature=0.3, max_tokens=1500)
@@ -158,9 +194,7 @@ IMPORTANT:
             return result
         
         try:
-            # 尝试解析JSON
             content = result["content"].strip()
-            # 去除可能的markdown代码块
             if content.startswith("```"):
                 content = content.split("```")[1]
                 if content.startswith("json"):
@@ -170,7 +204,8 @@ IMPORTANT:
             return {
                 "success": True,
                 "title_cn": parsed.get("title_cn", ""),
-                "abstract_cn": parsed.get("abstract_cn", "")
+                "abstract_cn": parsed.get("abstract_cn", ""),
+                "usage": result.get("usage")
             }
         except json.JSONDecodeError:
             return {
@@ -213,10 +248,7 @@ Return ONLY valid JSON, no other text."""
                 "role": "system",
                 "content": "You are an expert in English-Chinese academic translation and vocabulary teaching."
             },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "user", "content": prompt}
         ]
         
         result = await self.chat(messages, temperature=0.5, max_tokens=500)
@@ -237,7 +269,8 @@ Return ONLY valid JSON, no other text."""
                 "word_cn": parsed.get("word_cn", ""),
                 "definition_en": parsed.get("definition_en", ""),
                 "definition_cn": parsed.get("definition_cn", ""),
-                "sentence": parsed.get("sentence", "")
+                "sentence": parsed.get("sentence", ""),
+                "usage": result.get("usage")
             }
         except json.JSONDecodeError:
             return {
@@ -262,15 +295,12 @@ Return ONLY valid JSON, no other text."""
                 "content": "You are a professional academic translator. Translate the following sentence to Chinese. "
                           "Maintain the original meaning and academic tone. Preserve any LaTeX formulas."
             },
-            {
-                "role": "user",
-                "content": sentence_en
-            }
+            {"role": "user", "content": sentence_en}
         ]
         
         result = await self.chat(messages, temperature=0.3)
         if result["success"]:
-            return {"success": True, "sentence_cn": result["content"]}
+            return {"success": True, "sentence_cn": result["content"], "usage": result.get("usage")}
         return result
     
     async def split_sentences(self, text: str) -> Dict[str, Any]:
@@ -296,14 +326,8 @@ Return JSON with key 'sentences' containing an array of sentence objects:
 Return ONLY valid JSON, no other text."""
         
         messages = [
-            {
-                "role": "system",
-                "content": "You are an academic text processing assistant."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": "You are an academic text processing assistant."},
+            {"role": "user", "content": prompt}
         ]
         
         result = await self.chat(messages, temperature=0.1, max_tokens=3000)
@@ -321,7 +345,8 @@ Return ONLY valid JSON, no other text."""
             parsed = json.loads(content.strip())
             return {
                 "success": True,
-                "sentences": parsed.get("sentences", [])
+                "sentences": parsed.get("sentences", []),
+                "usage": result.get("usage")
             }
         except json.JSONDecodeError:
             return {
@@ -338,23 +363,20 @@ Return ONLY valid JSON, no other text."""
             journal_name: 输入的期刊名
             
         Returns:
-            修正建议 {success, suggestions, error}
+            修正建议 {success, suggestion, suggestions, error}
         """
         prompt = f"""Given the possibly misspelled or incomplete journal name '{journal_name}', 
-suggest 5 correct journal names that might match. Consider common abbreviations and variations.
+suggest the most likely correct journal name. Consider common abbreviations and variations.
 
-Return JSON with key 'suggestions' containing an array of possible correct names.
+Return JSON with keys:
+- suggestion: the most likely correct name
+- suggestions: array of 3-5 possible correct names
+
 Return ONLY valid JSON, no other text."""
         
         messages = [
-            {
-                "role": "system",
-                "content": "You are an expert in academic journal names."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": "You are an expert in academic journal names."},
+            {"role": "user", "content": prompt}
         ]
         
         result = await self.chat(messages, temperature=0.3, max_tokens=500)
@@ -372,7 +394,9 @@ Return ONLY valid JSON, no other text."""
             parsed = json.loads(content.strip())
             return {
                 "success": True,
-                "suggestions": parsed.get("suggestions", [])
+                "suggestion": parsed.get("suggestion", ""),
+                "suggestions": parsed.get("suggestions", []),
+                "usage": result.get("usage")
             }
         except json.JSONDecodeError:
             return {
@@ -380,6 +404,179 @@ Return ONLY valid JSON, no other text."""
                 "error": "无法解析AI返回的JSON",
                 "raw_content": result["content"]
             }
+    
+    async def extract_terms(self, text: str) -> Dict[str, Any]:
+        """
+        从摘要中提取术语
+        
+        Args:
+            text: 英文摘要
+            
+        Returns:
+            提取结果 {success, terms, error}
+        """
+        prompt = f"""Extract key terms and their definitions from the following academic abstract.
+Return in JSON format.
+
+Abstract:
+{text}
+
+Return JSON with key 'terms' containing an array of objects:
+- term: the technical term in English
+- definition: brief definition in Chinese
+- category: 'method', 'concept', or 'tool'
+
+Return ONLY valid JSON, no other text. Limit to 10 most important terms."""
+        
+        messages = [
+            {"role": "system", "content": "You are an expert in academic terminology extraction."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        result = await self.chat(messages, temperature=0.3, max_tokens=1000)
+        
+        if not result["success"]:
+            return result
+        
+        try:
+            content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            
+            parsed = json.loads(content.strip())
+            return {
+                "success": True,
+                "terms": parsed.get("terms", []),
+                "usage": result.get("usage")
+            }
+        except json.JSONDecodeError:
+            return {
+                "success": False,
+                "error": "无法解析AI返回的JSON",
+                "raw_content": result["content"]
+            }
+    
+    async def generate_card(self, literature_data: Dict[str, Any], template_prompt: str) -> Dict[str, Any]:
+        """
+        使用模板生成文献卡片
+        
+        Args:
+            literature_data: 文献数据 {title, abstract, journal, etc.}
+            template_prompt: 卡片生成提示词模板
+            
+        Returns:
+            生成结果 {success, card, error}
+        """
+        prompt = template_prompt.format(**literature_data)
+        
+        messages = [
+            {"role": "system", "content": "You are a professional academic literature analyst."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        result = await self.chat(messages, temperature=0.5, max_tokens=2000)
+        
+        if not result["success"]:
+            return result
+        
+        return {
+            "success": True,
+            "card_content": result["content"],
+            "usage": result.get("usage")
+        }
+    
+    async def evaluate_translation(
+        self, 
+        original: str, 
+        translation: str
+    ) -> Dict[str, Any]:
+        """
+        评价翻译质量
+        
+        Args:
+            original: 原文
+            translation: 译文
+            
+        Returns:
+            评价结果 {success, score, feedback, errors, error_words, error}
+        """
+        prompt = f"""Evaluate the following translation quality.
+
+Original:
+{original}
+
+Translation:
+{translation}
+
+Return JSON with:
+- score: overall quality score (0-100)
+- feedback: detailed feedback in Chinese
+- errors: array of error objects with 'original', 'translation', 'type', 'suggestion'
+- error_words: array of words that need to be added to vocabulary list
+
+Return ONLY valid JSON, no other text."""
+        
+        messages = [
+            {"role": "system", "content": "You are an expert in academic translation evaluation."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        result = await self.chat(messages, temperature=0.3, max_tokens=1500)
+        
+        if not result["success"]:
+            return result
+        
+        try:
+            content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            
+            parsed = json.loads(content.strip())
+            return {
+                "success": True,
+                "score": parsed.get("score", 0),
+                "feedback": parsed.get("feedback", ""),
+                "errors": parsed.get("errors", []),
+                "error_words": parsed.get("error_words", []),
+                "usage": result.get("usage")
+            }
+        except json.JSONDecodeError:
+            return {
+                "success": False,
+                "error": "无法解析AI返回的JSON",
+                "raw_content": result["content"]
+            }
+    
+    def count_tokens(self, text: str) -> int:
+        """估算token数量（简单估算）"""
+        # 粗略估算：中文约1.5字符/token，英文约4字符/token
+        chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+        other_chars = len(text) - chinese_chars
+        return int(chinese_chars / 1.5 + other_chars / 4)
+    
+    def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> Dict[str, float]:
+        """估算API调用成本"""
+        # 常见模型价格（每1K tokens）
+        price_per_1k = {
+            "gpt-4": {"prompt": 0.03, "completion": 0.06},
+            "gpt-3.5-turbo": {"prompt": 0.0015, "completion": 0.002},
+            "gpt-3.5-turbo-16k": {"prompt": 0.003, "completion": 0.004},
+        }
+        
+        model_prices = price_per_1k.get(self.model, {"prompt": 0.001, "completion": 0.002})
+        
+        prompt_cost = (prompt_tokens / 1000) * model_prices["prompt"]
+        completion_cost = (completion_tokens / 1000) * model_prices["completion"]
+        
+        return {
+            "prompt_cost": round(prompt_cost, 6),
+            "completion_cost": round(completion_cost, 6),
+            "total_cost": round(prompt_cost + completion_cost, 6)
+        }
 
 
 # 全局单例
@@ -391,6 +588,13 @@ def get_ai_service() -> AIService:
     global _ai_service
     if _ai_service is None:
         _ai_service = AIService()
+    return _ai_service
+
+
+def update_ai_service(api_key: str = None, api_base: str = None, model: str = None):
+    """更新AI服务配置"""
+    global _ai_service
+    _ai_service = AIService(api_key=api_key, api_base=api_base, model=model)
     return _ai_service
 
 
