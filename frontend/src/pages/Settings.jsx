@@ -3,7 +3,7 @@
  */
 import { useState, useEffect } from 'react'
 import useAppStore from '../stores/useAppStore'
-import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI } from '../api/client'
+import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI, settingsAPI } from '../api/client'
 import { 
   DISPLAY_LANGUAGES, 
   DISPLAY_DETAILS, 
@@ -47,6 +47,11 @@ function Settings() {
   const [aiModel, setAiModel] = useState(localStorage.getItem('aiModel') || '')
   const [aiProvider, setAiProvider] = useState(localStorage.getItem('aiProvider') || 'openai')
   const [mineruToken, setMineruToken] = useState(localStorage.getItem('mineruToken') || '')
+  const [mineruModelVersion, setMineruModelVersion] = useState(localStorage.getItem('mineruModelVersion') || 'vlm')
+  const [mineruLanguage, setMineruLanguage] = useState(localStorage.getItem('mineruLanguage') || 'en')
+  const [showMineruToken, setShowMineruToken] = useState(false)
+  const [mineruTestResult, setMineruTestResult] = useState(null)
+  const [mineruTesting, setMineruTesting] = useState(false)
   const [aiTestResult, setAiTestResult] = useState(null)
   const [aiTesting, setAiTesting] = useState(false)
   
@@ -116,6 +121,48 @@ function Settings() {
       setAiTestResult({ success: false, message: error.message || '连接失败' })
     } finally {
       setAiTesting(false)
+    }
+  }
+
+  // MinerU配置保存
+  const handleSaveMineruConfig = async () => {
+    localStorage.setItem('mineruToken', mineruToken)
+    localStorage.setItem('mineruModelVersion', mineruModelVersion)
+    localStorage.setItem('mineruLanguage', mineruLanguage)
+    
+    try {
+      await settingsAPI.updateMineruConfig({
+        api_token: mineruToken,
+        model_version: mineruModelVersion,
+        language: mineruLanguage
+      })
+      alert('MinerU配置已保存')
+    } catch (error) {
+      console.error('Failed to save MinerU config:', error)
+      alert('MinerU配置已保存到本地')
+    }
+  }
+
+  // 测试MinerU Token
+  const handleTestMineru = async () => {
+    setMineruTesting(true)
+    setMineruTestResult(null)
+    
+    try {
+      // 先保存配置
+      await handleSaveMineruConfig()
+      
+      // 检查Token状态
+      const result = await settingsAPI.checkMineruTokenStatus()
+      if (result.has_token) {
+        setMineruTestResult({ success: true, message: 'Token已设置，可使用Precision API' })
+      } else {
+        setMineruTestResult({ success: false, message: '请先设置Token（无Token时使用Agent轻量API）' })
+      }
+    } catch (error) {
+      setMineruTestResult({ success: false, message: error.message || '检查失败' })
+    } finally {
+      setMineruTesting(false)
     }
   }
 
@@ -484,6 +531,97 @@ function Settings() {
             {aiTestResult && (
               <span className={aiTestResult.success ? 'text-green-500' : 'text-red-500'}>
                 {aiTestResult.message}
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* MinerU文档解析设置 */}
+      <section className="bg-white rounded-xl p-4 shadow">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">📄 MinerU文档解析设置</h2>
+        
+        <div className="space-y-4">
+          {/* Token输入 */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">API Token</label>
+            <div className="flex gap-2">
+              <input
+                type={showMineruToken ? 'text' : 'password'}
+                value={mineruToken}
+                onChange={(e) => setMineruToken(e.target.value)}
+                placeholder="输入MinerU API Token（可选，不填则使用免费API）"
+                className="flex-1 px-3 py-2 border rounded"
+              />
+              <button
+                onClick={() => setShowMineruToken(!showMineruToken)}
+                className="px-3 py-2 bg-gray-100 border rounded hover:bg-gray-200"
+                title={showMineruToken ? '隐藏Token' : '显示Token'}
+              >
+                {showMineruToken ? '🙈' : '👁️'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              有Token可使用Precision API（更准确，支持大文件200MB/200页）
+              <br />
+              无Token使用Agent轻量API（免费，限制10MB/20页）
+              <a 
+                href="https://mineru.net" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline ml-1"
+              >
+                去获取Token
+              </a>
+            </p>
+          </div>
+          
+          {/* 模型版本 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">模型版本</label>
+              <select
+                value={mineruModelVersion}
+                onChange={(e) => setMineruModelVersion(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              >
+                <option value="vlm">VLM（推荐，更准确）</option>
+                <option value="pipeline">Pipeline（速度更快）</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">文档语言</label>
+              <select
+                value={mineruLanguage}
+                onChange={(e) => setMineruLanguage(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              >
+                <option value="en">英文</option>
+                <option value="ch">中文</option>
+                <option value="ch_server">中文（繁体+日文增强）</option>
+              </select>
+            </div>
+          </div>
+          
+          {/* 测试和保存 */}
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={handleTestMineru}
+              disabled={mineruTesting}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+            >
+              {mineruTesting ? '检查中...' : '检查Token'}
+            </button>
+            <button
+              onClick={handleSaveMineruConfig}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              保存配置
+            </button>
+            {mineruTestResult && (
+              <span className={mineruTestResult.success ? 'text-green-500' : 'text-yellow-500'}>
+                {mineruTestResult.message}
               </span>
             )}
           </div>

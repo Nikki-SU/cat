@@ -10,7 +10,8 @@ from database import init_db
 from config import settings
 from routers import (
     literature, tracking, card, attachment, structured, 
-    learning, note, organization, translation, ai_proxy, backup
+    learning, note, organization, translation, ai_proxy, backup,
+    settings as settings_router
 )
 
 
@@ -56,6 +57,7 @@ app.include_router(translation.router, prefix=settings.API_PREFIX)
 app.include_router(ai_proxy.router, prefix=settings.API_PREFIX)
 app.include_router(backup.router, prefix=settings.API_PREFIX)
 app.include_router(backup.sync_router, prefix=settings.API_PREFIX)
+app.include_router(settings_router.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/")
@@ -66,7 +68,6 @@ def root():
         "version": "2.0.0",
         "docs": "/docs"
     }
-
 
 @app.get("/health")
 def health():

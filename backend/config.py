@@ -23,6 +23,8 @@ class Settings(BaseModel):
     
     # MinerU配置
     MINERU_API_TOKEN: Optional[str] = os.getenv("MINERU_API_TOKEN")
+    MINERU_MODEL_VERSION: str = os.getenv("MINERU_MODEL_VERSION", "vlm")  # pipeline/vlm
+    MINERU_LANGUAGE: str = os.getenv("MINERU_LANGUAGE", "en")
     
     # 文件存储配置
     ATTACHMENTS_DIR: str = os.getenv("ATTACHMENTS_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "attachments"))

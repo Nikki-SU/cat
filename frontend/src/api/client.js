@@ -83,7 +83,7 @@ export const trackingAPI = {
   // CrossRef搜索
   searchByDoi: (doi, translate) => apiClient.get(`/tracking/search/by-doi/${doi}`, { params: { translate } }),
   searchByJournal: (journal, keywords = [], fromDate, untilDate) => 
-    apiClient.post('/tracking/search/by-journal', null, { params: { 
+    apiClient.post(`/tracking/search/by-journal`, null, { params: { 
       journal_name: journal, 
       keywords,
       from_date: fromDate,
@@ -150,7 +150,36 @@ export const attachmentAPI = {
   delete: (id) => apiClient.delete(`/attachments/${id}`),
   download: (id) => `${API_BASE_URL}/attachments/${id}/download`,
   getByDoi: (doi) => apiClient.get(`/attachments/by-doi/${doi}`),
-  parse: (id, mode) => apiClient.post(`/attachments/${id}/parse`, null, { params: { mode } }),
+  
+  // 解析附件
+  parse: (id, mode = 'auto') => apiClient.post(`/attachments/${id}/parse`, null, { params: { mode } }),
+  
+  // 解析并提取
+  parseAndExtract: (id, maxSentences = 10, maxWords = 20) => 
+    apiClient.post(`/attachments/${id}/parse-and-extract`, null, { 
+      params: { max_sentences: maxSentences, max_words: maxWords } 
+    }),
+  
+  // 解析状态
+  getParseStatus: (taskId) => apiClient.get(`/attachments/parse-status/${taskId}`),
+  
+  // 批量解析
+  batchParse: (ids, mode = 'auto') => apiClient.post('/attachments/batch-parse', null, {
+    params: { attachment_ids: ids, mode }
+  }),
+}
+
+// ==================== 设置 API ====================
+export const settingsAPI = {
+  // AI配置
+  getAiConfig: () => apiClient.get('/settings/ai-config'),
+  updateAiConfig: (config) => apiClient.post('/settings/ai-config', config),
+  
+  // MinerU配置
+  getMineruConfig: () => apiClient.get('/settings/mineru-config'),
+  updateMineruConfig: (config) => apiClient.post('/settings/mineru-config', config),
+  updateMineruToken: (token) => apiClient.post('/settings/mineru-token', null, { params: { token } }),
+  checkMineruTokenStatus: () => apiClient.get('/settings/mineru-token-status'),
 }
 
 // ==================== 结构性文献 API ====================

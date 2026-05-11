@@ -87,6 +87,10 @@ function DeepRead() {
   const [uploadingFile, setUploadingFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
   const [parseProgress, setParseProgress] = useState(0)
+  const [attachments, setAttachments] = useState([])
+  const [showAttachmentPanel, setShowAttachmentPanel] = useState(false)
+  const [currentParseTask, setCurrentParseTask] = useState(null)
+  const [parseStatus, setParseStatus] = useState(null)
   
   // 笔记编辑
   const [editingNote, setEditingNote] = useState(null)
@@ -99,6 +103,7 @@ function DeepRead() {
   useEffect(() => {
     fetchLiteratureTable()
     loadRecentReadings()
+    loadAttachments()
   }, [])
   
   // 加载最近阅读
@@ -139,6 +144,9 @@ function DeepRead() {
       // 加载笔记
       const notesData = await structuredAPI.listNotes({ doi: item.doi })
       setNotes(notesData || [])
+      
+      // 加载附件
+      loadAttachments(item.doi)
     } catch (error) {
       console.error('Failed to load content:', error)
       setStructuredContent('')
@@ -147,6 +155,97 @@ function DeepRead() {
     
     setHasUnsavedChanges(false)
     setIsEditing(false)
+  }
+  
+  // 加载附件列表
+  const loadAttachments = async (doi = null) => {
+    try {
+      const targetDoi = doi || selectedLiterature?.doi
+      if (!targetDoi) return
+      const list = await attachmentAPI.getByDoi(targetDoi)
+      setAttachments(list || [])
+    } catch (error) {
+      console.error('Failed to load attachments:', error)
+    }
+  }
+  
+  // 解析附件
+  const handleParseAttachment = async (attachmentId) => {
+    if (!selectedLiterature) return
+    
+    try {
+      const result = await attachmentAPI.parse(attachmentId)
+      if (result.success) {
+        setCurrentParseTask(result.task_id)
+        setParseStatus({ status: 'pending', progress: 0, message: '准备解析...' })
+        // 开始轮询
+        pollParseStatus(result.task_id)
+      }
+    } catch (error) {
+      alert('提交解析任务失败: ' + error.message)
+    }
+  }
+  
+  // 轮询解析状态
+  const pollParseStatus = async (taskId) => {
+    const poll = async () => {
+      try {
+        const status = await attachmentAPI.getParseStatus(taskId)
+        setParseStatus(status)
+        
+        if (status.status === 'done') {
+          setCurrentParseTask(null)
+          // 刷新内容
+          const content = await structuredAPI.getLiterature(selectedLiterature.doi)
+          setStructuredContent(content?.content || '')
+          alert('解析完成！')
+          return
+        } else if (status.status === 'failed') {
+          setCurrentParseTask(null)
+          alert('解析失败: ' + status.message)
+          return
+        }
+        
+        // 继续轮询
+        if (currentParseTask) {
+          setTimeout(poll, 2000)
+        }
+      } catch (error) {
+        console.error('Poll status failed:', error)
+      }
+    }
+    
+    poll()
+  }
+  
+  // 解析并提取
+  const handleParseAndExtract = async (attachmentId) => {
+    if (!selectedLiterature) return
+    
+    try {
+      const result = await attachmentAPI.parseAndExtract(attachmentId, 10, 20)
+      if (result.success) {
+        setCurrentParseTask(result.task_id)
+        setParseStatus({ status: 'pending', progress: 0, message: '准备解析...' })
+        // 开始轮询
+        pollParseStatus(result.task_id)
+      }
+    } catch (error) {
+      alert('提交任务失败: ' + error.message)
+    }
+  }
+  
+  // 删除附件
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!confirm('确定删除此附件？')) return
+    
+    try {
+      await attachmentAPI.delete(attachmentId)
+      loadAttachments()
+      alert('删除成功')
+    } catch (error) {
+      alert('删除失败: ' + error.message)
+    }
   }
   
   // 保存内容
@@ -386,25 +485,16 @@ function DeepRead() {
     setParseProgress(0)
     
     try {
-      // 上传并解析
-      const response = await attachmentAPI.uploadWithParse(
-        selectedLiterature.doi,
-        file,
-        'auto'
-      )
+      // 先上传文件
+      const uploadResponse = await attachmentAPI.upload(selectedLiterature.doi, file)
       
-      if (response.attachment) {
-        setParseProgress(50)
+      if (uploadResponse.id) {
+        setParseProgress(30)
+        setAttachments(prev => [...prev, uploadResponse])
         
-        if (response.parse_result?.success) {
-          setParseProgress(100)
-          // 刷新内容
-          const content = await structuredAPI.getLiterature(selectedLiterature.doi)
-          setStructuredContent(content?.content || '')
-          alert('文件上传并解析成功！')
-        } else {
-          setParseProgress(100)
-          alert('文件上传成功，但解析未完成: ' + (response.parse_result?.error || '未知错误'))
+        // 询问是否解析
+        if (confirm('文件上传成功！是否立即解析为结构性文献？')) {
+          await handleParseAttachment(uploadResponse.id)
         }
       }
     } catch (error) {
@@ -673,7 +763,69 @@ function DeepRead() {
             >
               📤 上传
             </button>
+            
+            {/* 附件按钮 */}
+            <button
+              onClick={() => setShowAttachmentPanel(!showAttachmentPanel)}
+              disabled={!selectedLiterature}
+              className={`btn text-sm ${showAttachmentPanel ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              📎 附件 {attachments.length > 0 && `(${attachments.length})`}
+            </button>
           </div>
+          
+          {/* 附件面板 */}
+          {showAttachmentPanel && attachments.length > 0 && (
+            <div className="bg-white border-b px-4 py-2">
+              <div className="flex flex-wrap gap-2">
+                {attachments.map(att => (
+                  <div key={att.id} className="flex items-center gap-2 bg-gray-100 rounded px-2 py-1">
+                    <span className="text-sm truncate max-w-[150px]" title={att.filename}>
+                      📄 {att.filename}
+                    </span>
+                    <button
+                      onClick={() => handleParseAttachment(att.id)}
+                      disabled={currentParseTask}
+                      className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                      title="解析为结构性文献"
+                    >
+                      解析
+                    </button>
+                    <button
+                      onClick={() => handleParseAndExtract(att.id)}
+                      disabled={currentParseTask}
+                      className="text-xs px-2 py-0.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                      title="解析+AI提取"
+                    >
+                      AI提取
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAttachment(att.id)}
+                      className="text-xs px-2 py-0.5 text-red-500 hover:bg-red-100 rounded"
+                      title="删除"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              
+              {/* 解析进度 */}
+              {currentParseTask && parseStatus && (
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full transition-all"
+                      style={{ width: `${parseStatus.progress || 0}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-600">
+                    {parseStatus.progress || 0}% - {parseStatus.message || '处理中...'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
           
           {/* 内容区域 */}
           <div 
