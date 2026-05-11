@@ -13,6 +13,7 @@ import {
   EXPORT_FORMATS,
 } from '../utils/constants'
 import { downloadFile, formatDate } from '../utils/helpers'
+import { SENTENCE_COLOR_SCHEMES } from '../stores/useDeepReadStore'
 
 // AI提供商配置
 const AI_PROVIDERS = [
@@ -726,6 +727,23 @@ function Settings() {
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
             </label>
+          </div>
+          
+          {/* 句子着色设置 */}
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">句子着色</label>
+            <select
+              value={settings.sentenceColorScheme || 'none'}
+              onChange={(e) => updateSettings({ sentenceColorScheme: e.target.value })}
+              className="w-full px-3 py-2 border rounded"
+            >
+              {Object.values(SENTENCE_COLOR_SCHEMES).map(scheme => (
+                <option key={scheme.id} value={scheme.id}>{scheme.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              按句子交替着色，帮助区分不同句子，提高阅读效率
+            </p>
           </div>
         </div>
       </section>
