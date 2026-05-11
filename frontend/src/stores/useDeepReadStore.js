@@ -1,65 +1,72 @@
 /**
- * DeepRead涓撶敤鐘舵€佺鐞?- 淇鐗? * 
- * 甯冨眬璇存槑锛? * - 瀛﹁€呮ā寮?(30%:70%): 宸?棰滆壊缁撴瀯鏍? 鍙?鏂囩尞+琛岄棿绗旇
- * - 鍙屾爮妯″紡 (30%:50%:20%): 宸?棰滆壊缁撴瀯鏍? 涓?绾枃鐚? 鍙?杈规爮绗旇
+ * DeepRead专用状态管理 - 修正版
  * 
- * 绗旇浣嶇疆锛? * - 瀛﹁€呮ā寮忥細绗旇鍦ㄦ枃鐚搴旀钀芥梺杈癸紙琛岄棿锛? * - 鍙屾爮妯″紡锛氱瑪璁伴泦涓湪鍙虫爮锛堣竟鏍忥級锛屼絾浠嶉敋瀹氬埌鏂囩尞浣嶇疆
+ * 布局说明：
+ * - 学者模式 (30%:70%): 左=颜色结构栏, 右=文献+行间笔记
+ * - 双栏模式 (30%:50%:20%): 左=颜色结构栏, 中=纯文献, 右=边栏笔记
+ * 
+ * 笔记位置：
+ * - 学者模式：笔记在文献对应段落旁边（行间）
+ * - 双栏模式：笔记集中在右栏（边栏），但仍锚定到文献位置
  */
 import { create } from 'zustand'
 import { structuredAPI, learningAPI } from '../api/client'
 
-// ==================== 甯搁噺 ====================
+// ==================== 常量 ====================
 
 export const LAYOUT_MODES = {
   scholar: { 
     id: 'scholar', 
-    label: '瀛﹁€呮ā寮?, 
-    // 宸?0%: 棰滆壊缁撴瀯+闀块毦鍙?鍗曡瘝, 鍙?0%: 鏂囩尞+琛岄棿绗旇
+    label: '学者模式', 
+    // 左30%: 颜色结构+长难句+单词, 右70%: 文献+行间笔记
     grid: 'grid-cols-[300px_1fr]',
     leftWidth: 'w-[300px]',
     centerWidth: 'flex-1',
-    rightWidth: null, // 鏃犵嫭绔嬪彸鏍忥紝绗旇鍦ㄦ枃鐚唴
-    notePosition: 'inline' // 琛岄棿绗旇
+    rightWidth: null, // 无独立右栏，笔记在文献内
+    notePosition: 'inline' // 行间笔记
   },
   dual: { 
     id: 'dual', 
-    label: '鍙屾爮妯″紡', 
-    // 宸?0%: 棰滆壊缁撴瀯+闀块毦鍙?鍗曡瘝, 涓?0%: 绾枃鐚? 鍙?0%: 杈规爮绗旇
+    label: '双栏模式', 
+    // 左30%: 颜色结构+长难句+单词, 中50%: 纯文献, 右20%: 边栏笔记
     grid: 'grid-cols-[280px_1fr_280px]',
     leftWidth: 'w-[280px]',
     centerWidth: 'flex-1',
     rightWidth: 'w-[280px]',
-    notePosition: 'sidebar' // 杈规爮绗旇
+    notePosition: 'sidebar' // 边栏笔记
   }
 }
 
 export const READ_MODES = {
-  read: { id: 'read', label: '闃呰', icon: '馃摉', description: '鍙珮浜壒娉紝涓嶅彲鏀瑰師鏂? },
-  edit: { id: 'edit', label: '缂栬緫', icon: '鉁忥笍', description: '鍙洿鎺ヤ慨鏀瑰師鏂? }
+  read: { id: 'read', label: '阅读', icon: '📖', description: '可高亮批注，不可改原文' },
+  edit: { id: 'edit', label: '编辑', icon: '✏️', description: '可直接修改原文' }
 }
 
-// 棰滆壊-缁撴瀯鏄犲皠锛堢敤浜庨珮浜枃鐚級
+// 颜色-结构映射（用于高亮文献）
 export const COLOR_STRUCTURE = [
-  { id: 'yellow', name: '鏂规硶', color: '#FEF08A', textColor: '#854D0E', keywords: ['method', 'approach', 'procedure'] },
-  { id: 'green', name: '缁撴灉', color: '#BBF7D0', textColor: '#166534', keywords: ['result', 'finding', 'demonstrated'] },
-  { id: 'blue', name: '璁ㄨ', color: '#BFDBFE', textColor: '#1E40AF', keywords: ['discuss', 'suggest', 'indicate'] },
-  { id: 'pink', name: '缁撹', color: '#FBCFE8', textColor: '#9D174D', keywords: ['conclusion', 'therefore', 'thus'] },
-  { id: 'orange', name: '鑳屾櫙', color: '#FED7AA', textColor: '#9A3412', keywords: ['background', 'introduction', 'previous'] }
+  { id: 'yellow', name: '方法', color: '#FEF08A', textColor: '#854D0E', keywords: ['method', 'approach', 'procedure'] },
+  { id: 'green', name: '结果', color: '#BBF7D0', textColor: '#166534', keywords: ['result', 'finding', 'demonstrated'] },
+  { id: 'blue', name: '讨论', color: '#BFDBFE', textColor: '#1E40AF', keywords: ['discuss', 'suggest', 'indicate'] },
+  { id: 'pink', name: '结论', color: '#FBCFE8', textColor: '#9D174D', keywords: ['conclusion', 'therefore', 'thus'] },
+  { id: 'orange', name: '背景', color: '#FED7AA', textColor: '#9A3412', keywords: ['background', 'introduction', 'previous'] }
 ]
 
-// 鍗曡瘝鐘舵€佹牱寮?export const WORD_STATUS_COLORS = {
-  new: { color: '#DC2626', fontWeight: 'bold', borderBottom: '2px solid #DC2626' },      // 绾?鏂拌瘝
-  learning: { color: '#D97706', fontWeight: 'bold', borderBottom: '2px solid #F59E0B' }, // 榛?瀛︿範涓? 
-  mastered: { color: 'inherit', fontWeight: 'normal', borderBottom: 'none' }              // 姝ｅ父-宸叉帉鎻?}
+// 单词状态样式
+export const WORD_STATUS_COLORS = {
+  new: { color: '#DC2626', fontWeight: 'bold', borderBottom: '2px solid #DC2626' },      // 红-新词
+  learning: { color: '#D97706', fontWeight: 'bold', borderBottom: '2px solid #F59E0B' }, // 黄-学习中  
+  mastered: { color: 'inherit', fontWeight: 'normal', borderBottom: 'none' }              // 正常-已掌握
+}
 
-// 闀块毦鍙ユ牱寮?export const SENTENCE_STYLES = {
+// 长难句样式
+export const SENTENCE_STYLES = {
   color: '#DC2626',
   background: 'rgba(254, 226, 226, 0.3)',
   padding: '2px 4px',
   borderRadius: '4px'
 }
 
-// ==================== 杈呭姪鍑芥暟 ====================
+// ==================== 辅助函数 ====================
 
 const parseParagraphs = (content) => {
   if (!content) return []
@@ -111,7 +118,7 @@ const stripMarkdown = (text) => {
 // ==================== Store ====================
 
 const useDeepReadStore = create((set, get) => ({
-  // ========== 鏍稿績鐘舵€?==========
+  // ========== 核心状态 ==========
   selectedLiterature: null,
   rawContent: '',
   paragraphs: [],
@@ -125,7 +132,7 @@ const useDeepReadStore = create((set, get) => ({
   notes: [],
   highlights: [],
   
-  // ========== UI鐘舵€?==========
+  // ========== UI状态 ==========
   selectedColor: COLOR_STRUCTURE[0],
   selectedAnchor: null,
   
@@ -171,7 +178,7 @@ const useDeepReadStore = create((set, get) => ({
     isProtected: s.readMode === 'edit'
   })),
   
-  // 鑾峰彇鏌愭钀界殑鍗曡瘝
+  // 获取某段落的单词
   getWordsForParagraph: (pId) => {
     const { words, paragraphs } = get()
     const p = paragraphs.find(x => x.id === pId)
@@ -183,28 +190,30 @@ const useDeepReadStore = create((set, get) => ({
     })
   },
   
-  // 鑾峰彇鏌愭钀界殑闀块毦鍙?  getSentencesForParagraph: (pId) => {
+  // 获取某段落的长难句
+  getSentencesForParagraph: (pId) => {
     const { sentences, paragraphs } = get()
     const p = paragraphs.find(x => x.id === pId)
     if (!p) return []
     
     return sentences.filter(s => {
-      // 绠€鍗曞寘鍚尮閰?      return p.plainText.includes(s.sentence_en.substring(0, 30))
+      // 简单包含匹配
+      return p.plainText.includes(s.sentence_en.substring(0, 30))
     })
   },
   
-  // 鑾峰彇鏌愭钀界殑绗旇
+  // 获取某段落的笔记
   getNotesForParagraph: (pId) => {
     return get().notes.filter(n => n.anchor_id === pId)
   },
   
-  // 鎸夐鑹插垎缁勭殑鍐呭
+  // 按颜色分组的内容
   getContentByColor: (colorId) => {
     const { paragraphs } = get()
     return paragraphs.filter(p => p.suggestedColor?.id === colorId)
   },
   
-  // 娣诲姞楂樹寒
+  // 添加高亮
   addHighlight: (pId, text, colorId) => {
     const hl = {
       id: `hl-${Date.now()}`,
@@ -216,7 +225,7 @@ const useDeepReadStore = create((set, get) => ({
     set(s => ({ highlights: [...s.highlights, hl] }))
   },
   
-  // 娣诲姞绗旇
+  // 添加笔记
   addNote: async (data) => {
     const { selectedLiterature } = get()
     if (!selectedLiterature) return
