@@ -1,7 +1,8 @@
 """文献相关 Schema"""
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+
 
 class LiteratureEntryBase(BaseModel):
     doi: str
@@ -12,6 +13,7 @@ class LiteratureEntryBase(BaseModel):
     pubdate: Optional[str] = None
     abstract_cn: Optional[str] = None
     abstract_en: Optional[str] = None
+
 
 class LiteratureEntryCreate(LiteratureEntryBase): pass
 
@@ -29,6 +31,7 @@ class LiteratureEntryResponse(LiteratureEntryBase):
     updated_at: Optional[datetime] = None
     class Config: from_attributes = True
 
+
 class LiteratureTableEntryBase(BaseModel):
     doi: str
     title_cn: Optional[str] = None
@@ -41,6 +44,7 @@ class LiteratureTableEntryBase(BaseModel):
     has_structured: bool = False
     has_card: bool = False
     has_notes: bool = False
+
 
 class LiteratureTableEntryCreate(LiteratureTableEntryBase): pass
 
@@ -56,7 +60,8 @@ class LiteratureTableEntryUpdate(BaseModel):
     has_card: Optional[bool] = None
     has_notes: Optional[bool] = None
 
+
 class LiteratureTableEntryResponse(LiteratureTableEntryBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    class Config: from_attributes = True
+    class Config: from_attribu

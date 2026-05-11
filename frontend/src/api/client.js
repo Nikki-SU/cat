@@ -48,6 +48,16 @@ export const literatureAPI = {
   createTableEntry: (data) => apiClient.post('/literature/table', data),
   updateTableEntry: (doi, data) => apiClient.put(`/literature/table/${doi}`, data),
   deleteTableEntry: (doi, cascade) => apiClient.delete(`/literature/table/${doi}`, { params: { cascade } }),
+  
+  // 批量创建文献表
+  createTableBatch: (entries) => apiClient.post('/literature/table/batch', entries),
+  
+  // 文献表搜索
+  searchTable: (q, searchNotes, searchContent) => 
+    apiClient.get('/literature/table/search', { params: { q, search_notes: searchNotes, search_content: searchContent } }),
+  
+  // 获取文献详情（含关联状态）
+  getTableEntryDetails: (doi) => apiClient.get(`/literature/table/${doi}/details`),
 }
 
 // ==================== 追踪 API ====================
@@ -55,9 +65,31 @@ export const trackingAPI = {
   listRecords: (params) => apiClient.get('/tracking/records', { params }),
   getRecord: (id) => apiClient.get(`/tracking/records/${id}`),
   createRecord: (data) => apiClient.post('/tracking/records', data),
+  createRecordsBatch: (records) => apiClient.post('/tracking/records/batch', records),
   updateRecord: (id, data) => apiClient.put(`/tracking/records/${id}`, data),
   deleteRecord: (id) => apiClient.delete(`/tracking/records/${id}`),
   getByJournal: (journal) => apiClient.get(`/tracking/records/by-journal/${journal}`),
+  getByDate: (date) => apiClient.get(`/tracking/records/by-date/${date}`),
+  getDates: () => apiClient.get('/tracking/records/dates'),
+  
+  // 期刊验证
+  validateJournals: (journals) => apiClient.post('/tracking/validate-journals', journals),
+  
+  // CrossRef搜索
+  searchByDoi: (doi, translate) => apiClient.get(`/tracking/search/by-doi/${doi}`, { params: { translate } }),
+  searchByJournal: (journal, keywords = [], fromDate, untilDate) => 
+    apiClient.post('/tracking/search/by-journal', null, { params: { 
+      journal_name: journal, 
+      keywords,
+      from_date: fromDate,
+      until_date: untilDate
+    }}),
+  
+  // DOI直接添加
+  addByDoi: (doi, translate) => apiClient.post('/tracking/add-by-doi', { doi, translate }),
+  
+  // 导出
+  exportRecords: (params) => apiClient.get('/tracking/export', { params }),
 }
 
 // ==================== 文献卡片 API ====================
@@ -96,9 +128,20 @@ export const attachmentAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  uploadWithParse: async (doi, file, parseMode = 'auto') => {
+    const formData = new FormData()
+    formData.append('doi', doi)
+    formData.append('file', file)
+    formData.append('parse_mode', parseMode)
+    return apiClient.post('/attachments/upload-with-parse', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
   update: (id, data) => apiClient.put(`/attachments/${id}`, data),
   delete: (id) => apiClient.delete(`/attachments/${id}`),
   download: (id) => `${API_BASE_URL}/attachments/${id}/download`,
+  getByDoi: (doi) => apiClient.get(`/attachments/by-doi/${doi}`),
+  parse: (id, mode) => apiClient.post(`/attachments/${id}/parse`, null, { params: { mode } }),
 }
 
 // ==================== 结构性文献 API ====================
@@ -180,34 +223,4 @@ export const organizationAPI = {
   getCollection: (id) => apiClient.get(`/organization/collections/${id}`),
   createCollection: (data) => apiClient.post('/organization/collections', data),
   updateCollection: (id, data) => apiClient.put(`/organization/collections/${id}`, data),
-  deleteCollection: (id) => apiClient.delete(`/organization/collections/${id}`),
-
-  listCollectionItems: (params) => apiClient.get('/organization/collection-items', { params }),
-  getCollectionItem: (id) => apiClient.get(`/organization/collection-items/${id}`),
-  createCollectionItem: (data) => apiClient.post('/organization/collection-items', data),
-  updateCollectionItem: (id, data) => apiClient.put(`/organization/collection-items/${id}`, data),
-  deleteCollectionItem: (id) => apiClient.delete(`/organization/collection-items/${id}`),
-
-  listJournalGroups: (params) => apiClient.get('/organization/journal-groups', { params }),
-  getJournalGroup: (id) => apiClient.get(`/organization/journal-groups/${id}`),
-  createJournalGroup: (data) => apiClient.post('/organization/journal-groups', data),
-  updateJournalGroup: (id, data) => apiClient.put(`/organization/journal-groups/${id}`, data),
-  deleteJournalGroup: (id) => apiClient.delete(`/organization/journal-groups/${id}`),
-
-  listKeywordGroups: (params) => apiClient.get('/organization/keyword-groups', { params }),
-  getKeywordGroup: (id) => apiClient.get(`/organization/keyword-groups/${id}`),
-  createKeywordGroup: (data) => apiClient.post('/organization/keyword-groups', data),
-  updateKeywordGroup: (id, data) => apiClient.put(`/organization/keyword-groups/${id}`, data),
-  deleteKeywordGroup: (id) => apiClient.delete(`/organization/keyword-groups/${id}`),
-}
-
-// ==================== 翻译 API ====================
-export const translationAPI = {
-  listCards: (params) => apiClient.get('/translation/cards', { params }),
-  getCard: (id) => apiClient.get(`/translation/cards/${id}`),
-  createCard: (data) => apiClient.post('/translation/cards', data),
-  updateCard: (id, data) => apiClient.put(`/translation/cards/${id}`, data),
-  deleteCard: (id) => apiClient.delete(`/translation/cards/${id}`),
-}
-
-export default apiClient
+  delete

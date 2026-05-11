@@ -1,7 +1,8 @@
 """追踪相关 Schema"""
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
 from datetime import datetime
+
 
 class TrackingRecordBase(BaseModel):
     date: Optional[str] = None
@@ -11,9 +12,14 @@ class TrackingRecordBase(BaseModel):
     doi: Optional[str] = None
     action: str = "added"
 
-class TrackingRecordCreate(TrackingRecordBase): pass
+
+class TrackingRecordCreate(TrackingRecordBase): 
+    """创建追踪记录"""
+    pass
+
 
 class TrackingRecordUpdate(BaseModel):
+    """更新追踪记录"""
     date: Optional[str] = None
     journal: Optional[str] = None
     title_cn: Optional[str] = None
@@ -21,7 +27,6 @@ class TrackingRecordUpdate(BaseModel):
     doi: Optional[str] = None
     action: Optional[str] = None
 
+
 class TrackingRecordResponse(TrackingRecordBase):
-    id: int
-    created_at: Optional[datetime] = None
-    class Config: from_attributes = True
+    

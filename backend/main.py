@@ -8,7 +8,10 @@ from contextlib import asynccontextmanager
 
 from database import init_db
 from config import settings
-from routers import literature, tracking, card, attachment, structured, learning, note, organization, translation
+from routers import (
+    literature, tracking, card, attachment, structured, 
+    learning, note, organization, translation, ai_proxy
+)
 
 
 @asynccontextmanager
@@ -17,13 +20,17 @@ async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     init_db()
     yield
-    # 关闭时的清理工作可以在这里添加
+    # 关闭时的清理工作
+    from services import close_crossref_service, close_mineru_service, close_ai_service
+    await close_crossref_service()
+    await close_mineru_service()
+    await close_ai_service()
 
 
 app = FastAPI(
     title="Cat - 学术文献全流程工具 API",
     description="追踪 → 入库 → 阅读 → 笔记 → 学习，全流程学术文献管理",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -46,6 +53,7 @@ app.include_router(learning.router, prefix=settings.API_PREFIX)
 app.include_router(note.router, prefix=settings.API_PREFIX)
 app.include_router(organization.router, prefix=settings.API_PREFIX)
 app.include_router(translation.router, prefix=settings.API_PREFIX)
+app.include_router(ai_proxy.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/")
@@ -53,18 +61,5 @@ def root():
     """API根路径"""
     return {
         "name": "Cat - 学术文献全流程工具 API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/health"
-    }
-
-
-@app.get("/health")
-def health_check():
-    """健康检查"""
-    return {"status": "healthy"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+        "version": "2.0.0",
+        "docs": "/docs
