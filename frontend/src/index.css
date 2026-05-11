@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary-blue: #4DBBD5;
+  --color-primary-green: #00A087;
+  --color-text-main: #3C5488;
+  --color-text-secondary: #8491B4;
+  --color-status-error: #E64B35;
+  --color-status-warning: #F39B7F;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f7fa;
+  color: var(--color-text-main);
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 移动端优化 */
+@media (max-width: 640px) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* 卡片阴影 */
+.card-shadow {
+  box-shadow: 0 2px 8px rgba(60, 84, 136, 0.08);
+}
+
+/* 按钮基础样式 */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+}
+
+.btn-primary {
+  @apply bg-primary-blue text-white hover:bg-opacity-90;
+}
+
+.btn-secondary {
+  @apply bg-gray-100 text-text-main hover:bg-gray-200;
+}
+
+/* 输入框样式 */
+.input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue focus:border-transparent;
+}
