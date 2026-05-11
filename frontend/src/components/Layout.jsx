@@ -2,15 +2,14 @@
  * 主布局组件 - 增强版
  */
 import { useState, useEffect, useRef } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import useAppStore from '../stores/useAppStore'
-import FileManage from './FileManage'
+import { Outlet, NavLink } from 'react-router-dom'
 import { literatureAPI, learningAPI, noteAPI } from '../api/client'
 
 const tabs = [
   { path: '/', icon: '📡', label: '追踪' },
   { path: '/browse', icon: '📑', label: '略读' },
   { path: '/deep-read', icon: '📖', label: '精读' },
+  { path: '/manage', icon: '📁', label: '管理' },
   { path: '/learn', icon: '📚', label: '学习' },
   { path: '/settings', icon: '⚙️', label: '设置' },
 ]
@@ -74,7 +73,7 @@ function GlobalSearch({ isOpen, onClose }) {
               placeholder="搜索文献、单词、长难句、笔记... (Ctrl+K)"
               className="flex-1 text-lg outline-none"
             />
-            {loading && <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>}
+            {loading && <div className="animate-spin w-5 h-5 border-2 border-[#4DBBD5] border-t-transparent rounded-full"></div>}
           </div>
         </div>
         
@@ -145,8 +144,6 @@ function GlobalSearch({ isOpen, onClose }) {
 }
 
 function Layout() {
-  const { fileManageOpen, openFileManage, closeFileManage, fileManageTab } = useAppStore()
-  const location = useLocation()
   const [showSearch, setShowSearch] = useState(false)
 
   // 键盘快捷键
@@ -156,12 +153,6 @@ function Layout() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         setShowSearch(true)
-      }
-      // Ctrl+N: 新建笔记
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault()
-        // 导航到笔记创建页面
-        window.location.href = '/deep-read?new=note'
       }
       // ESC: 关闭搜索
       if (e.key === 'Escape') {
@@ -178,7 +169,7 @@ function Layout() {
       {/* 顶部导航栏 */}
       <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-40">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <h1 className="text-lg font-semibold text-blue-500 flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-[#4DBBD5] flex items-center gap-2">
             <span className="text-2xl">🐱</span>
             <span className="hidden sm:inline">Cat - 学术文献全流程工具</span>
           </h1>
@@ -192,15 +183,6 @@ function Layout() {
               <span>🔍</span>
               <span className="hidden sm:inline">搜索</span>
               <kbd className="hidden sm:inline text-xs bg-gray-200 px-1 rounded">Ctrl+K</kbd>
-            </button>
-            
-            {/* 文件管理 */}
-            <button
-              onClick={() => openFileManage('literature')}
-              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-1"
-            >
-              <span>📁</span>
-              <span className="hidden sm:inline">文件管理</span>
             </button>
           </div>
         </div>
@@ -223,8 +205,8 @@ function Layout() {
               className={({ isActive }) =>
                 `flex flex-col items-center py-2 px-3 text-xs transition-colors min-w-[60px] ${
                   isActive
-                    ? 'text-blue-500'
-                    : 'text-gray-500 hover:text-blue-500'
+                    ? 'text-[#4DBBD5]'
+                    : 'text-gray-500 hover:text-[#4DBBD5]'
                 }`
               }
             >
@@ -237,13 +219,6 @@ function Layout() {
 
       {/* 全局搜索 */}
       <GlobalSearch isOpen={showSearch} onClose={() => setShowSearch(false)} />
-
-      {/* 文件管理弹窗 */}
-      <FileManage
-        isOpen={fileManageOpen}
-        onClose={closeFileManage}
-        defaultTab={fileManageTab}
-      />
     </div>
   )
 }

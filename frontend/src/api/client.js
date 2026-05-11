@@ -172,6 +172,14 @@ export const structuredAPI = {
   createNote: (data) => apiClient.post('/structured/notes', data),
   updateNote: (id, data) => apiClient.put(`/structured/notes/${id}`, data),
   deleteNote: (id) => apiClient.delete(`/structured/notes/${id}`),
+  
+  // 长难句提取
+  extractSentences: (doi, maxSentences) => 
+    apiClient.post(`/structured/extract-sentences/${doi}`, null, { params: { max_sentences: maxSentences } }),
+  
+  // 关键词提取
+  extractKeywords: (doi, maxKeywords) => 
+    apiClient.post(`/structured/extract-keywords/${doi}`, null, { params: { max_keywords: maxKeywords } }),
 }
 
 // ==================== 学习 API ====================

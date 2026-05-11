@@ -209,10 +209,11 @@ async def validate_journals(
 @router.get("/search/by-doi/{doi}", response_model=TrackingSearchResult)
 async def search_by_doi(
     doi: str,
+    translate_abstract: bool = Query(False, description="是否翻译摘要"),
     crossref: CrossRefService = Depends(get_crossref)
 ):
     """通过DOI搜索文献信息"""
-    result = await crossref.search_by_doi(doi)
+    result = await crossref.search_and_translate_abstract(doi, translate_abstract=translate_abstract)
     
     if not result:
         raise HTTPException(status_code=404, detail="未找到该DOI对应的文献")
@@ -225,7 +226,7 @@ async def search_by_doi(
         author=result.get("first_author"),
         pubdate=result.get("pubdate"),
         abstract_en=result.get("abstract_en"),
-        abstract_cn=None
+        abstract_cn=result.get("abstract_cn")  # 已翻译的中文摘要
     )
 
 
@@ -236,6 +237,7 @@ async def search_by_journal(
     from_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     until_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     rows: int = Query(100, description="返回数量"),
+    translate_abstract: bool = Query(False, description="是否翻译摘要"),
     crossref: CrossRefService = Depends(get_crossref)
 ):
     """通过期刊名搜索文献"""
@@ -251,6 +253,14 @@ async def search_by_journal(
         rows=rows
     )
     
+    # 如果需要翻译摘要
+    if translate_abstract:
+        for result in results:
+            if result.get("abstract_en"):
+                abstract_cn = await crossref.translate_abstract(result["abstract_en"])
+                if abstract_cn:
+                    result["abstract_cn"] = abstract_cn
+    
     return [
         TrackingSearchResult(
             doi=r.get("doi"),
@@ -260,7 +270,7 @@ async def search_by_journal(
             author=r.get("first_author"),
             pubdate=r.get("pubdate"),
             abstract_en=r.get("abstract_en"),
-            abstract_cn=None
+            abstract_cn=r.get("abstract_cn")
         )
         for r in results
     ]
@@ -271,19 +281,22 @@ async def add_by_doi(
     doi: str = Query(..., description="DOI标识符"),
     tracking_date: str = Query(..., description="追踪日期 YYYY-MM-DD"),
     translate_title: bool = Query(True, description="是否翻译标题"),
+    translate_abstract: bool = Query(False, description="是否翻译摘要"),
     db: Session = Depends(get_db)
 ):
     """通过DOI直接添加文献到追踪列表（自动获取信息并翻译）"""
     crossref = get_crossref()
     ai = get_ai_service()
     
-    # 1. 获取DOI信息
-    paper_info = await crossref.search_by_doi(doi)
+    # 1. 获取DOI信息（含可选摘要翻译）
+    paper_info = await crossref.search_and_translate_abstract(doi, translate_abstract=translate_abstract)
     if not paper_info:
         raise HTTPException(status_code=404, detail="未找到该DOI对应的文献")
     
     title_en = paper_info.get("title_en", "")
     journal = paper_info.get("journal", "")
+    abstract_en = paper_info.get("abstract_en")
+    abstract_cn = paper_info.get("abstract_cn")  # 已翻译的摘要
     
     # 2. 翻译标题（如果需要）
     title_cn = None
@@ -297,7 +310,7 @@ async def add_by_doi(
 期刊：{journal}"""
             
             translated = await ai.chat(
-                prompt=prompt,
+                messages=[{"role": "user", "content": prompt}],
                 system="你是一个专业的学术翻译助手，擅长翻译学术论文标题。要求翻译准确、专业、简洁。"
             )
             

@@ -8,13 +8,9 @@ const useAppStore = create((set, get) => ({
   // ==================== UI状态 ====================
   isLoading: false,
   error: null,
-  fileManageOpen: false,
-  fileManageTab: 'tracking', // tracking | literature | learning | notes | organization
 
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
-  openFileManage: (tab = 'tracking') => set({ fileManageOpen: true, fileManageTab: tab }),
-  closeFileManage: () => set({ fileManageOpen: false }),
 
   // ==================== 文献表状态 ====================
   literatureTable: [],

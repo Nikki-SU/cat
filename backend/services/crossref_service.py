@@ -32,7 +32,7 @@ class CrossRefService:
         now = time.time()
         elapsed = now - self._last_request_time
         if elapsed < self.RATE_LIMIT_DELAY:
-            await asyncio.sleep(self._rate_limit() - elapsed)
+            await asyncio.sleep(self.RATE_LIMIT_DELAY - elapsed)
         self._last_request_time = time.time()
     
     async def close(self):
@@ -333,6 +333,7 @@ class CrossRefService:
             "pubdate": pubdate,
             "abstract": abstract,
             "abstract_en": abstract,
+            "abstract_cn": None,  # 稍后通过AI翻译填充
             "volume": work.get("volume"),
             "issue": work.get("issue"),
             "page": work.get("page"),
@@ -349,6 +350,53 @@ class CrossRefService:
         if given and family:
             return f"{family}, {given[0]}."
         return family or given or "Unknown"
+    
+    async def translate_abstract(self, abstract_en: str) -> Optional[str]:
+        """
+        翻译摘要为中文
+        
+        Args:
+            abstract_en: 英文摘要
+            
+        Returns:
+            中文摘要或None
+        """
+        # 延迟导入避免循环依赖
+        from services.ai_service import get_ai_service
+        
+        if not abstract_en:
+            return None
+        
+        try:
+            ai_service = get_ai_service()
+            result = await ai_service.translate(abstract_en, target_lang="Chinese")
+            if result.get("success"):
+                return result.get("translation")
+        except Exception as e:
+            print(f"Abstract translation error: {e}")
+        
+        return None
+    
+    async def search_and_translate_abstract(self, doi: str, translate_abstract: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        通过DOI获取文献信息，并可选翻译摘要
+        
+        Args:
+            doi: DOI标识符
+            translate_abstract: 是否翻译摘要
+            
+        Returns:
+            文献信息字典（含翻译后的摘要）
+        """
+        result = await self.search_by_doi(doi)
+        
+        if result and translate_abstract and result.get("abstract_en"):
+            # 翻译摘要
+            abstract_cn = await self.translate_abstract(result["abstract_en"])
+            if abstract_cn:
+                result["abstract_cn"] = abstract_cn
+        
+        return result
 
 
 # 全局单例

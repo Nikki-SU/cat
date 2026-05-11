@@ -4,6 +4,7 @@ AI 服务 - 翻译和其他AI功能（增强版）
 import httpx
 import json
 import asyncio
+import re
 from typing import Optional, Dict, Any, List
 from config import settings
 
@@ -542,6 +543,160 @@ Return ONLY valid JSON, no other text."""
                 "feedback": parsed.get("feedback", ""),
                 "errors": parsed.get("errors", []),
                 "error_words": parsed.get("error_words", []),
+                "usage": result.get("usage")
+            }
+        except json.JSONDecodeError:
+            return {
+                "success": False,
+                "error": "无法解析AI返回的JSON",
+                "raw_content": result["content"]
+            }
+    
+    async def extract_long_sentences(self, markdown: str, doi: str = None) -> Dict[str, Any]:
+        """
+        从Markdown中提取长难句并翻译
+        
+        Args:
+            markdown: 解析后的Markdown文本
+            doi: 文献DOI（可选）
+            
+        Returns:
+            提取结果 {success, sentences: [{sentence_en, sentence_cn, word_count, position}], error}
+        """
+        prompt = f"""Analyze the following academic paper markdown and extract long, complex sentences.
+Focus on sentences that:
+1. Have 50+ words
+2. Contain complex grammatical structures
+3. Express important academic concepts
+
+Return in JSON format:
+
+{{
+    "sentences": [
+        {{
+            "sentence_en": "The original English sentence",
+            "word_count": number of words,
+            "position": "abstract|introduction|method|result|discussion"
+        }}
+    ]
+}}
+
+IMPORTANT:
+1. Return ONLY valid JSON, no other text
+2. Extract 5-15 most important long sentences
+3. Include sentences from different sections for diversity
+4. Preserve complete sentences without truncation
+
+Markdown content (first 8000 chars):
+{markdown[:8000]}"""
+        
+        messages = [
+            {"role": "system", "content": "You are an expert at analyzing academic papers and identifying linguistically complex sentences."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        result = await self.chat(messages, temperature=0.3, max_tokens=3000)
+        
+        if not result["success"]:
+            return result
+        
+        try:
+            content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            
+            parsed = json.loads(content.strip())
+            sentences = parsed.get("sentences", [])
+            
+            # 翻译每个长难句
+            translated_sentences = []
+            for sentence_data in sentences:
+                sentence_en = sentence_data.get("sentence_en", "")
+                if sentence_en:
+                    # 翻译
+                    translate_result = await self.translate_long_sentence(sentence_en)
+                    translated_sentences.append({
+                        "sentence_en": sentence_en,
+                        "sentence_cn": translate_result.get("sentence_cn") if translate_result.get("success") else None,
+                        "word_count": sentence_data.get("word_count", 0),
+                        "position": sentence_data.get("position", "unknown")
+                    })
+            
+            return {
+                "success": True,
+                "sentences": translated_sentences,
+                "usage": result.get("usage")
+            }
+        except json.JSONDecodeError:
+            return {
+                "success": False,
+                "error": "无法解析AI返回的JSON",
+                "raw_content": result["content"]
+            }
+    
+    async def extract_keywords(self, markdown: str, doi: str = None, count: int = 20) -> Dict[str, Any]:
+        """
+        从Markdown中提取关键词
+        
+        Args:
+            markdown: 解析后的Markdown文本
+            doi: 文献DOI（可选）
+            count: 提取数量
+            
+        Returns:
+            提取结果 {success, keywords: [{keyword, translation, frequency, category}], error}
+        """
+        prompt = f"""Extract key technical keywords and phrases from the following academic paper markdown.
+Focus on:
+1. Domain-specific technical terms
+2. Method names and algorithm names
+3. Important concepts and definitions
+4. Dataset and model names
+
+Return in JSON format:
+
+{{
+    "keywords": [
+        {{
+            "keyword": "original English term",
+            "translation": "Chinese translation",
+            "frequency": how many times it appears,
+            "category": "method|concept|tool|dataset|model|metric"
+        }}
+    ]
+}}
+
+IMPORTANT:
+1. Return ONLY valid JSON, no other text
+2. Extract exactly {count} most important keywords
+3. Prioritize domain-specific technical terms over common words
+
+Markdown content (first 8000 chars):
+{markdown[:8000]}"""
+        
+        messages = [
+            {"role": "system", "content": "You are an expert in academic paper analysis and terminology extraction."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        result = await self.chat(messages, temperature=0.3, max_tokens=2000)
+        
+        if not result["success"]:
+            return result
+        
+        try:
+            content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            
+            parsed = json.loads(content.strip())
+            return {
+                "success": True,
+                "keywords": parsed.get("keywords", [])[:count],
                 "usage": result.get("usage")
             }
         except json.JSONDecodeError:
