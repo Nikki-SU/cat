@@ -330,4 +330,15 @@ export const syncAPI = {
     apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_id: recordId, resolution, local_data: localData, remote_data: remoteData }),
 }
 
+// ==================== 翻译练习 API ====================
+export const translationAPI = {
+  list: (params) => apiClient.get('/translations', { params }),
+  get: (id) => apiClient.get(`/translations/${id}`),
+  create: (data) => apiClient.post('/translations', data),
+  createFromDoi: (doi) => apiClient.post('/translations/from-doi', { doi }),
+  update: (id, data) => apiClient.put(`/translations/${id}`, data),
+  delete: (id) => apiClient.delete(`/translations/${id}`),
+  evaluate: (id, translation) => apiClient.post(`/translations/${id}/evaluate`, { translation }),
+}
+
 export default apiClient

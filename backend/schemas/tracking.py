@@ -29,4 +29,30 @@ class TrackingRecordUpdate(BaseModel):
 
 
 class TrackingRecordResponse(TrackingRecordBase):
-    
+    id: int
+    created_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+
+class JournalValidationResult(BaseModel):
+    journal_name: str
+    is_valid: bool
+    article_count: int = 0
+    issn: Optional[str] = None
+    suggested_name: Optional[str] = None
+
+
+class JournalValidationRequest(BaseModel):
+    journals: List[str]
+
+
+class TrackingSearchResult(BaseModel):
+    doi: Optional[str] = None
+    title_en: Optional[str] = None
+    title_cn: Optional[str] = None
+    journal: Optional[str] = None
+    author: Optional[str] = None
+    pubdate: Optional[str] = None
+    abstract_en: Optional[str] = None
+    abstract_cn: Optional[str] = None

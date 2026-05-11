@@ -64,4 +64,15 @@ class LiteratureTableEntryUpdate(BaseModel):
 class LiteratureTableEntryResponse(LiteratureTableEntryBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    class Config: from_attribu
+    class Config:
+        from_attributes = True
+
+
+class LiteratureSearchParams(BaseModel):
+    query: Optional[str] = None
+    search_notes: bool = False
+    search_content: bool = False
+    sort_by: str = "created_at"
+    sort_order: str = "desc"
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None

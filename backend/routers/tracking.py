@@ -2,16 +2,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc
+from sqlalchemy import desc, asc, func
 from typing import List, Optional
 from datetime import datetime
 from io import StringIO, BytesIO
 import csv
+import asyncio
 
 from database import get_db
 from models.tracking import TrackingRecord
 from models.literature import LiteratureTableEntry, LiteratureEntry
-from schemas.tracking import TrackingRecordCreate, TrackingRecordUpdate, TrackingRecordResponse
+from schemas.tracking import (
+    TrackingRecordCreate, TrackingRecordUpdate, TrackingRecordResponse,
+    JournalValidationResult, JournalValidationRequest, TrackingSearchResult
+)
 from services.crossref_service import get_crossref_service, CrossRefService
 from services.ai_service import get_ai_service
 
@@ -22,7 +26,7 @@ def get_crossref() -> CrossRefService:
     return get_crossref_service()
 
 
-def get_ai() -> AIService:
+def get_ai():
     return get_ai_service()
 
 
@@ -30,9 +34,12 @@ def get_ai() -> AIService:
 
 @router.get("/records", response_model=List[TrackingRecordResponse])
 def list_tracking_records(
-    skip: int = 0, limit: int = 100,
-    journal: Optional[str] = None, action: Optional[str] = None,
-    sort_by: str = "created_at", sort_order: str = "desc",
+    skip: int = 0, 
+    limit: int = 100,
+    journal: Optional[str] = None, 
+    action: Optional[str] = None,
+    sort_by: str = "created_at", 
+    sort_order: str = "desc",
     db: Session = Depends(get_db)
 ):
     """获取追踪记录列表"""
@@ -74,4 +81,317 @@ def create_tracking_record(data: TrackingRecordCreate, db: Session = Depends(get
 @router.post("/records/batch", response_model=List[TrackingRecordResponse])
 def create_tracking_records_batch(
     records: List[TrackingRecordCreate], 
-    tracking_date: str = Non
+    tracking_date: str = Query(..., description="追踪日期 (YYYY-MM-DD格式)"),
+    db: Session = Depends(get_db)
+):
+    """批量创建追踪记录"""
+    created_records = []
+    for record_data in records:
+        record_dict = record_data.model_dump()
+        record_dict["date"] = tracking_date
+        record = TrackingRecord(**record_dict)
+        db.add(record)
+        created_records.append(record)
+    
+    db.commit()
+    for record in created_records:
+        db.refresh(record)
+    
+    return created_records
+
+
+@router.put("/records/{id}", response_model=TrackingRecordResponse)
+def update_tracking_record(id: int, data: TrackingRecordUpdate, db: Session = Depends(get_db)):
+    """更新追踪记录"""
+    record = db.query(TrackingRecord).filter(TrackingRecord.id == id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="追踪记录不存在")
+    
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(record, key, value)
+    
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@router.delete("/records/{id}")
+def delete_tracking_record(id: int, db: Session = Depends(get_db)):
+    """删除追踪记录"""
+    record = db.query(TrackingRecord).filter(TrackingRecord.id == id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="追踪记录不存在")
+    
+    db.delete(record)
+    db.commit()
+    return {"message": "删除成功"}
+
+
+# ==================== 按条件查询 ====================
+
+@router.get("/records/by-journal/{journal}", response_model=List[TrackingRecordResponse])
+def get_records_by_journal(
+    journal: str, 
+    skip: int = 0, 
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """按期刊名查询追踪记录"""
+    query = db.query(TrackingRecord).filter(TrackingRecord.journal == journal)
+    return query.order_by(desc(TrackingRecord.created_at)).offset(skip).limit(limit).all()
+
+
+@router.get("/records/by-date/{date}", response_model=List[TrackingRecordResponse])
+def get_records_by_date(
+    date: str, 
+    skip: int = 0, 
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """按日期查询追踪记录"""
+    query = db.query(TrackingRecord).filter(TrackingRecord.date == date)
+    return query.order_by(desc(TrackingRecord.created_at)).offset(skip).limit(limit).all()
+
+
+@router.get("/records/dates", response_model=List[str])
+def get_all_tracking_dates(db: Session = Depends(get_db)):
+    """获取所有追踪日期列表"""
+    dates = db.query(TrackingRecord.date).distinct().filter(
+        TrackingRecord.date.isnot(None)
+    ).order_by(desc(TrackingRecord.date)).all()
+    return [d[0] for d in dates if d[0]]
+
+
+# ==================== 期刊验证与搜索 ====================
+
+@router.post("/validate-journals", response_model=List[JournalValidationResult])
+async def validate_journals(
+    request: JournalValidationRequest,
+    crossref: CrossRefService = Depends(get_crossref)
+):
+    """验证期刊名有效性"""
+    results = []
+    
+    for journal_name in request.journals:
+        try:
+            # 使用期刊名搜索获取ISSN和文章数
+            issn = await crossref._get_journal_issn(journal_name)
+            
+            if issn:
+                # 获取近期文章数量
+                articles = await crossref.search_by_journal_issn(
+                    issn=issn, 
+                    rows=5
+                )
+                results.append(JournalValidationResult(
+                    journal_name=journal_name,
+                    is_valid=True,
+                    article_count=len(articles),
+                    issn=issn
+                ))
+            else:
+                results.append(JournalValidationResult(
+                    journal_name=journal_name,
+                    is_valid=False,
+                    article_count=0
+                ))
+        except Exception as e:
+            results.append(JournalValidationResult(
+                journal_name=journal_name,
+                is_valid=False,
+                article_count=0
+            ))
+    
+    return results
+
+
+@router.get("/search/by-doi/{doi}", response_model=TrackingSearchResult)
+async def search_by_doi(
+    doi: str,
+    crossref: CrossRefService = Depends(get_crossref)
+):
+    """通过DOI搜索文献信息"""
+    result = await crossref.search_by_doi(doi)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="未找到该DOI对应的文献")
+    
+    return TrackingSearchResult(
+        doi=result.get("doi"),
+        title_en=result.get("title_en"),
+        title_cn=None,
+        journal=result.get("journal"),
+        author=result.get("first_author"),
+        pubdate=result.get("pubdate"),
+        abstract_en=result.get("abstract_en"),
+        abstract_cn=None
+    )
+
+
+@router.post("/search/by-journal", response_model=List[TrackingSearchResult])
+async def search_by_journal(
+    journal_name: str = Query(..., description="期刊名称"),
+    keywords: Optional[str] = Query(None, description="关键词，逗号分隔"),
+    from_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
+    until_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    rows: int = Query(100, description="返回数量"),
+    crossref: CrossRefService = Depends(get_crossref)
+):
+    """通过期刊名搜索文献"""
+    keyword_list = None
+    if keywords:
+        keyword_list = [k.strip() for k in keywords.split(",")]
+    
+    results = await crossref.search_by_journal_name(
+        journal_name=journal_name,
+        keywords=None,  # 简化处理
+        from_date=from_date,
+        until_date=until_date,
+        rows=rows
+    )
+    
+    return [
+        TrackingSearchResult(
+            doi=r.get("doi"),
+            title_en=r.get("title_en"),
+            title_cn=None,
+            journal=r.get("journal"),
+            author=r.get("first_author"),
+            pubdate=r.get("pubdate"),
+            abstract_en=r.get("abstract_en"),
+            abstract_cn=None
+        )
+        for r in results
+    ]
+
+
+@router.post("/add-by-doi", response_model=TrackingRecordResponse)
+async def add_by_doi(
+    doi: str = Query(..., description="DOI标识符"),
+    tracking_date: str = Query(..., description="追踪日期 YYYY-MM-DD"),
+    translate_title: bool = Query(True, description="是否翻译标题"),
+    db: Session = Depends(get_db)
+):
+    """通过DOI直接添加文献到追踪列表（自动获取信息并翻译）"""
+    crossref = get_crossref()
+    ai = get_ai_service()
+    
+    # 1. 获取DOI信息
+    paper_info = await crossref.search_by_doi(doi)
+    if not paper_info:
+        raise HTTPException(status_code=404, detail="未找到该DOI对应的文献")
+    
+    title_en = paper_info.get("title_en", "")
+    journal = paper_info.get("journal", "")
+    
+    # 2. 翻译标题（如果需要）
+    title_cn = None
+    if translate_title and title_en:
+        try:
+            # 构建翻译提示
+            prompt = f"""请将以下学术论文标题翻译成中文，只需返回翻译结果，不需要其他解释：
+
+标题：{title_en}
+
+期刊：{journal}"""
+            
+            translated = await ai.chat(
+                prompt=prompt,
+                system="你是一个专业的学术翻译助手，擅长翻译学术论文标题。要求翻译准确、专业、简洁。"
+            )
+            
+            if translated and not translated.startswith("翻译失败"):
+                title_cn = translated.strip()
+        except Exception as e:
+            print(f"翻译失败: {e}")
+            title_cn = None
+    
+    # 3. 创建追踪记录
+    record = TrackingRecord(
+        date=tracking_date,
+        journal=journal,
+        title_cn=title_cn,
+        title_en=title_en,
+        doi=doi,
+        action="added"
+    )
+    
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    
+    return record
+
+
+# ==================== 导出功能 ====================
+
+@router.get("/export/csv")
+def export_tracking_csv(
+    journal: Optional[str] = None,
+    date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """导出追踪记录为CSV"""
+    query = db.query(TrackingRecord)
+    
+    if journal:
+        query = query.filter(TrackingRecord.journal == journal)
+    if date:
+        query = query.filter(TrackingRecord.date == date)
+    
+    records = query.order_by(desc(TrackingRecord.date)).all()
+    
+    # 创建CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["日期", "期刊", "标题(中文)", "标题(英文)", "DOI", "操作", "创建时间"])
+    
+    for r in records:
+        writer.writerow([
+            r.date or "",
+            r.journal or "",
+            r.title_cn or "",
+            r.title_en or "",
+            r.doi or "",
+            r.action or "",
+            r.created_at.isoformat() if r.created_at else ""
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        BytesIO(output.getvalue().encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=tracking_records.csv"}
+    )
+
+
+@router.get("/statistics")
+def get_tracking_statistics(db: Session = Depends(get_db)):
+    """获取追踪统计信息"""
+    total = db.query(TrackingRecord).count()
+    
+    # 按期刊统计
+    journal_stats = db.query(
+        TrackingRecord.journal,
+        func.count(TrackingRecord.id).label("count")
+    ).group_by(TrackingRecord.journal).all()
+    
+    # 按日期统计
+    date_stats = db.query(
+        TrackingRecord.date,
+        func.count(TrackingRecord.id).label("count")
+    ).filter(TrackingRecord.date.isnot(None)).group_by(TrackingRecord.date).all()
+    
+    # 按操作统计
+    action_stats = db.query(
+        TrackingRecord.action,
+        func.count(TrackingRecord.id).label("count")
+    ).group_by(TrackingRecord.action).all()
+    
+    return {
+        "total": total,
+        "by_journal": [{"journal": j, "count": c} for j, c in journal_stats],
+        "by_date": [{"date": d, "count": c} for d, c in date_stats],
+        "by_action": [{"action": a, "count": c} for a, c in action_stats]
+    }
