@@ -115,6 +115,11 @@ const stripMarkdown = (text) => {
   return text.replace(/[#*`\[\]]/g, '').trim()
 }
 
+// 转义正则特殊字符
+const escapeRegExp = (string) => {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // ==================== Store ====================
 
 const useDeepReadStore = create((set, get) => ({
@@ -139,6 +144,8 @@ const useDeepReadStore = create((set, get) => ({
   // ========== Actions ==========
   
   loadLiterature: async (literature) => {
+    if (!literature) return
+    
     set({ selectedLiterature: literature, isLoading: true })
     
     try {
@@ -162,7 +169,7 @@ const useDeepReadStore = create((set, get) => ({
       })
     } catch (error) {
       console.error('Failed to load:', error)
-      set({ isLoading: false })
+      set({ isLoading: false, error: error?.message || '加载失败' })
     }
   },
   
@@ -178,14 +185,17 @@ const useDeepReadStore = create((set, get) => ({
     isProtected: s.readMode === 'edit'
   })),
   
-  // 获取某段落的单词
+  // 获取某段落的单词（修复正则转义）
   getWordsForParagraph: (pId) => {
     const { words, paragraphs } = get()
     const p = paragraphs.find(x => x.id === pId)
     if (!p) return []
     
     return words.filter(w => {
-      const regex = new RegExp(`\\b${w.word_en}\\b`, 'i')
+      if (!w.word_en) return false
+      // 转义正则特殊字符
+      const escaped = escapeRegExp(w.word_en)
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i')
       return regex.test(p.plainText)
     })
   },
@@ -198,7 +208,7 @@ const useDeepReadStore = create((set, get) => ({
     
     return sentences.filter(s => {
       // 简单包含匹配
-      return p.plainText.includes(s.sentence_en.substring(0, 30))
+      return p.plainText.includes(s.sentence_en?.substring(0, 30) || '')
     })
   },
   
@@ -225,42 +235,95 @@ const useDeepReadStore = create((set, get) => ({
     set(s => ({ highlights: [...s.highlights, hl] }))
   },
   
-  // 添加笔记
+  // 添加笔记（添加错误处理）
   addNote: async (data) => {
     const { selectedLiterature } = get()
-    if (!selectedLiterature) return
+    if (!selectedLiterature) {
+      throw new Error('未选择文献')
+    }
     
-    const note = await structuredAPI.createNote({
-      doi: selectedLiterature.doi,
-      ...data
-    })
-    set(s => ({ notes: [...s.notes, note] }))
-    return note
+    try {
+      const note = await structuredAPI.createNote({
+        doi: selectedLiterature.doi,
+        ...data
+      })
+      set(s => ({ notes: [...s.notes, note] }))
+      return note
+    } catch (error) {
+      console.error('Failed to add note:', error)
+      throw error
+    }
+  },
+  
+  // 删除笔记
+  deleteNote: async (noteId) => {
+    try {
+      await structuredAPI.deleteNote(noteId)
+      set(s => ({
+        notes: s.notes.filter(n => n.id !== noteId)
+      }))
+    } catch (error) {
+      console.error('Failed to delete note:', error)
+      throw error
+    }
+  },
+  
+  // 更新笔记
+  updateNote: async (noteId, data) => {
+    try {
+      const updated = await structuredAPI.updateNote(noteId, data)
+      set(s => ({
+        notes: s.notes.map(n => n.id === noteId ? updated : n)
+      }))
+      return updated
+    } catch (error) {
+      console.error('Failed to update note:', error)
+      throw error
+    }
   },
   
   updateWordStatus: async (wordId, status) => {
-    await learningAPI.updateWord(wordId, { status })
-    set(s => ({
-      words: s.words.map(w => w.id === wordId ? { ...w, status } : w)
-    }))
+    try {
+      await learningAPI.updateWord(wordId, { status })
+      set(s => ({
+        words: s.words.map(w => w.id === wordId ? { ...w, status } : w)
+      }))
+    } catch (error) {
+      console.error('Failed to update word:', error)
+      throw error
+    }
   },
   
   updateSentenceStatus: async (sid, status) => {
-    await learningAPI.updateSentence(sid, { status })
-    set(s => ({
-      sentences: s.sentences.map(x => x.id === sid ? { ...x, status } : x)
-    }))
+    try {
+      await learningAPI.updateSentence(sid, { status })
+      set(s => ({
+        sentences: s.sentences.map(x => x.id === sid ? { ...x, status } : x)
+      }))
+    } catch (error) {
+      console.error('Failed to update sentence:', error)
+      throw error
+    }
   },
   
   saveContent: async (newContent) => {
     const { selectedLiterature } = get()
-    await structuredAPI.updateLiterature(selectedLiterature.doi, { content: newContent })
-    set({
-      rawContent: newContent,
-      paragraphs: parseParagraphs(newContent),
-      readMode: 'read',
-      isProtected: true
-    })
+    if (!selectedLiterature) {
+      throw new Error('未选择文献')
+    }
+    
+    try {
+      await structuredAPI.updateLiterature(selectedLiterature.doi, { content: newContent })
+      set({
+        rawContent: newContent,
+        paragraphs: parseParagraphs(newContent),
+        readMode: 'read',
+        isProtected: true
+      })
+    } catch (error) {
+      console.error('Failed to save:', error)
+      throw error
+    }
   },
   
   reset: () => set({
@@ -272,7 +335,8 @@ const useDeepReadStore = create((set, get) => ({
     notes: [],
     highlights: [],
     readMode: 'read',
-    isProtected: true
+    isProtected: true,
+    error: null
   })
 }))
 
