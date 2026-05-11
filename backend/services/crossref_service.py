@@ -1,11 +1,12 @@
 """
-CrossRef API 集成服务
-用于文献追踪和DOI信息获取
+CrossRef API 集成服务 - 增强版
+支持 AND/OR/NOT 关键词逻辑过滤
 """
 import httpx
 import asyncio
 import time
-from typing import List, Dict, Optional, Any
+import re
+from typing import List, Dict, Optional, Any, Tuple
 from urllib.parse import quote
 from config import settings
 
@@ -40,15 +41,7 @@ class CrossRefService:
         await self.client.aclose()
     
     async def search_by_doi(self, doi: str) -> Optional[Dict[str, Any]]:
-        """
-        通过DOI获取文献信息
-        
-        Args:
-            doi: DOI标识符
-            
-        Returns:
-            文献信息字典，如果不存在则返回None
-        """
+        """通过DOI获取文献信息"""
         await self._rate_limit()
         
         try:
@@ -67,29 +60,20 @@ class CrossRefService:
     async def search_by_journal_issn(
         self, 
         issn: str, 
-        keywords: List[str] = None,
+        keywords: List[Dict[str, str]] = None,  # [{word, logic}]
         from_date: str = None,
         until_date: str = None,
         rows: int = 100
     ) -> List[Dict[str, Any]]:
         """
         通过期刊ISSN和关键词搜索文献
-        
-        Args:
-            issn: 期刊ISSN
-            keywords: 关键词列表
-            from_date: 开始日期 (YYYY-MM-DD)
-            until_date: 结束日期 (YYYY-MM-DD)
-            rows: 返回结果数量
-            
-        Returns:
-            文献列表
+        支持 AND/OR/NOT 逻辑过滤
         """
         await self._rate_limit()
         
         params = {
             "issn": issn,
-            "rows": rows,
+            "rows": min(rows * 3, 1000),  # 多获取一些用于过滤
             "select": "DOI,title,container-title,author,published,abstract,volume,issue,page"
         }
         
@@ -98,20 +82,106 @@ class CrossRefService:
         if until_date:
             params["until-pub-date"] = until_date
         
+        # Step 1: 构建OR查询获取候选文献
         if keywords:
-            # 构建关键词查询
-            keyword_query = " OR ".join([f'"{k}"' for k in keywords])
-            params["query"] = keyword_query
+            # 先用OR获取所有可能包含关键词的文献
+            or_keywords = [k.get("word", "") for k in keywords if k.get("logic") != "not"]
+            if or_keywords:
+                keyword_query = " OR ".join([f'"{k}"' for k in or_keywords])
+                params["query"] = keyword_query
         
         try:
             response = await self.client.get(self.BASE_URL, params=params)
             response.raise_for_status()
             data = response.json()
             items = data.get("message", {}).get("items", [])
-            return [self._parse_work(item) for item in items]
+            
+            # 解析所有文献
+            results = [self._parse_work(item) for item in items]
+            
+            # Step 2: 应用 AND/OR/NOT 过滤
+            if keywords:
+                results = self._filter_by_keywords_logic(results, keywords)
+            
+            return results[:rows]  # 返回指定数量
+            
         except httpx.HTTPError as e:
             print(f"CrossRef API error: {e}")
             return []
+    
+    def _filter_by_keywords_logic(
+        self, 
+        works: List[Dict[str, Any]], 
+        keywords: List[Dict[str, str]]
+    ) -> List[Dict[str, Any]]:
+        """
+        根据 AND/OR/NOT 逻辑过滤文献
+        
+        逻辑规则：
+        - AND: 文献必须包含所有 AND 关键词
+        - OR:  文献包含任一个 OR 关键词（默认）  
+        - NOT: 文献排除包含 NOT 关键词的
+        
+        示例：[{word: "A", logic: "and"}, {word: "B", logic: "or"}, {word: "C", logic: "not"}]
+        含义：包含 A AND (B OR ...) AND (NOT C)
+        """
+        if not keywords:
+            return works
+        
+        # 分离不同逻辑的关键词
+        and_keywords = [k.get("word", "").lower() for k in keywords if k.get("logic") == "and"]
+        or_keywords = [k.get("word", "").lower() for k in keywords if k.get("logic") in ("or", "")]
+        not_keywords = [k.get("word", "").lower() for k in keywords if k.get("logic") == "not"]
+        
+        filtered = []
+        
+        for work in works:
+            # 获取文献可搜索文本
+            searchable_text = self._get_searchable_text(work).lower()
+            
+            # 检查 AND 条件（必须全部满足）
+            and_passed = all(kw in searchable_text for kw in and_keywords)
+            
+            # 检查 OR 条件（如果没有OR关键词，默认为True）
+            if or_keywords:
+                or_passed = any(kw in searchable_text for kw in or_keywords)
+            else:
+                or_passed = True
+            
+            # 检查 NOT 条件（全部不满足）
+            not_passed = not any(kw in searchable_text for kw in not_keywords)
+            
+            # 只有通过所有条件的文献才保留
+            if and_passed and or_passed and not_passed:
+                filtered.append(work)
+        
+        return filtered
+    
+    def _get_searchable_text(self, work: Dict[str, Any]) -> str:
+        """获取文献的可搜索文本（标题+摘要+关键词）"""
+        parts = []
+        
+        # 标题
+        title = work.get("title", "") or work.get("title_en", "")
+        if title:
+            parts.append(title)
+        
+        # 摘要
+        abstract = work.get("abstract", "") or work.get("abstract_en", "")
+        if abstract:
+            parts.append(abstract)
+        
+        # 作者
+        authors = work.get("authors", [])
+        if authors:
+            parts.extend(authors)
+        
+        # 期刊
+        journal = work.get("journal", "")
+        if journal:
+            parts.append(journal)
+        
+        return " ".join(parts)
     
     async def search_by_journal_name(
         self,
@@ -123,16 +193,7 @@ class CrossRefService:
     ) -> List[Dict[str, Any]]:
         """
         通过期刊名搜索文献
-        
-        Args:
-            journal_name: 期刊名称
-            keywords: 关键词列表 [{word, logic: 'and'/'or'/'not'}]
-            from_date: 开始日期
-            until_date: 结束日期
-            rows: 返回数量
-            
-        Returns:
-            文献列表
+        支持 AND/OR/NOT 逻辑
         """
         await self._rate_limit()
         
@@ -141,27 +202,17 @@ class CrossRefService:
         if not issn:
             return []
         
-        # 提取关键词文本
-        keyword_words = [k.get("word", "") for k in keywords] if keywords else []
-        
+        # 使用ISSN搜索
         return await self.search_by_journal_issn(
             issn=issn,
-            keywords=keyword_words,
+            keywords=keywords,
             from_date=from_date,
             until_date=until_date,
             rows=rows
         )
     
     async def _get_journal_issn(self, journal_name: str) -> Optional[str]:
-        """
-        通过期刊名获取ISSN
-        
-        Args:
-            journal_name: 期刊名称
-            
-        Returns:
-            ISSN或None
-        """
+        """通过期刊名获取ISSN"""
         await self._rate_limit()
         
         params = {
@@ -190,18 +241,9 @@ class CrossRefService:
             return None
     
     async def validate_journal(self, journal_name: str) -> Dict[str, Any]:
-        """
-        验证期刊名称是否有效，并获取一年内文章数量
-        
-        Args:
-            journal_name: 期刊名称
-            
-        Returns:
-            验证结果 {valid, suggested_name, article_count, issn}
-        """
+        """验证期刊名称是否有效"""
         from datetime import datetime, timedelta
         
-        # 计算一年前的日期
         one_year_ago = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
         
         await self._rate_limit()
@@ -214,7 +256,7 @@ class CrossRefService:
         }
         
         try:
-            response = await self.client.get(
+            response = await requests.get(
                 "https://api.crossref.org/journals",
                 params=params
             )
@@ -230,7 +272,6 @@ class CrossRefService:
                     "issn": None
                 }
             
-            # 查找最匹配的期刊
             best_match = None
             for item in items:
                 titles = item.get("title", [])
@@ -270,22 +311,13 @@ class CrossRefService:
             }
     
     def _parse_work(self, work: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解析CrossRef工作条目为统一格式
-        
-        Args:
-            work: CrossRef API返回的原始数据
-            
-        Returns:
-            解析后的文献信息
-        """
+        """解析CrossRef工作条目为统一格式"""
         # 解析作者
         authors = work.get("author", [])
         first_author = None
         communication_author = None
         
         if authors:
-            # 第一作者
             for author in authors:
                 if author.get("sequence") == "first":
                     first_author = self._format_author(author)
@@ -293,7 +325,6 @@ class CrossRefService:
             if not first_author and authors:
                 first_author = self._format_author(authors[0])
             
-            # 通讯作者（通常标记为 "senior" 或最后一个）
             for author in authors:
                 if author.get("type") == "senior" or author.get("sequence") == "last":
                     communication_author = self._format_author(author)
@@ -320,8 +351,6 @@ class CrossRefService:
         # 解析摘要
         abstract = work.get("abstract", None)
         if abstract:
-            # 去除HTML标签
-            import re
             abstract = re.sub(r'<[^>]+>', '', abstract)
         
         return {
@@ -333,7 +362,7 @@ class CrossRefService:
             "pubdate": pubdate,
             "abstract": abstract,
             "abstract_en": abstract,
-            "abstract_cn": None,  # 稍后通过AI翻译填充
+            "abstract_cn": None,
             "volume": work.get("volume"),
             "issue": work.get("issue"),
             "page": work.get("page"),
@@ -352,16 +381,7 @@ class CrossRefService:
         return family or given or "Unknown"
     
     async def translate_abstract(self, abstract_en: str) -> Optional[str]:
-        """
-        翻译摘要为中文
-        
-        Args:
-            abstract_en: 英文摘要
-            
-        Returns:
-            中文摘要或None
-        """
-        # 延迟导入避免循环依赖
+        """翻译摘要为中文"""
         from services.ai_service import get_ai_service
         
         if not abstract_en:
@@ -378,20 +398,10 @@ class CrossRefService:
         return None
     
     async def search_and_translate_abstract(self, doi: str, translate_abstract: bool = True) -> Optional[Dict[str, Any]]:
-        """
-        通过DOI获取文献信息，并可选翻译摘要
-        
-        Args:
-            doi: DOI标识符
-            translate_abstract: 是否翻译摘要
-            
-        Returns:
-            文献信息字典（含翻译后的摘要）
-        """
+        """通过DOI获取文献信息，并可选翻译摘要"""
         result = await self.search_by_doi(doi)
         
         if result and translate_abstract and result.get("abstract_en"):
-            # 翻译摘要
             abstract_cn = await self.translate_abstract(result["abstract_en"])
             if abstract_cn:
                 result["abstract_cn"] = abstract_cn
