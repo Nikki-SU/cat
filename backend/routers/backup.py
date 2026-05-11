@@ -9,13 +9,13 @@ import shutil
 import zipfile
 import json
 
-from database import get_db
+from database import get_db, DATA_DIR, ATTACHMENTS_DIR
 from services.sync_service import SyncService, create_sync_service
 from config import settings
 
 router = APIRouter(prefix="/backup", tags=["备份同步"])
 
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "backups")
+BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # ==================== 备份 ====================
@@ -30,28 +30,26 @@ def create_backup(background_tasks: BackgroundTasks):
     try:
         with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             # 备份数据库
-            db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cat.db")
+            db_path = os.path.join(DATA_DIR, "cat.db")
             if os.path.exists(db_path):
                 zf.write(db_path, "cat.db")
             
             # 备份附件目录
-            attachments_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "attachments")
-            if os.path.exists(attachments_dir):
-                for root, dirs, files in os.walk(attachments_dir):
+            if os.path.exists(ATTACHMENTS_DIR):
+                for root, dirs, files in os.walk(ATTACHMENTS_DIR):
                     for file in files:
                         file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, os.path.dirname(attachments_dir))
-                        zf.write(file_path, f"attachments/{arcname}")
+                        arcname = os.path.relpath(file_path, DATA_DIR)
+                        zf.write(file_path, arcname)
             
             # 备份配置
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+            config_path = os.path.join(DATA_DIR, "config.json")
             if os.path.exists(config_path):
                 zf.write(config_path, "config.json")
         
         return {
             "success": True,
             "backup_name": backup_name,
-            "backup_path": backup_path,
             "size": os.path.getsize(backup_path),
             "created_at": timestamp
         }
@@ -84,12 +82,10 @@ async def restore_backup(file: UploadFile = File(...), db: Session = Depends(get
     temp_path = os.path.join(BACKUP_DIR, f"temp_restore_{datetime.now().timestamp()}.zip")
     
     try:
-        # 保存上传的文件
         content = await file.read()
         with open(temp_path, 'wb') as f:
             f.write(content)
         
-        # 解压
         extract_dir = os.path.join(BACKUP_DIR, f"extract_{datetime.now().timestamp()}")
         with zipfile.ZipFile(temp_path, 'r') as zf:
             zf.extractall(extract_dir)
@@ -97,24 +93,22 @@ async def restore_backup(file: UploadFile = File(...), db: Session = Depends(get
         # 恢复数据库
         backup_db = os.path.join(extract_dir, "cat.db")
         if os.path.exists(backup_db):
-            db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cat.db")
+            db_path = os.path.join(DATA_DIR, "cat.db")
             shutil.copy2(backup_db, db_path)
         
         # 恢复附件
         backup_attachments = os.path.join(extract_dir, "attachments")
         if os.path.exists(backup_attachments):
-            attachments_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "attachments")
-            if os.path.exists(attachments_dir):
-                shutil.rmtree(attachments_dir)
-            shutil.copytree(backup_attachments, attachments_dir)
+            if os.path.exists(ATTACHMENTS_DIR):
+                shutil.rmtree(ATTACHMENTS_DIR)
+            shutil.copytree(backup_attachments, ATTACHMENTS_DIR)
         
         # 恢复配置
         backup_config = os.path.join(extract_dir, "config.json")
         if os.path.exists(backup_config):
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+            config_path = os.path.join(DATA_DIR, "config.json")
             shutil.copy2(backup_config, config_path)
         
-        # 清理临时文件
         shutil.rmtree(extract_dir, ignore_errors=True)
         
         return {
