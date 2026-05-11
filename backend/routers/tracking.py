@@ -233,21 +233,50 @@ async def search_by_doi(
 @router.post("/search/by-journal", response_model=List[TrackingSearchResult])
 async def search_by_journal(
     journal_name: str = Query(..., description="期刊名称"),
-    keywords: Optional[str] = Query(None, description="关键词，逗号分隔"),
+    keywords: Optional[str] = Query(None, description="关键词JSON数组，格式: [{word, logic}]"),
     from_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     until_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     rows: int = Query(100, description="返回数量"),
     translate_abstract: bool = Query(False, description="是否翻译摘要"),
     crossref: CrossRefService = Depends(get_crossref)
 ):
-    """通过期刊名搜索文献"""
+    """
+    通过期刊名搜索文献
+    
+    关键词格式（JSON数组）:
+    [
+        {"word": "machine learning", "logic": "and"},
+        {"word": "deep learning", "logic": "or"},
+        {"word": "survey", "logic": "not"}
+    ]
+    
+    逻辑说明:
+    - and: 文献必须包含该关键词
+    - or: 文献包含该关键词即可（默认）
+    - not: 文献必须排除该关键词
+    """
+    import json
+    
     keyword_list = None
     if keywords:
-        keyword_list = [k.strip() for k in keywords.split(",")]
+        try:
+            keyword_list = json.loads(keywords)
+            # 验证格式
+            if not isinstance(keyword_list, list):
+                keyword_list = None
+            else:
+                # 确保每项都有 word 字段
+                keyword_list = [
+                    {"word": k.get("word", ""), "logic": k.get("logic", "or")}
+                    for k in keyword_list if k.get("word")
+                ]
+        except json.JSONDecodeError:
+            # 如果不是 JSON，尝试逗号分隔的旧格式
+            keyword_list = [{"word": k.strip(), "logic": "or"} for k in keywords.split(",")]
     
     results = await crossref.search_by_journal_name(
         journal_name=journal_name,
-        keywords=None,  # 简化处理
+        keywords=keyword_list,
         from_date=from_date,
         until_date=until_date,
         rows=rows
