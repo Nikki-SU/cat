@@ -51,6 +51,16 @@ export const COLOR_STRUCTURE = [
   { id: 'orange', name: '背景', color: '#FED7AA', textColor: '#9A3412', keywords: ['background', 'introduction', 'previous'] }
 ]
 
+// 句子着色配色方案
+export const SENTENCE_COLOR_SCHEMES = {
+  none: { id: 'none', name: '关闭', odd: 'transparent', even: 'transparent' },
+  'yellow-white': { id: 'yellow-white', name: '黄白交替', odd: '#FEF3C7', even: 'transparent' },
+  'blue-white': { id: 'blue-white', name: '蓝白交替', odd: '#DBEAFE', even: 'transparent' },
+  'gray-white': { id: 'gray-white', name: '灰白交替', odd: '#F3F4F6', even: 'transparent' },
+  'green-white': { id: 'green-white', name: '绿白交替', odd: '#D1FAE5', even: 'transparent' },
+  'purple-white': { id: 'purple-white', name: '紫白交替', odd: '#F3E8FF', even: 'transparent' }
+}
+
 // 单词状态样式
 export const WORD_STATUS_COLORS = {
   new: { color: '#DC2626', fontWeight: 'bold', borderBottom: '2px solid #DC2626' },      // 红-新词
@@ -115,11 +125,6 @@ const stripMarkdown = (text) => {
   return text.replace(/[#*`\[\]]/g, '').trim()
 }
 
-// 转义正则特殊字符
-const escapeRegExp = (string) => {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 // ==================== Store ====================
 
 const useDeepReadStore = create((set, get) => ({
@@ -141,11 +146,12 @@ const useDeepReadStore = create((set, get) => ({
   selectedColor: COLOR_STRUCTURE[0],
   selectedAnchor: null,
   
+  // 句子着色配置（从 localStorage 读取默认值）
+  sentenceColorScheme: localStorage.getItem('sentenceColorScheme') || 'none',
+  
   // ========== Actions ==========
   
   loadLiterature: async (literature) => {
-    if (!literature) return
-    
     set({ selectedLiterature: literature, isLoading: true })
     
     try {
@@ -169,7 +175,7 @@ const useDeepReadStore = create((set, get) => ({
       })
     } catch (error) {
       console.error('Failed to load:', error)
-      set({ isLoading: false, error: error?.message || '加载失败' })
+      set({ isLoading: false })
     }
   },
   
@@ -185,17 +191,20 @@ const useDeepReadStore = create((set, get) => ({
     isProtected: s.readMode === 'edit'
   })),
   
-  // 获取某段落的单词（修复正则转义）
+  // 设置句子着色方案
+  setSentenceColorScheme: (scheme) => {
+    localStorage.setItem('sentenceColorScheme', scheme)
+    set({ sentenceColorScheme: scheme })
+  },
+  
+  // 获取某段落的单词
   getWordsForParagraph: (pId) => {
     const { words, paragraphs } = get()
     const p = paragraphs.find(x => x.id === pId)
     if (!p) return []
     
     return words.filter(w => {
-      if (!w.word_en) return false
-      // 转义正则特殊字符
-      const escaped = escapeRegExp(w.word_en)
-      const regex = new RegExp(`\\b${escaped}\\b`, 'i')
+      const regex = new RegExp(`\\b${w.word_en}\\b`, 'i')
       return regex.test(p.plainText)
     })
   },
@@ -208,7 +217,7 @@ const useDeepReadStore = create((set, get) => ({
     
     return sentences.filter(s => {
       // 简单包含匹配
-      return p.plainText.includes(s.sentence_en?.substring(0, 30) || '')
+      return p.plainText.includes(s.sentence_en.substring(0, 30))
     })
   },
   
@@ -235,95 +244,42 @@ const useDeepReadStore = create((set, get) => ({
     set(s => ({ highlights: [...s.highlights, hl] }))
   },
   
-  // 添加笔记（添加错误处理）
+  // 添加笔记
   addNote: async (data) => {
     const { selectedLiterature } = get()
-    if (!selectedLiterature) {
-      throw new Error('未选择文献')
-    }
+    if (!selectedLiterature) return
     
-    try {
-      const note = await structuredAPI.createNote({
-        doi: selectedLiterature.doi,
-        ...data
-      })
-      set(s => ({ notes: [...s.notes, note] }))
-      return note
-    } catch (error) {
-      console.error('Failed to add note:', error)
-      throw error
-    }
-  },
-  
-  // 删除笔记
-  deleteNote: async (noteId) => {
-    try {
-      await structuredAPI.deleteNote(noteId)
-      set(s => ({
-        notes: s.notes.filter(n => n.id !== noteId)
-      }))
-    } catch (error) {
-      console.error('Failed to delete note:', error)
-      throw error
-    }
-  },
-  
-  // 更新笔记
-  updateNote: async (noteId, data) => {
-    try {
-      const updated = await structuredAPI.updateNote(noteId, data)
-      set(s => ({
-        notes: s.notes.map(n => n.id === noteId ? updated : n)
-      }))
-      return updated
-    } catch (error) {
-      console.error('Failed to update note:', error)
-      throw error
-    }
+    const note = await structuredAPI.createNote({
+      doi: selectedLiterature.doi,
+      ...data
+    })
+    set(s => ({ notes: [...s.notes, note] }))
+    return note
   },
   
   updateWordStatus: async (wordId, status) => {
-    try {
-      await learningAPI.updateWord(wordId, { status })
-      set(s => ({
-        words: s.words.map(w => w.id === wordId ? { ...w, status } : w)
-      }))
-    } catch (error) {
-      console.error('Failed to update word:', error)
-      throw error
-    }
+    await learningAPI.updateWord(wordId, { status })
+    set(s => ({
+      words: s.words.map(w => w.id === wordId ? { ...w, status } : w)
+    }))
   },
   
   updateSentenceStatus: async (sid, status) => {
-    try {
-      await learningAPI.updateSentence(sid, { status })
-      set(s => ({
-        sentences: s.sentences.map(x => x.id === sid ? { ...x, status } : x)
-      }))
-    } catch (error) {
-      console.error('Failed to update sentence:', error)
-      throw error
-    }
+    await learningAPI.updateSentence(sid, { status })
+    set(s => ({
+      sentences: s.sentences.map(x => x.id === sid ? { ...x, status } : x)
+    }))
   },
   
   saveContent: async (newContent) => {
     const { selectedLiterature } = get()
-    if (!selectedLiterature) {
-      throw new Error('未选择文献')
-    }
-    
-    try {
-      await structuredAPI.updateLiterature(selectedLiterature.doi, { content: newContent })
-      set({
-        rawContent: newContent,
-        paragraphs: parseParagraphs(newContent),
-        readMode: 'read',
-        isProtected: true
-      })
-    } catch (error) {
-      console.error('Failed to save:', error)
-      throw error
-    }
+    await structuredAPI.updateLiterature(selectedLiterature.doi, { content: newContent })
+    set({
+      rawContent: newContent,
+      paragraphs: parseParagraphs(newContent),
+      readMode: 'read',
+      isProtected: true
+    })
   },
   
   reset: () => set({
@@ -335,8 +291,7 @@ const useDeepReadStore = create((set, get) => ({
     notes: [],
     highlights: [],
     readMode: 'read',
-    isProtected: true,
-    error: null
+    isProtected: true
   })
 }))
 
