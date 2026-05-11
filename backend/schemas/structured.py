@@ -1,4 +1,4 @@
-"""缁撴瀯鎬ф枃鐚浉鍏?Schema"""
+"""结构性文献相关 Schema"""
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -19,9 +19,9 @@ class StructuredLiteratureResponse(StructuredLiteratureBase):
 
 class StructuredNoteBase(BaseModel):
     doi: Optional[str] = None
-    anchor_id: Optional[str] = None  # 娈佃惤閿氱偣ID
+    anchor_id: Optional[str] = None  # 段落锚点ID
     anchor_type: Optional[str] = "paragraph"  # paragraph | heading | block
-    anchor_text: Optional[str] = None  # 閿氱偣鍘熸枃
+    anchor_text: Optional[str] = None  # 锚点原文
     note_type: str = "markdown"  # markdown | image | code | mermaid | link
     content: Optional[str] = None
     metadata: Optional[dict] = None  # { imageUrl, codeLanguage, linkTarget, mermaidType }
