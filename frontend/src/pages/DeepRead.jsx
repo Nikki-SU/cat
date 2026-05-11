@@ -16,10 +16,12 @@ import useDeepReadStore, {
   READ_MODES, 
   COLOR_STRUCTURE,
   WORD_STATUS_COLORS,
-  SENTENCE_STYLES
+  SENTENCE_STYLES,
+  SENTENCE_COLOR_SCHEMES
 } from '../stores/useDeepReadStore'
 import useAppStore from '../stores/useAppStore'
 import ObsidianEditor from '../components/ObsidianEditor'
+import { splitSentences, getSentenceBackgroundColor, isSentenceColoringEnabled } from '../utils/sentenceColors'
 
 // ==================== 子组件 ====================
 
