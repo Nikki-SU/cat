@@ -1,10 +1,15 @@
 /**
- * 绮捐椤甸潰 - 閲嶆瀯鐗? * 
- * 甯冨眬锛? * - 瀛﹁€呮ā寮? 宸︽爮(棰滆壊缁撴瀯+闀块毦鍙?鍗曡瘝) + 鍙虫爮(鏂囩尞+琛岄棿绗旇)
- * - 鍙屾爮妯″紡: 宸︽爮(棰滆壊缁撴瀯+闀块毦鍙?鍗曡瘝) + 涓爮(绾枃鐚? + 鍙虫爮(杈规爮绗旇)
+ * 精读页面 - 重构版
  * 
- * 鐗规€э細
- * - 闃呰妯″紡锛氬師鏂囧彧璇伙紝鍙珮浜€佹壒娉ㄣ€佽皟鏁存牸寮? * - 缂栬緫妯″紡锛氱洿鎺ヤ慨鏀瑰師鏂? * - 鍗曡瘝/闀块毦鍙ヨ嚜鍔ㄦ牴鎹姸鎬佺潃鑹? */
+ * 布局：
+ * - 学者模式: 左栏(颜色结构+长难句+单词) + 右栏(文献+行间笔记)
+ * - 双栏模式: 左栏(颜色结构+长难句+单词) + 中栏(纯文献) + 右栏(边栏笔记)
+ * 
+ * 特性：
+ * - 阅读模式：原文只读，可高亮、批注、调整格式
+ * - 编辑模式：直接修改原文
+ * - 单词/长难句自动根据状态着色
+ */
 import { useState, useEffect, useRef, useMemo } from 'react'
 import useDeepReadStore, { 
   LAYOUT_MODES, 
@@ -16,9 +21,9 @@ import useDeepReadStore, {
 import useAppStore from '../stores/useAppStore'
 import ObsidianEditor from '../components/ObsidianEditor'
 
-// ==================== 瀛愮粍浠?====================
+// ==================== 子组件 ====================
 
-// 棰滆壊-缁撴瀯闈㈡澘
+// 颜色-结构面板
 const ColorStructurePanel = ({ paragraphs, onColorClick }) => {
   const getContentByColor = (colorId) => {
     return paragraphs.filter(p => p.suggestedColor?.id === colorId)
@@ -26,7 +31,7 @@ const ColorStructurePanel = ({ paragraphs, onColorClick }) => {
 
   return (
     <div className="space-y-3">
-      <h3 className="font-semibold text-sm text-gray-700">馃帹 棰滆壊-缁撴瀯</h3>
+      <h3 className="font-semibold text-sm text-gray-700">🎨 颜色-结构</h3>
       {COLOR_STRUCTURE.map(cs => {
         const content = getContentByColor(cs.id)
         return (
@@ -44,7 +49,7 @@ const ColorStructurePanel = ({ paragraphs, onColorClick }) => {
             <div className="max-h-32 overflow-auto text-xs p-2 bg-gray-50">
               {content.map(p => (
                 <div key={p.id} className="truncate py-1 text-gray-600 border-b last:border-0">
-                  {p.plainText.substring(0, 60)}...
+                  {p.plainText?.substring(0, 60) || ''}...
                 </div>
               ))}
             </div>
@@ -55,11 +60,12 @@ const ColorStructurePanel = ({ paragraphs, onColorClick }) => {
   )
 }
 
-// 闀块毦鍙ュ垪琛?const SentenceList = ({ sentences, paragraphs, onSentenceClick }) => {
+// 长难句列表
+const SentenceList = ({ sentences, paragraphs, onSentenceClick }) => {
   const sentencesWithContext = useMemo(() => {
     return sentences.map(s => {
       const paragraph = paragraphs.find(p => 
-        p.plainText.includes(s.sentence_en.substring(0, 30))
+        p.plainText?.includes(s.sentence_en?.substring(0, 30) || '')
       )
       return { ...s, paragraphId: paragraph?.id }
     })
@@ -68,7 +74,7 @@ const ColorStructurePanel = ({ paragraphs, onColorClick }) => {
   return (
     <div className="mt-4">
       <h3 className="font-semibold text-sm text-gray-700 mb-2">
-        馃摑 闀块毦鍙?({sentences.length})
+        📝 长难句 ({sentences.length})
       </h3>
       <div className="space-y-2 max-h-60 overflow-auto">
         {sentencesWithContext.map(s => (
@@ -88,12 +94,12 @@ const ColorStructurePanel = ({ paragraphs, onColorClick }) => {
   )
 }
 
-// 鍗曡瘝鍒楄〃
+// 单词列表
 const WordList = ({ words, paragraphs, onWordClick }) => {
   const wordsWithContext = useMemo(() => {
     return words.map(w => {
       const paragraph = paragraphs.find(p => 
-        p.plainText.toLowerCase().includes(w.word_en.toLowerCase())
+        p.plainText?.toLowerCase().includes(w.word_en?.toLowerCase() || '')
       )
       return { ...w, paragraphId: paragraph?.id }
     })
@@ -110,7 +116,7 @@ const WordList = ({ words, paragraphs, onWordClick }) => {
   return (
     <div className="mt-4">
       <h3 className="font-semibold text-sm text-gray-700 mb-2">
-        馃摎 鍗曡瘝 ({words.length})
+        📚 单词 ({words.length})
       </h3>
       <div className="flex flex-wrap gap-1">
         {wordsWithContext.map(w => (
@@ -127,40 +133,46 @@ const WordList = ({ words, paragraphs, onWordClick }) => {
   )
 }
 
-// 甯﹀崟璇?闀块毦鍙ラ珮浜殑鏂囨湰娓叉煋
+// 带单词/长难句高亮的文本渲染
 const HighlightedText = ({ text, words, sentences }) => {
-  // 鏋勫缓姝ｅ垯鍖归厤
-  const wordList = words.map(w => w.word_en)
-  const sentenceList = sentences.map(s => s.sentence_en.substring(0, 50))
+  if (!text) return null
   
-  // 绠€鍗曠殑鏇挎崲绛栫暐
+  // 简单的替换策略
   let highlighted = text
   
-  // 鏍囪闀块毦鍙ワ紙鍏堝鐞嗛暱鐨勶級
-  sentences.forEach(s => {
+  // 标记长难句（先处理长的）
+  sentences?.forEach(s => {
+    if (!s.sentence_en) return
     const pattern = s.sentence_en.substring(0, Math.min(s.sentence_en.length, 100))
       .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp(`(${pattern})`, 'gi')
-    highlighted = highlighted.replace(regex, 
-      '<span class="sentence-highlight">$1</span>'
-    )
+    try {
+      const regex = new RegExp(`(${pattern})`, 'gi')
+      highlighted = highlighted.replace(regex, '<span class="sentence-highlight">$1</span>')
+    } catch (e) {
+      // 忽略正则错误
+    }
   })
   
-  // 鏍囪鍗曡瘝
-  words.forEach(w => {
-    const regex = new RegExp(`\\b(${w.word_en})\\b`, 'gi')
-    const style = w.status === 'new' 
-      ? 'word-new' 
-      : w.status === 'learning' 
-        ? 'word-learning' 
-        : 'word-mastered'
-    highlighted = highlighted.replace(regex, `<span class="${style}">$1</span>`)
+  // 标记单词
+  words?.forEach(w => {
+    if (!w.word_en) return
+    try {
+      const regex = new RegExp(`\\b(${w.word_en})\\b`, 'gi')
+      const style = w.status === 'new' 
+        ? 'word-new' 
+        : w.status === 'learning' 
+          ? 'word-learning' 
+          : 'word-mastered'
+      highlighted = highlighted.replace(regex, `<span class="${style}">$1</span>`)
+    } catch (e) {
+      // 忽略正则错误
+    }
   })
   
   return <span dangerouslySetInnerHTML={{ __html: highlighted }} />
 }
 
-// 鏂囩尞娈佃惤娓叉煋
+// 文献段落渲染
 const ParagraphRenderer = ({ 
   paragraph, 
   words, 
@@ -171,20 +183,15 @@ const ParagraphRenderer = ({
   onTextSelect,
   readMode
 }) => {
-  const paragraphWords = words.filter(w => 
-    paragraph.plainText.toLowerCase().includes(w.word_en.toLowerCase())
-  )
-  
-  const paragraphSentences = sentences.filter(s => 
-    paragraph.plainText.includes(s.sentence_en.substring(0, 30))
-  )
-  
-  const paragraphNotes = notes.filter(n => n.anchor_id === paragraph.id)
+  const paragraphWords = words || []
+  const paragraphSentences = sentences || []
+  const paragraphNotes = notes || []
 
   const renderContent = () => {
     const { type, raw } = paragraph
+    if (!raw) return null
     
-    // 鏍规嵁绫诲瀷娓叉煋涓嶅悓鍏冪礌
+    // 根据类型渲染不同元素
     switch (type) {
       case 'heading':
         const level = raw.match(/^(#+)/)?.[0].length || 1
@@ -209,13 +216,13 @@ const ParagraphRenderer = ({
       className="paragraph-block group relative hover:bg-gray-50"
       onMouseUp={readMode === 'read' ? (e) => onTextSelect(e, paragraph.id) : undefined}
     >
-      {/* 娈佃惤鍐呭 */}
+      {/* 段落内容 */}
       <div className={`${paragraph.suggestedColor ? `border-l-4 pl-3` : ''}`}
         style={{ borderColor: paragraph.suggestedColor?.color }}>
         {renderContent()}
       </div>
       
-      {/* 琛岄棿绗旇锛堝鑰呮ā寮忥級 */}
+      {/* 行间笔记（学者模式） */}
       {isInlineMode && paragraphNotes.length > 0 && (
         <div className="mt-2 ml-4 space-y-1">
           {paragraphNotes.map(note => (
@@ -224,20 +231,20 @@ const ParagraphRenderer = ({
         </div>
       )}
       
-      {/* 娣诲姞绗旇鎸夐挳锛堟偓娴級 */}
+      {/* 添加笔记按钮（悬浮） */}
       {readMode === 'read' && isInlineMode && (
         <button
           onClick={() => onAddNote(paragraph.id)}
           className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 text-blue-500 text-xs"
         >
-          +绗旇
+          +笔记
         </button>
       )}
     </div>
   )
 }
 
-// 鏍囬缁勪欢
+// 标题组件
 const Heading = ({ level, text, words, sentences }) => {
   const Tag = `h${Math.min(level + 1, 6)}`
   return (
@@ -247,30 +254,30 @@ const Heading = ({ level, text, words, sentences }) => {
   )
 }
 
-// 琛岄棿绗旇
+// 行间笔记
 const InlineNote = ({ note }) => (
-  <div className="p-2 bg-blue-50 border-l-4 border-blue-400 rounded my-2 ml-4">
+  <div className="p-2 bg-blue-50 border-l-4 border-blue-400 rounded my-2">
     <ObsidianEditor value={note.content} readOnly />
   </div>
 )
 
-// 杈规爮绗旇
+// 边栏笔记
 const SidebarNote = ({ note, paragraph, onEdit, onDelete }) => (
   <div className="p-3 bg-white rounded shadow-sm border-l-4 border-blue-400">
     <div className="text-xs text-gray-500 mb-1">
-      娈佃惤 {paragraph?.index + 1 || '?'}
+      段落 {(paragraph?.index ?? 0) + 1}
     </div>
     <div className="prose prose-sm max-w-none">
       <ObsidianEditor value={note.content} readOnly />
     </div>
     <div className="flex gap-2 mt-2">
-      <button onClick={() => onEdit(note)} className="text-xs text-blue-500">缂栬緫</button>
-      <button onClick={() => onDelete(note.id)} className="text-xs text-red-500">鍒犻櫎</button>
+      <button onClick={() => onEdit(note)} className="text-xs text-blue-500">编辑</button>
+      <button onClick={() => onDelete(note.id)} className="text-xs text-red-500">删除</button>
     </div>
   </div>
 )
 
-// 绗旇缂栬緫鍣?- 浣跨敤 ObsidianEditor
+// 笔记编辑器
 const NoteEditor = ({ onSave, onCancel, initialContent = '' }) => {
   const [content, setContent] = useState(initialContent)
   
@@ -279,28 +286,29 @@ const NoteEditor = ({ onSave, onCancel, initialContent = '' }) => {
       <ObsidianEditor
         value={content}
         onChange={setContent}
-        placeholder="杈撳叆绗旇锛堟敮鎸佸浘鐗囥€佷唬鐮併€佹€濈淮瀵煎浘銆佸弻閾惧紩鐢ㄧ瓑锛?.."
+        placeholder="输入笔记（支持图片、代码、思维导图、双链引用等）..."
         className="min-h-[150px]"
       />
       <div className="flex gap-2 mt-2">
         <button 
           onClick={() => onSave(content)}
-          className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+          disabled={!content.trim()}
+          className="px-3 py-1 bg-blue-500 text-white rounded text-sm disabled:opacity-50"
         >
-          淇濆瓨
+          保存
         </button>
         <button 
           onClick={onCancel}
           className="px-3 py-1 bg-gray-200 rounded text-sm"
         >
-          鍙栨秷
+          取消
         </button>
       </div>
     </div>
   )
 }
 
-// ==================== 涓荤粍浠?====================
+// ==================== 主组件 ====================
 
 function DeepRead() {
   const {
@@ -318,6 +326,8 @@ function DeepRead() {
     setReadMode,
     toggleEditMode,
     addNote,
+    deleteNote,
+    updateNote,
     addHighlight,
     getWordsForParagraph,
     getSentencesForParagraph,
@@ -328,63 +338,135 @@ function DeepRead() {
   
   const { literatureTable } = useAppStore()
   
-  // 鏈湴鐘舵€?  const [editingNote, setEditingNote] = useState(null)
+  // 本地状态
+  const [editingNote, setEditingNote] = useState(null)
   const [selectedParagraph, setSelectedParagraph] = useState(null)
   const [editContent, setEditContent] = useState('')
   const contentRef = useRef(null)
   
-  // 鍔犺浇鏂囩尞
+  // 加载文献
   const handleSelectLiterature = async (item) => {
+    if (!item) return
     await loadLiterature(item)
     setEditContent(item.content || '')
   }
   
-  // 鏂囨湰閫夋嫨
+  // 文本选择
   const handleTextSelect = (e, paragraphId) => {
     const selection = window.getSelection()
     const text = selection.toString().trim()
     if (text) {
-      // 娣诲姞楂樹寒鎴栨樉绀鸿彍鍗?      console.log('閫変腑:', text, '鍦ㄦ钀?', paragraphId)
+      console.log('选中:', text, '在段落:', paragraphId)
+      // 可以在这里添加高亮逻辑
     }
   }
   
-  // 娣诲姞绗旇
+  // 添加笔记
   const handleAddNote = async (paragraphId, content) => {
-    await addNote({
-      anchor_id: paragraphId,
-      note_type: 'markdown',
-      content,
-      position: ''
-    })
-    setEditingNote(null)
+    if (!content.trim()) return
+    
+    try {
+      await addNote({
+        anchor_id: paragraphId,
+        note_type: 'markdown',
+        content,
+        position: ''
+      })
+      setEditingNote(null)
+    } catch (error) {
+      alert('添加笔记失败: ' + (error?.message || '未知错误'))
+    }
   }
   
-  // 淇濆瓨缂栬緫
+  // 处理删除笔记
+  const handleDeleteNote = async (id) => {
+    if (!confirm('确定要删除这条笔记吗？')) return
+    
+    try {
+      await deleteNote(id)
+    } catch (error) {
+      alert('删除失败: ' + (error?.message || '未知错误'))
+    }
+  }
+  
+  // 处理编辑笔记
+  const handleEditNote = (note) => {
+    setEditingNote({ ...note, isEditing: true })
+  }
+  
+  // 处理保存编辑后的笔记
+  const handleUpdateNote = async (noteId, content) => {
+    try {
+      await updateNote(noteId, { content })
+      setEditingNote(null)
+    } catch (error) {
+      alert('更新失败: ' + (error?.message || '未知错误'))
+    }
+  }
+  
+  // 保存编辑
   const handleSaveEdit = async () => {
-    await saveContent(editContent)
+    try {
+      await saveContent(editContent)
+      alert('保存成功')
+    } catch (error) {
+      alert('保存失败: ' + (error?.message || '未知错误'))
+    }
   }
   
-  // 褰撳墠甯冨眬閰嶇疆
-  const currentLayout = LAYOUT_MODES[layoutMode]
+  // 处理颜色点击 - 滚动到对应段落
+  const handleColorClick = (color) => {
+    const content = getContentByColor(color.id)
+    if (content.length > 0) {
+      const firstParagraph = content[0]
+      document.getElementById(firstParagraph.id)?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+  
+  // 处理长难句点击
+  const handleSentenceClick = (sentence) => {
+    const paragraph = paragraphs.find(p => 
+      p.plainText?.includes(sentence.sentence_en?.substring(0, 30) || '')
+    )
+    if (paragraph) {
+      document.getElementById(paragraph.id)?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+  
+  // 处理单词点击
+  const handleWordClick = (word) => {
+    const paragraph = paragraphs.find(p => 
+      p.plainText?.toLowerCase().includes(word.word_en?.toLowerCase() || '')
+    )
+    if (paragraph) {
+      document.getElementById(paragraph.id)?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+  
+  // 当前布局配置
+  const currentLayout = LAYOUT_MODES[layoutMode] || LAYOUT_MODES.scholar
   const isInlineMode = currentLayout.notePosition === 'inline'
   
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      {/* 椤堕儴宸ュ叿鏍?*/}
+      {/* 顶部工具栏 */}
       <header className="bg-white border-b px-4 py-2 flex items-center gap-4">
-        {/* 鏂囩尞閫夋嫨 */}
+        {/* 文献选择 */}
         <select 
           className="border rounded px-3 py-1 min-w-[200px]"
-          onChange={e => handleSelectLiterature(literatureTable.find(l => l.doi === e.target.value))}
+          onChange={e => {
+            const item = literatureTable?.find(l => l.doi === e.target.value)
+            handleSelectLiterature(item)
+          }}
           value={selectedLiterature?.doi || ''}
         >
-          <option value="">閫夋嫨鏂囩尞...</option>
-          {literatureTable.map(l => (
+          <option value="">选择文献...</option>
+          {literatureTable?.map(l => (
             <option key={l.doi} value={l.doi}>{l.title_cn || l.title_en || l.doi}</option>
           ))}
         </select>
         
-        {/* 甯冨眬鍒囨崲 */}
+        {/* 布局切换 */}
         <div className="flex border rounded">
           {Object.values(LAYOUT_MODES).map(mode => (
             <button
@@ -397,14 +479,14 @@ function DeepRead() {
           ))}
         </div>
         
-        {/* 缂栬緫妯″紡寮€鍏?*/}
+        {/* 编辑模式开关 */}
         <button
           onClick={toggleEditMode}
           className={`px-3 py-1 rounded text-sm flex items-center gap-1 ${
             readMode === 'edit' ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
           }`}
         >
-          {readMode === 'edit' ? '鉁忥笍 缂栬緫涓? : '馃摉 闃呰'}
+          {readMode === 'edit' ? '✏️ 编辑中' : '📖 阅读'}
         </button>
         
         {readMode === 'edit' && (
@@ -412,54 +494,50 @@ function DeepRead() {
             onClick={handleSaveEdit}
             className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
           >
-            馃捑 淇濆瓨
+            💾 保存
           </button>
         )}
       </header>
       
-      {/* 涓诲唴瀹瑰尯 */}
+      {/* 主内容区 */}
       {selectedLiterature ? (
         <div className={`flex-1 overflow-hidden grid ${currentLayout.grid}`}>
           
-          {/* ========== 宸︽爮锛氶鑹茬粨鏋?+ 闀块毦鍙?+ 鍗曡瘝 ========== */}
+          {/* ========== 左栏：颜色结构 + 长难句 + 单词 ========== */}
           <aside className="bg-white border-r overflow-y-auto p-4">
             <ColorStructurePanel 
               paragraphs={paragraphs}
-              onColorClick={(cs) => console.log('閫変腑棰滆壊:', cs)}
+              onColorClick={handleColorClick}
             />
             <SentenceList 
               sentences={sentences}
               paragraphs={paragraphs}
-              onSentenceClick={(s) => {
-                // 婊氬姩鍒板搴旀钀?                document.getElementById(s.paragraphId)?.scrollIntoView({ behavior: 'smooth' })
-              }}
+              onSentenceClick={handleSentenceClick}
             />
             <WordList 
               words={words}
               paragraphs={paragraphs}
-              onWordClick={(w) => {
-                document.getElementById(w.paragraphId)?.scrollIntoView({ behavior: 'smooth' })
-              }}
+              onWordClick={handleWordClick}
             />
           </aside>
           
-          {/* ========== 瀛﹁€呮ā寮忥細鍙虫爮(鏂囩尞+琛岄棿绗旇) ========== */}
+          {/* ========== 学者模式：右栏(文献+行间笔记) ========== */}
           {isInlineMode && (
             <main className="overflow-y-auto p-6" ref={contentRef}>
               <div className="max-w-3xl mx-auto">
                 <h1 className="text-2xl font-bold mb-6">
-                  {selectedLiterature.title_cn || selectedLiterature.title_en}
+                  {selectedLiterature?.title_cn || selectedLiterature?.title_en || '无标题'}
                 </h1>
                 
                 {readMode === 'edit' ? (
-                  // 缂栬緫妯″紡
+                  // 编辑模式
                   <textarea
                     value={editContent}
                     onChange={e => setEditContent(e.target.value)}
                     className="w-full min-h-[600px] p-4 border rounded font-mono text-sm"
                   />
                 ) : (
-                  // 闃呰妯″紡
+                  // 阅读模式
                   <div className="prose prose-lg max-w-none space-y-4">
                     {paragraphs.map(p => (
                       <ParagraphRenderer
@@ -475,7 +553,7 @@ function DeepRead() {
                       />
                     ))}
                     
-                    {/* 鏂板缓绗旇缂栬緫鍣?*/}
+                    {/* 新建笔记编辑器 */}
                     {editingNote && (
                       <div className="mt-4">
                         <NoteEditor
@@ -490,14 +568,14 @@ function DeepRead() {
             </main>
           )}
           
-          {/* ========== 鍙屾爮妯″紡锛氫腑鏍?绾枃鐚? + 鍙虫爮(杈规爮绗旇) ========== */}
+          {/* ========== 双栏模式：中栏(纯文献) + 右栏(边栏笔记) ========== */}
           {!isInlineMode && (
             <>
-              {/* 涓爮锛氱函鏂囩尞 */}
+              {/* 中栏：纯文献 */}
               <main className="overflow-y-auto p-6" ref={contentRef}>
                 <div className="max-w-3xl mx-auto">
                   <h1 className="text-2xl font-bold mb-6">
-                    {selectedLiterature.title_cn || selectedLiterature.title_en}
+                    {selectedLiterature?.title_cn || selectedLiterature?.title_en || '无标题'}
                   </h1>
                   
                   {readMode === 'edit' ? (
@@ -514,7 +592,8 @@ function DeepRead() {
                           paragraph={p}
                           words={getWordsForParagraph(p.id)}
                           sentences={getSentencesForParagraph(p.id)}
-                          notes={[]} // 鍙屾爮妯″紡涓嶆樉绀鸿闂寸瑪璁?                          isInlineMode={false}
+                          notes={[]} // 双栏模式不显示行间笔记
+                          isInlineMode={false}
                           onTextSelect={handleTextSelect}
                           readMode={readMode}
                         />
@@ -524,15 +603,20 @@ function DeepRead() {
                 </div>
               </main>
               
-              {/* 鍙虫爮锛氳竟鏍忕瑪璁?*/}
+              {/* 右栏：边栏笔记 */}
               <aside className="bg-gray-50 border-l overflow-y-auto p-4">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold">馃摑 绗旇</h3>
+                  <h3 className="font-semibold">📝 笔记</h3>
                   <button 
-                    onClick={() => setEditingNote({ paragraphId: paragraphs[0]?.id, content: '' })}
-                    className="text-sm px-2 py-1 bg-blue-500 text-white rounded"
+                    onClick={() => {
+                      if (paragraphs.length > 0) {
+                        setEditingNote({ paragraphId: paragraphs[0].id, content: '' })
+                      }
+                    }}
+                    disabled={paragraphs.length === 0}
+                    className="text-sm px-2 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
                   >
-                    + 娣诲姞
+                    + 添加
                   </button>
                 </div>
                 
@@ -544,23 +628,29 @@ function DeepRead() {
                         key={note.id}
                         note={note}
                         paragraph={paragraph}
-                        onEdit={(n) => setEditingNote({ ...n, editing: true })}
-                        onDelete={async (id) => {
-                          // 瀹炵幇鍒犻櫎閫昏緫
-                        }}
+                        onEdit={handleEditNote}
+                        onDelete={handleDeleteNote}
                       />
                     )
                   })}
                 </div>
                 
-                {/* 缂栬緫鍣?*/}
+                {/* 编辑器 */}
                 {editingNote && (
                   <div className="mt-4">
-                    <NoteEditor
-                      initialContent={editingNote.content}
-                      onSave={(content) => handleAddNote(editingNote.paragraphId, content)}
-                      onCancel={() => setEditingNote(null)}
-                    />
+                    {editingNote.isEditing ? (
+                      <NoteEditor
+                        initialContent={editingNote.content}
+                        onSave={(content) => handleUpdateNote(editingNote.id, content)}
+                        onCancel={() => setEditingNote(null)}
+                      />
+                    ) : (
+                      <NoteEditor
+                        initialContent={editingNote.content}
+                        onSave={(content) => handleAddNote(editingNote.paragraphId, content)}
+                        onCancel={() => setEditingNote(null)}
+                      />
+                    )}
                   </div>
                 )}
               </aside>
@@ -570,11 +660,11 @@ function DeepRead() {
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-gray-400">
-          <p>璇烽€夋嫨涓€绡囨枃鐚紑濮嬮槄璇?/p>
+          <p>请选择一篇文献开始阅读</p>
         </div>
       )}
       
-      {/* 鍏ㄥ眬鏍峰紡 */}
+      {/* 全局样式 */}
       <style>{`
         .word-new {
           color: #DC2626;
