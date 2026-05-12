@@ -1,6 +1,6 @@
 """结构性文献相关 Schema"""
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class StructuredLiteratureBase(BaseModel):
