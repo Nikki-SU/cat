@@ -1,144 +1,166 @@
-"""
-设置相关 API 路由
-"""
-import os
-from fastapi import APIRouter, Depends, HTTPException
+"""设置相关 API 路由 - 配置持久化到本地JSON文件"""
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
-from database import get_db
-from config import settings
+from services.config_service import get_config_service
 
 router = APIRouter(prefix="/settings", tags=["设置"])
 
 
-class MinerUConfig(BaseModel):
-    """MinerU配置"""
-    api_token: Optional[str] = None
-    model_version: str = "vlm"
-    language: str = "en"
+# ========== Request Models ==========
 
+class MinerUConfig(BaseModel):
+    api_token: Optional[str] = None
+    model_version: Optional[str] = None
+    language: Optional[str] = None
 
 class MinerUConfigResponse(BaseModel):
-    """MinerU配置响应"""
     has_token: bool
     model_version: str
     language: str
 
-
 class AiConfig(BaseModel):
-    """AI配置"""
     api_key: Optional[str] = None
     api_base: Optional[str] = None
     model: Optional[str] = None
 
+class AiConfigResponse(BaseModel):
+    api_key_set: bool
+    api_base: str
+    model: str
 
-# 存储配置（内存中，生产环境应持久化）
-_ai_config = {
-    "api_key": None,
-    "api_base": None,
-    "model": None
-}
+class TrackingConfig(BaseModel):
+    interval: Optional[int] = None
+    display_language: Optional[str] = None
+    display_detail: Optional[str] = None
 
-_mineru_config = {
-    "api_token": None,
-    "model_version": "vlm",
-    "language": "en"
-}
-
-
-def _load_configs():
-    """从环境变量加载配置"""
-    global _ai_config, _mineru_config
-    
-    _ai_config["api_key"] = os.getenv("OPENAI_API_KEY")
-    _ai_config["api_base"] = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-    _ai_config["model"] = os.getenv("AI_MODEL", "gpt-3.5-turbo")
-    
-    _mineru_config["api_token"] = os.getenv("MINERU_API_TOKEN")
-    _mineru_config["model_version"] = os.getenv("MINERU_MODEL_VERSION", "vlm")
-    _mineru_config["language"] = os.getenv("MINERU_LANGUAGE", "en")
+class LearningConfig(BaseModel):
+    word_queue_length: Optional[int] = None
+    allow_skip: Optional[bool] = None
+    question_types: Optional[List[str]] = None
+    translation_mode: Optional[str] = None
+    review_mode: Optional[str] = None
 
 
-# 初始化加载
-_load_configs()
-
-
-# ==================== AI 配置 ====================
+# ========== AI 配置 ==========
 
 @router.get("/ai-config")
 def get_ai_config():
-    """获取AI配置"""
-    return {
-        "api_key_set": bool(_ai_config["api_key"]),
-        "api_base": _ai_config["api_base"],
-        "model": _ai_config["model"]
-    }
-
+    cs = get_config_service()
+    return AiConfigResponse(
+        api_key_set=bool(cs.get("ai", "api_key")),
+        api_base=cs.get("ai", "api_base", "https://api.openai.com/v1"),
+        model=cs.get("ai", "model", "gpt-3.5-turbo")
+    )
 
 @router.post("/ai-config")
 def update_ai_config(config: AiConfig):
-    """更新AI配置"""
+    cs = get_config_service()
     if config.api_key is not None:
-        _ai_config["api_key"] = config.api_key
+        cs.set("ai", "api_key", config.api_key)
     if config.api_base is not None:
-        _ai_config["api_base"] = config.api_base
+        cs.set("ai", "api_base", config.api_base)
     if config.model is not None:
-        _ai_config["model"] = config.model
-    
+        cs.set("ai", "model", config.model)
     return {"success": True, "message": "AI配置已更新"}
 
 
-# ==================== MinerU 配置 ====================
+# ========== MinerU 配置 ==========
 
 @router.get("/mineru-config", response_model=MinerUConfigResponse)
 def get_mineru_config():
-    """获取MinerU配置"""
+    cs = get_config_service()
     return MinerUConfigResponse(
-        has_token=bool(_mineru_config["api_token"]),
-        model_version=_mineru_config["model_version"],
-        language=_mineru_config["language"]
+        has_token=bool(cs.get("mineru", "api_token")),
+        model_version=cs.get("mineru", "model_version", "vlm"),
+        language=cs.get("mineru", "language", "en")
     )
-
 
 @router.post("/mineru-config")
 def update_mineru_config(config: MinerUConfig):
-    """更新MinerU配置"""
+    cs = get_config_service()
     if config.api_token is not None:
-        _mineru_config["api_token"] = config.api_token
+        cs.set("mineru", "api_token", config.api_token)
     if config.model_version is not None:
-        _mineru_config["model_version"] = config.model_version
+        cs.set("mineru", "model_version", config.model_version)
     if config.language is not None:
-        _mineru_config["language"] = config.language
-    
+        cs.set("mineru", "language", config.language)
     return {"success": True, "message": "MinerU配置已更新"}
-
 
 @router.post("/mineru-token")
 def update_mineru_token(token: str):
-    """更新MinerU API Token"""
     if not token:
         raise HTTPException(status_code=400, detail="Token不能为空")
-    
-    _mineru_config["api_token"] = token
+    cs = get_config_service()
+    cs.set("mineru", "api_token", token)
     return {"success": True, "message": "MinerU Token已更新"}
-
 
 @router.get("/mineru-token-status")
 def check_mineru_token_status():
-    """检查MinerU Token状态"""
-    has_token = bool(_mineru_config["api_token"])
-    return {
-        "has_token": has_token,
-        "message": "Token已设置" if has_token else "请先设置Token"
-    }
+    cs = get_config_service()
+    has_token = bool(cs.get("mineru", "api_token"))
+    return {"has_token": has_token, "message": "Token已设置" if has_token else "请先设置Token"}
 
+
+# ========== 追踪配置 ==========
+
+@router.get("/tracking-config")
+def get_tracking_config():
+    return get_config_service().get_section("tracking")
+
+@router.post("/tracking-config")
+def update_tracking_config(config: TrackingConfig):
+    cs = get_config_service()
+    data = config.model_dump(exclude_none=True)
+    for k, v in data.items():
+        cs.set("tracking", k, v)
+    return {"success": True, "message": "追踪配置已更新"}
+
+
+# ========== 学习配置 ==========
+
+@router.get("/learning-config")
+def get_learning_config():
+    return get_config_service().get_section("learning")
+
+@router.post("/learning-config")
+def update_learning_config(config: LearningConfig):
+    cs = get_config_service()
+    data = config.model_dump(exclude_none=True)
+    for k, v in data.items():
+        cs.set("learning", k, v)
+    return {"success": True, "message": "学习配置已更新"}
+
+
+# ========== 全部配置 ==========
+
+@router.get("/all")
+def get_all_config():
+    """获取所有配置（敏感信息脱敏）"""
+    cs = get_config_service()
+    all_config = cs.get_all()
+    # 脱敏
+    if all_config.get("ai", {}).get("api_key"):
+        all_config["ai"]["api_key"] = "***" + all_config["ai"]["api_key"][-4:]
+    if all_config.get("mineru", {}).get("api_token"):
+        all_config["mineru"]["api_token"] = "***" + all_config["mineru"]["api_token"][-4:]
+    return all_config
+
+@router.post("/reset")
+def reset_config():
+    """重置配置为默认值"""
+    cs = get_config_service()
+    from services.config_service import DEFAULT_CONFIG
+    cs.set_section("ai", DEFAULT_CONFIG.get("ai", {}))
+    cs.set_section("mineru", DEFAULT_CONFIG.get("mineru", {}))
+    return {"success": True, "message": "配置已重置"}
+
+
+# ========== 兼容性：给其他模块调用 ==========
 
 def get_mineru_config_value(key: str, default=None):
-    """获取MinerU配置值"""
-    return _mineru_config.get(key, default)
-
+    return get_config_service().get("mineru", key, default)
 
 def get_ai_config_value(key: str, default=None):
-    """获取AI配置值"""
-    return _ai_config.get(key, default)
+    return get_config_service().get("ai", key, default)

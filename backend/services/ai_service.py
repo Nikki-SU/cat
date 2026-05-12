@@ -7,6 +7,7 @@ import asyncio
 import re
 from typing import Optional, Dict, Any, List
 from config import settings
+from routers.settings import get_ai_config_value
 
 
 class AIService:
@@ -26,8 +27,8 @@ class AIService:
             api_base: API地址
             model: 模型名称
         """
-        self.api_key = api_key or settings.OPENAI_API_KEY
-        self.api_base = api_base or settings.OPENAI_API_BASE
+        self.api_key = api_key or get_ai_config_value("api_key") or settings.OPENAI_API_KEY
+        self.api_base = api_base or get_ai_config_value("api_base") or settings.OPENAI_API_BASE
         self.model = model
         self.client = httpx.AsyncClient(timeout=120.0)
         self.max_retries = 3
