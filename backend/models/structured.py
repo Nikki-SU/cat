@@ -33,7 +33,7 @@ class StructuredNote(Base):
     content = Column(Text, nullable=True)  # 笔记内容
     
     # 额外数据
-    metadata = Column(JSON, nullable=True)  # { imageUrl, codeLanguage, linkTarget, mermaidType, ... }
+    meta_data = Column(JSON, nullable=True)  # { imageUrl, codeLanguage, linkTarget, mermaidType, ... }
     tags = Column(JSON, nullable=True)  # 标签列表
     
     # 位置信息
