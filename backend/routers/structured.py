@@ -127,8 +127,6 @@ async def extract_long_sentences(
     markdown_content = ""
     if structured_lit.content:
         markdown_content = structured_lit.content
-    elif structured_lit.markdown:
-        markdown_content = structured_lit.markdown
     
     if not markdown_content:
         return {
@@ -230,8 +228,6 @@ async def extract_keywords(
     markdown_content = ""
     if structured_lit.content:
         markdown_content = structured_lit.content
-    elif structured_lit.markdown:
-        markdown_content = structured_lit.markdown
     
     if not markdown_content:
         return {
