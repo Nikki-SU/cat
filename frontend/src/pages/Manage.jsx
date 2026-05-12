@@ -1,18 +1,18 @@
 /**
- * 文献管理独立页面
+ * 鏂囩尞绠＄悊鐙珛椤甸潰
  */
 import { useState, useEffect, useMemo } from 'react'
 import { literatureAPI, trackingAPI, learningAPI, noteAPI, organizationAPI, attachmentAPI } from '../api/client'
 
 const tabs = [
-  { id: 'tracking', label: '追踪管理' },
-  { id: 'literature', label: '文献表' },
-  { id: 'learning', label: '学习管理' },
-  { id: 'notes', label: '笔记管理' },
-  { id: 'organization', label: '标签合集' },
+  { id: 'tracking', label: '杩借釜绠＄悊' },
+  { id: 'literature', label: '鏂囩尞琛? },
+  { id: 'learning', label: '瀛︿範绠＄悊' },
+  { id: 'notes', label: '绗旇绠＄悊' },
+  { id: 'organization', label: '鏍囩鍚堥泦' },
 ]
 
-// 标签颜色
+// 鏍囩棰滆壊
 const tagColors = [
   'bg-blue-100 text-blue-700',
   'bg-green-100 text-green-700',
@@ -27,7 +27,7 @@ function getTagColor(name) {
   return tagColors[hash % tagColors.length]
 }
 
-// 合集创建/编辑弹窗
+// 鍚堥泦鍒涘缓/缂栬緫寮圭獥
 function CollectionModal({ editing, onSave, onClose }) {
   const [name, setName] = useState(editing?.name || '')
   const [description, setDescription] = useState(editing?.description || '')
@@ -35,32 +35,32 @@ function CollectionModal({ editing, onSave, onClose }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-lg p-4 w-full max-w-md">
-        <h3 className="font-medium mb-4">{editing ? '编辑合集' : '新建合集'}</h3>
+        <h3 className="font-medium mb-4">{editing ? '缂栬緫鍚堥泦' : '鏂板缓鍚堥泦'}</h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">名称</label>
+            <label className="block text-sm text-gray-600 mb-1">鍚嶇О</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 border rounded"
-              placeholder="合集名称"
+              placeholder="鍚堥泦鍚嶇О"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">描述</label>
+            <label className="block text-sm text-gray-600 mb-1">鎻忚堪</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3 py-2 border rounded"
               rows={3}
-              placeholder="合集描述（可选）"
+              placeholder="鍚堥泦鎻忚堪锛堝彲閫夛級"
             />
           </div>
         </div>
         <div className="flex gap-2 justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
-          <button onClick={() => onSave(name, description)} className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">鍙栨秷</button>
+          <button onClick={() => onSave(name, description)} className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">淇濆瓨</button>
         </div>
       </div>
     </div>
@@ -70,7 +70,7 @@ function CollectionModal({ editing, onSave, onClose }) {
 function Manage({ defaultTab = 'tracking' }) {
   const [activeTab, setActiveTab] = useState(defaultTab)
   
-  // 各Tab数据
+  // 鍚凾ab鏁版嵁
   const [trackingRecords, setTrackingRecords] = useState([])
   const [literatureTable, setLiteratureTable] = useState([])
   const [words, setWords] = useState([])
@@ -80,11 +80,9 @@ function Manage({ defaultTab = 'tracking' }) {
   const [collections, setCollections] = useState([])
   const [attachments, setAttachments] = useState([])
   
-  // 加载状态
-  const [loading, setLoading] = useState(false)
+  // 鍔犺浇鐘舵€?  const [loading, setLoading] = useState(false)
   
-  // 文献表相关状态
-  const [searchQuery, setSearchQuery] = useState('')
+  // 鏂囩尞琛ㄧ浉鍏崇姸鎬?  const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
   const [showExportModal, setShowExportModal] = useState(false)
@@ -92,13 +90,17 @@ function Manage({ defaultTab = 'tracking' }) {
   const [editingLiterature, setEditingLiterature] = useState(null)
   const [editFormData, setEditFormData] = useState({})
   
-  // 标签管理状态
+  // 闄勪欢涓婁紶鐘舵€?  const [showAttachmentModal, setShowAttachmentModal] = useState(false)
+  const [attachmentDoi, setAttachmentDoi] = useState(null)
+  const [attachmentFile, setAttachmentFile] = useState(null)
+  const [attachmentLoading, setAttachmentLoading] = useState(false)
+  
+  // 杩斿洖鐘舵€?  const [returnToManage, setReturnToManage] = useState(false)
   const [tagSearchQuery, setTagSearchQuery] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [allTagNames, setAllTagNames] = useState([])
   
-  // 合集管理状态
-  const [selectedCollection, setSelectedCollection] = useState(null)
+  // 鍚堥泦绠＄悊鐘舵€?  const [selectedCollection, setSelectedCollection] = useState(null)
   const [collectionItems, setCollectionItems] = useState([])
   const [collectionFilterTag, setCollectionFilterTag] = useState('')
   const [collectionFilterType, setCollectionFilterType] = useState('')
@@ -149,8 +151,7 @@ function Manage({ defaultTab = 'tracking' }) {
     }
   }
 
-  // 文献表搜索
-  const filteredLiterature = useMemo(() => {
+  // 鏂囩尞琛ㄦ悳绱?  const filteredLiterature = useMemo(() => {
     if (!searchQuery.trim()) return literatureTable
     const query = searchQuery.toLowerCase()
     return literatureTable.filter(item =>
@@ -162,11 +163,9 @@ function Manage({ defaultTab = 'tracking' }) {
     )
   }, [literatureTable, searchQuery])
 
-  // 获取文献的标签
-  const getTagsForDoi = (doi) => tags.filter(t => t.doi === doi)
+  // 鑾峰彇鏂囩尞鐨勬爣绛?  const getTagsForDoi = (doi) => tags.filter(t => t.doi === doi)
 
-  // 按DOI分组的标签
-  const tagsByDoi = useMemo(() => {
+  // 鎸塂OI鍒嗙粍鐨勬爣绛?  const tagsByDoi = useMemo(() => {
     const grouped = {}
     tags.forEach(tag => {
       if (tag.doi) {
@@ -177,14 +176,14 @@ function Manage({ defaultTab = 'tracking' }) {
     return grouped
   }, [tags])
 
-  // 过滤后的标签
+  // 杩囨护鍚庣殑鏍囩
   const filteredTags = useMemo(() => {
     if (!tagSearchQuery.trim()) return tags
     const query = tagSearchQuery.toLowerCase()
     return tags.filter(t => t.name.toLowerCase().includes(query))
   }, [tags, tagSearchQuery])
 
-  // 合集条目过滤
+  // 鍚堥泦鏉＄洰杩囨护
   const filteredCollectionItems = useMemo(() => {
     if (!collectionItems.length) return []
     let items = collectionItems
@@ -198,20 +197,20 @@ function Manage({ defaultTab = 'tracking' }) {
     return items
   }, [collectionItems, collectionFilterTag, collectionFilterType, tags])
 
-  // 删除处理
+  // 鍒犻櫎澶勭悊
   const handleDelete = async (type, id, cascade = false) => {
     const messages = {
-      tracking: '确定要删除这条追踪记录吗？',
-      literature: cascade ? '确定要删除这篇文献及其所有关联数据吗？追踪记录将保留。' : '确定要删除这篇文献吗？',
-      word: '确定要删除这个单词吗？',
-      sentence: '确定要删除这个长难句吗？',
-      note: '确定要删除这条笔记吗？',
-      tag: '确定要删除这个标签吗？',
-      collection: '确定要删除这个合集吗？',
-      collectionItem: '确定要从合集中移除这条记录吗？',
-      attachment: '确定要删除这个附件吗？',
+      tracking: '纭畾瑕佸垹闄よ繖鏉¤拷韪褰曞悧锛?,
+      literature: cascade ? '纭畾瑕佸垹闄よ繖绡囨枃鐚強鍏舵墍鏈夊叧鑱旀暟鎹悧锛熻拷韪褰曞皢淇濈暀銆? : '纭畾瑕佸垹闄よ繖绡囨枃鐚悧锛?,
+      word: '纭畾瑕佸垹闄よ繖涓崟璇嶅悧锛?,
+      sentence: '纭畾瑕佸垹闄よ繖涓暱闅惧彞鍚楋紵',
+      note: '纭畾瑕佸垹闄よ繖鏉＄瑪璁板悧锛?,
+      tag: '纭畾瑕佸垹闄よ繖涓爣绛惧悧锛?,
+      collection: '纭畾瑕佸垹闄よ繖涓悎闆嗗悧锛?,
+      collectionItem: '纭畾瑕佷粠鍚堥泦涓Щ闄よ繖鏉¤褰曞悧锛?,
+      attachment: '纭畾瑕佸垹闄よ繖涓檮浠跺悧锛?,
     }
-    if (!confirm(messages[type] || '确定要删除吗？')) return
+    if (!confirm(messages[type] || '纭畾瑕佸垹闄ゅ悧锛?)) return
     
     try {
       switch (type) {
@@ -253,11 +252,66 @@ function Manage({ defaultTab = 'tracking' }) {
           break
       }
     } catch (error) {
-      alert('删除失败: ' + error.message)
+      alert('鍒犻櫎澶辫触: ' + error.message)
     }
   }
 
-  // 添加标签
+  // 闄勪欢鐐瑰嚮澶勭悊 - 鏅鸿兘鍒ゆ柇锛氭湁鍒欒烦杞紝鏃犲垯鎸傝浇
+  const handleAttachmentClick = (item) => {
+    if (item.has_attachment) {
+      // 鏈夐檮浠讹紝璺宠浆鍒版煡鐪?      const attachment = attachments.find(a => a.doi === item.doi)
+      if (attachment) {
+        // 淇濆瓨杩斿洖鐘舵€?        localStorage.setItem('returnToManage', 'true')
+        localStorage.setItem('returnTab', 'literature')
+        // 璺宠浆鍒伴檮浠惰鎯呮垨涓嬭浇
+        window.open(`/api/v1/attachments/${attachment.id}/download`, '_blank')
+      } else {
+        alert('闄勪欢璁板綍涓嶅瓨鍦?)
+      }
+    } else {
+      // 鏃犻檮浠讹紝鎵撳紑鎸傝浇寮圭獥
+      setAttachmentDoi(item.doi)
+      setAttachmentFile(null)
+      setShowAttachmentModal(true)
+    }
+  }
+
+  // 涓婁紶闄勪欢
+  const handleUploadAttachment = async () => {
+    if (!attachmentFile || !attachmentDoi) return
+    
+    setAttachmentLoading(true)
+    try {
+      await attachmentAPI.upload(attachmentDoi, attachmentFile)
+      alert('闄勪欢鎸傝浇鎴愬姛锛?)
+      setShowAttachmentModal(false)
+      setAttachmentFile(null)
+      setAttachmentDoi(null)
+      fetchData() // 鍒锋柊鏁版嵁
+    } catch (error) {
+      alert('涓婁紶澶辫触: ' + error.message)
+    } finally {
+      setAttachmentLoading(false)
+    }
+  }
+
+  // 缂栬緫涓垹闄ら檮浠?  const handleDeleteAttachment = async (doi) => {
+    const attachment = attachments.find(a => a.doi === doi)
+    if (!attachment) return
+    
+    if (!confirm('纭畾瑕佸垹闄よ繖涓檮浠跺悧锛?)) return
+    
+    try {
+      await attachmentAPI.delete(attachment.id)
+      // 鏇存柊缂栬緫琛ㄥ崟涓殑闄勪欢鐘舵€?      setEditFormData({...editFormData, has_attachment: false})
+      fetchData()
+      alert('闄勪欢宸插垹闄?)
+    } catch (error) {
+      alert('鍒犻櫎澶辫触: ' + error.message)
+    }
+  }
+
+  // 娣诲姞鏍囩
   const handleAddTag = async (doi, tagName) => {
     if (!tagName.trim()) return
     try {
@@ -265,21 +319,21 @@ function Manage({ defaultTab = 'tracking' }) {
       setTags(prev => [...prev, newTag])
       setTagInput('')
     } catch (error) {
-      alert('添加标签失败: ' + error.message)
+      alert('娣诲姞鏍囩澶辫触: ' + error.message)
     }
   }
 
-  // 删除标签
+  // 鍒犻櫎鏍囩
   const handleRemoveTag = async (tagId) => {
     try {
       await organizationAPI.deleteTag(tagId)
       setTags(prev => prev.filter(t => t.id !== tagId))
     } catch (error) {
-      alert('删除标签失败: ' + error.message)
+      alert('鍒犻櫎鏍囩澶辫触: ' + error.message)
     }
   }
 
-  // 创建/更新合集
+  // 鍒涘缓/鏇存柊鍚堥泦
   const handleSaveCollection = async (name, description) => {
     try {
       if (editingCollection) {
@@ -292,11 +346,11 @@ function Manage({ defaultTab = 'tracking' }) {
       setShowCollectionModal(false)
       setEditingCollection(null)
     } catch (error) {
-      alert('保存合集失败: ' + error.message)
+      alert('淇濆瓨鍚堥泦澶辫触: ' + error.message)
     }
   }
 
-  // 选择合集
+  // 閫夋嫨鍚堥泦
   const handleSelectCollection = async (collection) => {
     setSelectedCollection(collection)
     try {
@@ -307,8 +361,7 @@ function Manage({ defaultTab = 'tracking' }) {
     }
   }
 
-  // 导出文献表
-  const handleExport = async (format, useTagFilter = false) => {
+  // 瀵煎嚭鏂囩尞琛?  const handleExport = async (format, useTagFilter = false) => {
     const url = useTagFilter && exportTags.length > 0
       ? literatureAPI.exportTableByTags(exportTags.join(','), format)
       : literatureAPI.exportTable({ format })
@@ -320,7 +373,7 @@ function Manage({ defaultTab = 'tracking' }) {
     setShowExportModal(false)
   }
 
-  // 切换导出标签
+  // 鍒囨崲瀵煎嚭鏍囩
   const toggleExportTag = (tagName) => {
     setExportTags(prev =>
       prev.includes(tagName)
@@ -331,12 +384,12 @@ function Manage({ defaultTab = 'tracking' }) {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      {/* 顶部标题栏 */}
+      {/* 椤堕儴鏍囬鏍?*/}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-semibold text-[#4DBBD5] mb-4">📁 文献管理</h1>
+          <h1 className="text-xl font-semibold text-[#4DBBD5] mb-4">馃搧 鏂囩尞绠＄悊</h1>
           
-          {/* Tab切换 */}
+          {/* Tab鍒囨崲 */}
           <div className="flex gap-1 overflow-x-auto">
             {tabs.map(tab => (
               <button
@@ -355,7 +408,7 @@ function Manage({ defaultTab = 'tracking' }) {
         </div>
       </div>
 
-      {/* 内容区 */}
+      {/* 鍐呭鍖?*/}
       <div className="max-w-6xl mx-auto px-4 py-4">
         {loading ? (
           <div className="flex justify-center items-center py-20">
@@ -363,21 +416,21 @@ function Manage({ defaultTab = 'tracking' }) {
           </div>
         ) : (
           <>
-            {/* 追踪管理 */}
+            {/* 杩借釜绠＄悊 */}
             {activeTab === 'tracking' && (
               <div className="space-y-4">
-                <h2 className="text-lg font-medium text-[#3C5488]">追踪记录 ({trackingRecords.length})</h2>
+                <h2 className="text-lg font-medium text-[#3C5488]">杩借釜璁板綍 ({trackingRecords.length})</h2>
                 {trackingRecords.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">暂无追踪记录</p>
+                  <p className="text-gray-400 text-center py-8">鏆傛棤杩借釜璁板綍</p>
                 ) : (
                   <div className="bg-white rounded-lg shadow overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">期刊</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">标题</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鏃ユ湡</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鏈熷垔</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鏍囬</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鎿嶄綔</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -387,7 +440,7 @@ function Manage({ defaultTab = 'tracking' }) {
                             <td className="px-4 py-3 text-sm text-gray-600">{record.journal}</td>
                             <td className="px-4 py-3 text-sm">
                               <div className="truncate max-w-[300px]" title={record.title_en}>
-                                {record.title_cn || record.title_en || '无标题'}
+                                {record.title_cn || record.title_en || '鏃犳爣棰?}
                               </div>
                               {record.doi && <span className="text-xs text-[#4DBBD5]">{record.doi}</span>}
                             </td>
@@ -396,7 +449,7 @@ function Manage({ defaultTab = 'tracking' }) {
                                 onClick={() => handleDelete('tracking', record.id)}
                                 className="text-red-400 hover:text-red-600 text-sm"
                               >
-                                删除
+                                鍒犻櫎
                               </button>
                             </td>
                           </tr>
@@ -404,33 +457,33 @@ function Manage({ defaultTab = 'tracking' }) {
                       </tbody>
                     </table>
                     {trackingRecords.length > 50 && (
-                      <p className="text-center text-gray-500 py-2">显示前50条，共{trackingRecords.length}条</p>
+                      <p className="text-center text-gray-500 py-2">鏄剧ず鍓?0鏉★紝鍏眥trackingRecords.length}鏉?/p>
                     )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* 文献表 */}
+            {/* 鏂囩尞琛?*/}
             {activeTab === 'literature' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-medium text-[#3C5488]">文献表 ({filteredLiterature.length})</h2>
+                  <h2 className="text-lg font-medium text-[#3C5488]">鏂囩尞琛?({filteredLiterature.length})</h2>
                   <button
                     onClick={() => setShowExportModal(true)}
                     className="px-4 py-2 bg-[#00A087] text-white rounded hover:bg-[#00876d] text-sm"
                   >
-                    导出
+                    瀵煎嚭
                   </button>
                 </div>
                 
-                {/* 搜索和排序 */}
+                {/* 鎼滅储鍜屾帓搴?*/}
                 <div className="flex gap-4 items-center">
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="搜索文献标题、DOI、期刊、作者..."
+                    placeholder="鎼滅储鏂囩尞鏍囬銆丏OI銆佹湡鍒娿€佷綔鑰?.."
                     className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4DBBD5] focus:border-transparent"
                   />
                   <select
@@ -438,33 +491,33 @@ function Manage({ defaultTab = 'tracking' }) {
                     onChange={(e) => setSortBy(e.target.value)}
                     className="px-3 py-2 border rounded text-sm"
                   >
-                    <option value="created_at">创建时间</option>
-                    <option value="pubdate">发表日期</option>
-                    <option value="title_en">标题</option>
-                    <option value="journal">期刊</option>
+                    <option value="created_at">鍒涘缓鏃堕棿</option>
+                    <option value="pubdate">鍙戣〃鏃ユ湡</option>
+                    <option value="title_en">鏍囬</option>
+                    <option value="journal">鏈熷垔</option>
                   </select>
                   <button
                     onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
                     className="px-3 py-2 border rounded text-sm hover:bg-gray-50"
                   >
-                    {sortOrder === 'desc' ? '↓ 降序' : '↑ 升序'}
+                    {sortOrder === 'desc' ? '鈫?闄嶅簭' : '鈫?鍗囧簭'}
                   </button>
                 </div>
                 
                 {filteredLiterature.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">暂无文献</p>
+                  <p className="text-gray-400 text-center py-8">鏆傛棤鏂囩尞</p>
                 ) : (
                   <div className="bg-white rounded-lg shadow overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">标题</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">期刊/年份</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">作者</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">标签</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">跳转</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鏍囬</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鏈熷垔/骞翠唤</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">浣滆€?/th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鏍囩</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">璺宠浆</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOI</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">鎿嶄綔</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -473,7 +526,7 @@ function Manage({ defaultTab = 'tracking' }) {
                             <td className="px-4 py-3">
                               <div className="max-w-[300px]">
                                 <div className="font-medium text-sm text-[#3C5488] truncate" title={item.title_cn || item.title_en}>
-                                  {item.title_cn || item.title_en || '无标题'}
+                                  {item.title_cn || item.title_en || '鏃犳爣棰?}
                                 </div>
                                 {item.title_cn && item.title_en && (
                                   <div className="text-xs text-[#8491B4] truncate mt-1" title={item.title_en}>
@@ -504,20 +557,36 @@ function Manage({ defaultTab = 'tracking' }) {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex gap-1 text-xs">
-                                {item.has_attachment ? (
-                                  <a href={`/attachments/by-doi/${item.doi}`} className="px-2 py-0.5 bg-green-100 text-green-700 rounded hover:bg-green-200">附件</a>
-                                ) : (
-                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">附件</span>
-                                )}
+                                {/* 闄勪欢鎸夐挳 - 鏅鸿兘鍒ゆ柇 */}
+                                <button
+                                  onClick={() => handleAttachmentClick(item)}
+                                  className={`px-2 py-0.5 rounded hover:opacity-80 ${
+                                    item.has_attachment
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {item.has_attachment ? '鏌ョ湅闄勪欢' : '+ 鎸傝浇闄勪欢'}
+                                </button>
                                 {item.has_structured ? (
-                                  <a href={`/deep-read?doi=${item.doi}`} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded hover:bg-purple-200">结构</a>
+                                  <button
+                                    onClick={() => navigateToStructured(item.doi)}
+                                    className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                                  >
+                                    缁撴瀯
+                                  </button>
                                 ) : (
-                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">结构</span>
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">缁撴瀯</span>
                                 )}
                                 {item.has_card ? (
-                                  <a href={`/browse?doi=${item.doi}`} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">卡片</a>
+                                  <button
+                                    onClick={() => navigateToCard(item.doi)}
+                                    className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                  >
+                                    鍗＄墖
+                                  </button>
                                 ) : (
-                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">卡片</span>
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">鍗＄墖</span>
                                 )}
                               </div>
                             </td>
@@ -533,13 +602,13 @@ function Manage({ defaultTab = 'tracking' }) {
                                   }}
                                   className="text-blue-400 hover:text-blue-600 text-sm"
                                 >
-                                  编辑
+                                  缂栬緫
                                 </button>
                                 <button
                                   onClick={() => handleDelete('literature', item.doi, false)}
                                   className="text-red-400 hover:text-red-600 text-sm"
                                 >
-                                  删除
+                                  鍒犻櫎
                                 </button>
                               </div>
                             </td>
@@ -550,13 +619,13 @@ function Manage({ defaultTab = 'tracking' }) {
                   </div>
                 )}
                 
-                {/* 编辑弹窗 */}
+                {/* 缂栬緫寮圭獥 */}
                 {editingLiterature && (
                   <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
                       <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-                        <h2 className="font-semibold">编辑文献</h2>
-                        <button onClick={() => setEditingLiterature(null)} className="text-2xl">×</button>
+                        <h2 className="font-semibold">缂栬緫鏂囩尞</h2>
+                        <button onClick={() => setEditingLiterature(null)} className="text-2xl">脳</button>
                       </div>
                       <form onSubmit={async (e) => {
                         e.preventDefault()
@@ -571,62 +640,154 @@ function Manage({ defaultTab = 'tracking' }) {
                           })
                           setEditingLiterature(null)
                           fetchData()
-                          alert('更新成功')
+                          alert('鏇存柊鎴愬姛')
                         } catch (error) {
-                          alert('更新失败: ' + error.message)
+                          alert('鏇存柊澶辫触: ' + error.message)
                         }
                       }} className="flex-1 overflow-auto p-4 space-y-3">
                         <div>
-                          <label className="block text-sm text-gray-600 mb-1">DOI (不可编辑)</label>
+                          <label className="block text-sm text-gray-600 mb-1">DOI (涓嶅彲缂栬緫)</label>
                           <input type="text" value={editFormData.doi} disabled className="w-full px-3 py-2 border rounded bg-gray-100" />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-600 mb-1">中文标题</label>
+                          <label className="block text-sm text-gray-600 mb-1">涓枃鏍囬</label>
                           <input type="text" value={editFormData.title_cn || ''} onChange={(e) => setEditFormData({...editFormData, title_cn: e.target.value})} className="w-full px-3 py-2 border rounded" />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-600 mb-1">英文标题</label>
+                          <label className="block text-sm text-gray-600 mb-1">鑻辨枃鏍囬</label>
                           <input type="text" value={editFormData.title_en || ''} onChange={(e) => setEditFormData({...editFormData, title_en: e.target.value})} className="w-full px-3 py-2 border rounded" />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-sm text-gray-600 mb-1">期刊</label>
+                            <label className="block text-sm text-gray-600 mb-1">鏈熷垔</label>
                             <input type="text" value={editFormData.journal || ''} onChange={(e) => setEditFormData({...editFormData, journal: e.target.value})} className="w-full px-3 py-2 border rounded" />
                           </div>
                           <div>
-                            <label className="block text-sm text-gray-600 mb-1">出版日期</label>
+                            <label className="block text-sm text-gray-600 mb-1">鍑虹増鏃ユ湡</label>
                             <input type="text" value={editFormData.pubdate || ''} onChange={(e) => setEditFormData({...editFormData, pubdate: e.target.value})} className="w-full px-3 py-2 border rounded" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-sm text-gray-600 mb-1">第一作者</label>
+                            <label className="block text-sm text-gray-600 mb-1">绗竴浣滆€?/label>
                             <input type="text" value={editFormData.first_author || ''} onChange={(e) => setEditFormData({...editFormData, first_author: e.target.value})} className="w-full px-3 py-2 border rounded" />
                           </div>
                           <div>
-                            <label className="block text-sm text-gray-600 mb-1">通讯作者</label>
+                            <label className="block text-sm text-gray-600 mb-1">閫氳浣滆€?/label>
                             <input type="text" value={editFormData.communication_author || ''} onChange={(e) => setEditFormData({...editFormData, communication_author: e.target.value})} className="w-full px-3 py-2 border rounded" />
                           </div>
                         </div>
+                        
+                        {/* 闄勪欢绠＄悊鍖哄煙 */}
+                        <div className="border rounded p-3 bg-gray-50">
+                          <label className="block text-sm text-gray-600 mb-2">闄勪欢绠＄悊</label>
+                          {editFormData.has_attachment ? (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-green-600">鉁?宸叉寕杞介檮浠?/span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const attachment = attachments.find(a => a.doi === editFormData.doi)
+                                    if (attachment) {
+                                      localStorage.setItem('returnToManage', 'true')
+                                      localStorage.setItem('returnTab', 'literature')
+                                      window.open(`/api/v1/attachments/${attachment.id}/download`, '_blank')
+                                    }
+                                  }}
+                                  className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+                                >
+                                  鏌ョ湅闄勪欢
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttachment(editFormData.doi)}
+                                  className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+                                >
+                                  鍒犻櫎闄勪欢
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="file"
+                                onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+                                className="flex-1 text-sm"
+                                accept=".pdf,.doc,.docx,.epub,.md"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleUploadAttachment}
+                                disabled={!attachmentFile || attachmentLoading}
+                                className="px-3 py-1 text-sm bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] disabled:opacity-50"
+                              >
+                                {attachmentLoading ? '涓婁紶涓?..' : '涓婁紶'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        
                         <div className="flex gap-2 pt-4">
-                          <button type="button" onClick={() => setEditingLiterature(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded flex-1">取消</button>
-                          <button type="submit" className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] flex-1">保存</button>
+                          <button type="button" onClick={() => setEditingLiterature(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded flex-1">鍙栨秷</button>
+                          <button type="submit" className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] flex-1">淇濆瓨</button>
                         </div>
                       </form>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 闄勪欢鎸傝浇寮圭獥 */}
+                {showAttachmentModal && (
+                  <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-semibold">鎸傝浇闄勪欢</h3>
+                        <button onClick={() => setShowAttachmentModal(false)} className="text-2xl">脳</button>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-4">DOI: {attachmentDoi}</p>
+                      <div className="space-y-4">
+                        <input
+                          type="file"
+                          onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+                          className="w-full"
+                          accept=".pdf,.doc,.docx,.epub,.md"
+                        />
+                        {attachmentFile && (
+                          <p className="text-sm text-gray-600">
+                            宸查€夋嫨: {attachmentFile.name} ({(attachmentFile.size / 1024 / 1024).toFixed(2)} MB)
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setShowAttachmentModal(false)}
+                            className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                          >
+                            鍙栨秷
+                          </button>
+                          <button
+                            onClick={handleUploadAttachment}
+                            disabled={!attachmentFile || attachmentLoading}
+                            className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] disabled:opacity-50"
+                          >
+                            {attachmentLoading ? '涓婁紶涓?..' : '纭鎸傝浇'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* 学习管理 */}
+            {/* 瀛︿範绠＄悊 */}
             {activeTab === 'learning' && (
               <div className="space-y-6">
-                {/* 单词 */}
+                {/* 鍗曡瘝 */}
                 <div className="bg-white rounded-lg shadow p-4">
-                  <h3 className="font-medium text-[#3C5488] mb-3">单词 ({words.length})</h3>
+                  <h3 className="font-medium text-[#3C5488] mb-3">鍗曡瘝 ({words.length})</h3>
                   {words.length === 0 ? (
-                    <p className="text-gray-400 text-center py-4">暂无单词</p>
+                    <p className="text-gray-400 text-center py-4">鏆傛棤鍗曡瘝</p>
                   ) : (
                     <div className="space-y-2 max-h-[300px] overflow-auto">
                       {words.slice(0, 100).map(word => (
@@ -639,29 +800,29 @@ function Manage({ defaultTab = 'tracking' }) {
                               word.status === 'learning' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-red-100 text-red-500'
                             }`}>
-                              {word.status === 'mastered' ? '已掌握' : word.status === 'learning' ? '学习中' : '新词'}
+                              {word.status === 'mastered' ? '宸叉帉鎻? : word.status === 'learning' ? '瀛︿範涓? : '鏂拌瘝'}
                             </span>
                           </div>
                           <button
                             onClick={() => handleDelete('word', word.id)}
                             className="text-red-400 hover:text-red-600"
                           >
-                            ×
+                            脳
                           </button>
                         </div>
                       ))}
                       {words.length > 100 && (
-                        <p className="text-center text-gray-500 py-2">显示前100条，共{words.length}条</p>
+                        <p className="text-center text-gray-500 py-2">鏄剧ず鍓?00鏉★紝鍏眥words.length}鏉?/p>
                       )}
                     </div>
                   )}
                 </div>
                 
-                {/* 长难句 */}
+                {/* 闀块毦鍙?*/}
                 <div className="bg-white rounded-lg shadow p-4">
-                  <h3 className="font-medium text-[#3C5488] mb-3">长难句 ({sentences.length})</h3>
+                  <h3 className="font-medium text-[#3C5488] mb-3">闀块毦鍙?({sentences.length})</h3>
                   {sentences.length === 0 ? (
-                    <p className="text-gray-400 text-center py-4">暂无长难句</p>
+                    <p className="text-gray-400 text-center py-4">鏆傛棤闀块毦鍙?/p>
                   ) : (
                     <div className="space-y-2 max-h-[300px] overflow-auto">
                       {sentences.slice(0, 50).map(sentence => (
@@ -673,19 +834,19 @@ function Manage({ defaultTab = 'tracking' }) {
                               sentence.status === 'learning' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-red-100 text-red-500'
                             }`}>
-                              {sentence.status === 'mastered' ? '已掌握' : sentence.status === 'learning' ? '学习中' : '新句'}
+                              {sentence.status === 'mastered' ? '宸叉帉鎻? : sentence.status === 'learning' ? '瀛︿範涓? : '鏂板彞'}
                             </span>
                           </div>
                           <button
                             onClick={() => handleDelete('sentence', sentence.id)}
                             className="text-red-400 hover:text-red-600 ml-2"
                           >
-                            ×
+                            脳
                           </button>
                         </div>
                       ))}
                       {sentences.length > 50 && (
-                        <p className="text-center text-gray-500 py-2">显示前50条，共{sentences.length}条</p>
+                        <p className="text-center text-gray-500 py-2">鏄剧ず鍓?0鏉★紝鍏眥sentences.length}鏉?/p>
                       )}
                     </div>
                   )}
@@ -693,22 +854,22 @@ function Manage({ defaultTab = 'tracking' }) {
               </div>
             )}
 
-            {/* 笔记管理 */}
+            {/* 绗旇绠＄悊 */}
             {activeTab === 'notes' && (
               <div className="bg-white rounded-lg shadow p-4">
-                <h3 className="font-medium text-[#3C5488] mb-3">笔记 ({notes.length})</h3>
+                <h3 className="font-medium text-[#3C5488] mb-3">绗旇 ({notes.length})</h3>
                 {notes.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">暂无笔记</p>
+                  <p className="text-gray-400 text-center py-8">鏆傛棤绗旇</p>
                 ) : (
                   <div className="space-y-2 max-h-[500px] overflow-auto">
                     {notes.map(note => (
                       <div key={note.id} className="p-3 bg-gray-50 rounded">
                         <div className="flex justify-between items-start">
-                          <h4 className="font-medium text-[#3C5488]">{note.title || '无标题'}</h4>
-                          <button onClick={() => handleDelete('note', note.id)} className="text-red-400 hover:text-red-600">×</button>
+                          <h4 className="font-medium text-[#3C5488]">{note.title || '鏃犳爣棰?}</h4>
+                          <button onClick={() => handleDelete('note', note.id)} className="text-red-400 hover:text-red-600">脳</button>
                         </div>
                         <p className="text-sm text-[#8491B4] mt-1 line-clamp-2">{note.content?.slice(0, 100)}...</p>
-                        {note.doi && <span className="text-xs text-[#4DBBD5] mt-1">关联: {note.doi}</span>}
+                        {note.doi && <span className="text-xs text-[#4DBBD5] mt-1">鍏宠仈: {note.doi}</span>}
                       </div>
                     ))}
                   </div>
@@ -716,44 +877,44 @@ function Manage({ defaultTab = 'tracking' }) {
               </div>
             )}
 
-            {/* 标签合集 */}
+            {/* 鏍囩鍚堥泦 */}
             {activeTab === 'organization' && (
               <div className="space-y-4">
-                {/* 标签管理 */}
+                {/* 鏍囩绠＄悊 */}
                 <div className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-[#3C5488]">标签管理</h3>
+                    <h3 className="font-medium text-[#3C5488]">鏍囩绠＄悊</h3>
                     <input
                       type="text"
                       value={tagSearchQuery}
                       onChange={(e) => setTagSearchQuery(e.target.value)}
-                      placeholder="搜索标签..."
+                      placeholder="鎼滅储鏍囩..."
                       className="px-3 py-1 text-sm border rounded w-48"
                     />
                   </div>
                   <div className="flex flex-wrap gap-2 max-h-[200px] overflow-auto p-2 bg-gray-50 rounded">
                     {filteredTags.length === 0 ? (
-                      <p className="text-gray-400">暂无标签</p>
+                      <p className="text-gray-400">鏆傛棤鏍囩</p>
                     ) : (
                       filteredTags.map(tag => (
                         <span key={tag.id} className={`px-2 py-1 text-sm rounded cursor-pointer ${getTagColor(tag.name)} hover:opacity-80`}>
                           {tag.name}
-                          <button onClick={() => handleRemoveTag(tag.id)} className="ml-1 hover:text-red-600">×</button>
+                          <button onClick={() => handleRemoveTag(tag.id)} className="ml-1 hover:text-red-600">脳</button>
                         </span>
                       ))
                     )}
                   </div>
                 </div>
 
-                {/* 合集管理 */}
+                {/* 鍚堥泦绠＄悊 */}
                 <div className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-[#3C5488]">合集管理</h3>
+                    <h3 className="font-medium text-[#3C5488]">鍚堥泦绠＄悊</h3>
                     <button
                       onClick={() => { setEditingCollection(null); setShowCollectionModal(true) }}
                       className="px-3 py-1 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] text-sm"
                     >
-                      + 新建合集
+                      + 鏂板缓鍚堥泦
                     </button>
                   </div>
                   
@@ -761,17 +922,17 @@ function Manage({ defaultTab = 'tracking' }) {
                     <div className="border rounded p-3">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-medium text-[#3C5488]">{selectedCollection.name}</h4>
-                        <button onClick={() => setSelectedCollection(null)} className="text-sm text-[#8491B4]">← 返回</button>
+                        <button onClick={() => setSelectedCollection(null)} className="text-sm text-[#8491B4]">鈫?杩斿洖</button>
                       </div>
                       
-                      {/* 筛选 */}
+                      {/* 绛涢€?*/}
                       <div className="flex gap-2 mb-3">
                         <select
                           value={collectionFilterTag}
                           onChange={(e) => setCollectionFilterTag(e.target.value)}
                           className="text-sm px-2 py-1 border rounded"
                         >
-                          <option value="">按标签筛选</option>
+                          <option value="">鎸夋爣绛剧瓫閫?/option>
                           {allTagNames.map(name => (
                             <option key={name} value={name}>{name}</option>
                           ))}
@@ -781,23 +942,23 @@ function Manage({ defaultTab = 'tracking' }) {
                           onChange={(e) => setCollectionFilterType(e.target.value)}
                           className="text-sm px-2 py-1 border rounded"
                         >
-                          <option value="">按类型筛选</option>
-                          <option value="word">单词</option>
-                          <option value="long_sentence">长难句</option>
-                          <option value="literature_card">文献卡片</option>
-                          <option value="general_note">普通笔记</option>
+                          <option value="">鎸夌被鍨嬬瓫閫?/option>
+                          <option value="word">鍗曡瘝</option>
+                          <option value="long_sentence">闀块毦鍙?/option>
+                          <option value="literature_card">鏂囩尞鍗＄墖</option>
+                          <option value="general_note">鏅€氱瑪璁?/option>
                         </select>
                       </div>
                       
-                      {/* 条目列表 */}
+                      {/* 鏉＄洰鍒楄〃 */}
                       <div className="space-y-2 max-h-[300px] overflow-auto">
                         {filteredCollectionItems.length === 0 ? (
-                          <p className="text-gray-400">合集中暂无条目</p>
+                          <p className="text-gray-400">鍚堥泦涓殏鏃犳潯鐩?/p>
                         ) : (
                           filteredCollectionItems.map(item => (
                             <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
                               <span className="truncate flex-1">{item.item_type} - {item.item_id}</span>
-                              <button onClick={() => handleDelete('collectionItem', item.id)} className="text-red-400 hover:text-red-600 ml-2">移除</button>
+                              <button onClick={() => handleDelete('collectionItem', item.id)} className="text-red-400 hover:text-red-600 ml-2">绉婚櫎</button>
                             </div>
                           ))
                         )}
@@ -817,14 +978,14 @@ function Manage({ defaultTab = 'tracking' }) {
                               onClick={(e) => { e.stopPropagation(); handleDelete('collection', collection.id) }}
                               className="text-red-400 hover:text-red-600"
                             >
-                              ×
+                              脳
                             </button>
                           </div>
-                          <p className="text-sm text-[#8491B4] mt-1">{collection.description || '无描述'}</p>
+                          <p className="text-sm text-[#8491B4] mt-1">{collection.description || '鏃犳弿杩?}</p>
                         </div>
                       ))}
                       {collections.length === 0 && (
-                        <p className="text-gray-400 col-span-full text-center py-8">暂无合集</p>
+                        <p className="text-gray-400 col-span-full text-center py-8">鏆傛棤鍚堥泦</p>
                       )}
                     </div>
                   )}
@@ -835,15 +996,15 @@ function Manage({ defaultTab = 'tracking' }) {
         )}
       </div>
 
-      {/* 导出弹窗 */}
+      {/* 瀵煎嚭寮圭獥 */}
       {showExportModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg p-4 w-full max-w-md">
-            <h3 className="font-medium mb-4 text-[#3C5488]">导出文献表</h3>
+            <h3 className="font-medium mb-4 text-[#3C5488]">瀵煎嚭鏂囩尞琛?/h3>
             
-            {/* 按标签导出 */}
+            {/* 鎸夋爣绛惧鍑?*/}
             <div className="mb-4">
-              <label className="block text-sm text-[#8491B4] mb-2">按标签导出（可选）</label>
+              <label className="block text-sm text-[#8491B4] mb-2">鎸夋爣绛惧鍑猴紙鍙€夛級</label>
               <div className="flex flex-wrap gap-2 max-h-[150px] overflow-auto p-2 bg-gray-50 rounded">
                 {allTagNames.map(name => (
                   <button
@@ -858,15 +1019,15 @@ function Manage({ defaultTab = 'tracking' }) {
             </div>
             
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowExportModal(false)} className="px-4 py-2 text-[#8491B4] hover:bg-gray-100 rounded">取消</button>
-              <button onClick={() => handleExport('xlsx', exportTags.length > 0)} className="px-4 py-2 bg-[#00A087] text-white rounded hover:bg-[#00876d]">导出 Excel</button>
-              <button onClick={() => handleExport('csv', exportTags.length > 0)} className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">导出 CSV</button>
+              <button onClick={() => setShowExportModal(false)} className="px-4 py-2 text-[#8491B4] hover:bg-gray-100 rounded">鍙栨秷</button>
+              <button onClick={() => handleExport('xlsx', exportTags.length > 0)} className="px-4 py-2 bg-[#00A087] text-white rounded hover:bg-[#00876d]">瀵煎嚭 Excel</button>
+              <button onClick={() => handleExport('csv', exportTags.length > 0)} className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">瀵煎嚭 CSV</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 合集创建弹窗 */}
+      {/* 鍚堥泦鍒涘缓寮圭獥 */}
       {showCollectionModal && (
         <CollectionModal
           editing={editingCollection}
