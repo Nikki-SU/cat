@@ -21,7 +21,7 @@ import useDeepReadStore, {
 } from '../stores/useDeepReadStore'
 import useAppStore from '../stores/useAppStore'
 import ObsidianEditor from '../components/ObsidianEditor'
-import { splitSentences, getSentenceBackgroundColor, isSentenceColoringEnabled } from '../utils/sentenceColors'
+import { splitSentences, getSentenceBackgroundColor, isSentenceColoringEnabled } from '../utils/sentenceColors.jsx'
 
 // ==================== 子组件 ====================
 
