@@ -16,4 +16,5 @@ class LiteratureAttachment(Base):
     file_type = Column(String(50), nullable=False)  # doc/docx/pdf/epub/markdown
     file_data = Column(LargeBinary, nullable=True)
     file_size = Column(Integer, nullable=True)
+    file_path = Column(String(500), nullable=True)  # 文件存储路径
     created_at = Column(DateTime(timezone=True), server_default=func.now())
