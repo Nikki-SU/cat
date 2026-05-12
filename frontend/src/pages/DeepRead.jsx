@@ -202,26 +202,6 @@ const renderColoredText = (text, words, sentences) => {
   
   return <span dangerouslySetInnerHTML={{ __html: highlighted }} />
 }
-  })
-  
-  // 标记单词
-  words?.forEach(w => {
-    if (!w.word_en) return
-    try {
-      const regex = new RegExp(`\\b(${w.word_en})\\b`, 'gi')
-      const style = w.status === 'new' 
-        ? 'word-new' 
-        : w.status === 'learning' 
-          ? 'word-learning' 
-          : 'word-mastered'
-      highlighted = highlighted.replace(regex, `<span class="${style}">$1</span>`)
-    } catch (e) {
-      // 忽略正则错误
-    }
-  })
-  
-  return <span dangerouslySetInnerHTML={{ __html: highlighted }} />
-}
 
 // 文献段落渲染
 const ParagraphRenderer = ({ 
