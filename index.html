@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat - 学术文献管理工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .logo {
+            padding: 0 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        .logo-text {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .nav-section {
+            padding: 10px 0;
+        }
+        
+        .nav-title {
+            padding: 10px 20px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            font-weight: 600;
+        }
+        
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+        
+        .nav-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .nav-item.active {
+            background: rgba(102,126,234,0.2);
+            border-left-color: #667eea;
+        }
+        
+        .nav-icon {
+            font-size: 20px;
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            color: #1a1a2e;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.error {
+            background: #f87171;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        .card-icon.blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-icon.green { background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%); }
+        .card-icon.orange { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+        .card-icon.purple { background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); }
+        .card-icon.red { background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); }
+        .card-icon.cyan { background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%); }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        
+        .card-desc {
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        
+        .card-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .card-action:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        }
+        
+        /* Dashboard Section */
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-card {
+            padding: 20px;
+            border-radius: 12px;
+            background: #f8fafc;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        
+        /* API Test Panel */
+        .api-panel {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 24px;
+            color: #e2e8f0;
+        }
+        
+        .api-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .api-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .api-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .api-btn {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .api-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .api-result {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
+        
+        /* Content Pages */
+        .content-page {
+            display: none;
+        }
+        
+        .content-page.active {
+            display: block;
+        }
+        
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th {
+            text-align: left;
+            padding: 12px;
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .data-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #334155;
+        }
+        
+        .data-table tr:hover {
+            background: #f8fafc;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #e0e7ff;
+            color: #667eea;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon">🐱</div>
+                <div class="logo-text">Cat</div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">功能模块</div>
+                <div class="nav-item active" onclick="showPage('dashboard')">
+                    <span class="nav-icon">📊</span>
+                    <span>控制台</span>
+                </div>
+                <div class="nav-item" onclick="showPage('literature')">
+                    <span class="nav-icon">📚</span>
+                    <span>文献库</span>
+                </div>
+                <div class="nav-item" onclick="showPage('tracking')">
+                    <span class="nav-icon">🔍</span>
+                    <span>文献追踪</span>
+                </div>
+                <div class="nav-item" onclick="showPage('learning')">
+                    <span class="nav-icon">🧠</span>
+                    <span>单词学习</span>
+                </div>
+                <div class="nav-item" onclick="showPage('notes')">
+                    <span class="nav-icon">📝</span>
+                    <span>笔记管理</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">测试工具</div>
+                <div class="nav-item" onclick="showPage('api-test')">
+                    <span class="nav-icon">🔧</span>
+                    <span>API测试</span>
+                </div>
+                <div class="nav-item" onclick="window.open('http://localhost:8000/docs', '_blank')">
+                    <span class="nav-icon">📖</span>
+                    <span>API文档</span>
+                </div>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <div id="dashboard" class="content-page active">
+                <div class="header">
+                    <h1>控制台</h1>
+                    <div class="status-bar">
+                        <div class="status-indicator" id="backend-status">
+                            <div class="status-dot" id="status-dot"></div>
+                            <span id="status-text">检查中...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon blue">🔍</div>
+                            <div class="card-title">文献追踪</div>
+                        </div>
+                        <div class="card-desc">
+                            设置关注的期刊，自动追踪最新发表的论文，支持关键词过滤和DOI识别
+                        </div>
+                        <a class="card-action" onclick="showPage('tracking')">
+                            开始追踪 →
+                        </a>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon green">📚</div>
+                            <div class="card-title">文献库</div>
+                        </div>
+                        <div class="card-desc">
+                            管理您的文献收藏，支持标签分类、全文搜索和批量导出
+                        </div>
+                        <a class="card-action" onclick="showPage('literature')">
+                            查看文献 →
+                        </a>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon orange">📄</div>
+                            <div class="card-title">文档解析</div>
+                        </div>
+                        <div class="card-desc">
+                            上传PDF自动解析为结构化Markdown，提取生词和长难句
+                        </div>
+                        <a class="card-action" onclick="alert('请使用后端API上传PDF')">
+                            上传文档 →
+                        </a>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon purple">🧠</div>
+                            <div class="card-title">生词本</div>
+                        </div>
+                        <div class="card-desc">
+                            基于间隔重复算法学习专业术语，追踪复习进度
+                        </div>
+                        <a class="card-action" onclick="showPage('learning')">
+                            开始学习 →
+                        </a>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon red">🎯</div>
+                            <div class="card-title">长难句</div>
+                        </div>
+                        <div class="card-desc">
+                            AI提取的复杂学术句子，逐句精翻和语法分析
+                        </div>
+                        <a class="card-action" onclick="showPage('learning')">
+                            查看句子 →
+                        </a>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon cyan">📝</div>
+                            <div class="card-title">结构性笔记</div>
+                        </div>
+                        <div class="card-desc">
+                            Obsidian风格的锚点笔记，支持Markdown和代码高亮
+                        </div>
+                        <a class="card-action" onclick="showPage('notes')">
+                            创建笔记 →
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">数据概览</h3>
+                    </div>
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-papers">-</div>
+                            <div class="stat-label">文献总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-words">-</div>
+                            <div class="stat-label">生词总数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-sentences">-</div>
+                            <div class="stat-label">长难句</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-tags">-</div>
+                            <div class="stat-label">标签数量</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Literature Page -->
+            <div id="literature" class="content-page">
+                <div class="header">
+                    <h1>📚 文献库</h1>
+                </div>
+                <div class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">文献列表</h3>
+                        <button class="card-action" onclick="loadLiterature()">刷新</button>
+                    </div>
+                    <div id="literature-content">
+                        <p style="color:#64748b;">点击刷新加载文献...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tracking Page -->
+            <div id="tracking" class="content-page">
+                <div class="header">
+                    <h1>🔍 文献追踪</h1>
+                </div>
+                <div class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">追踪记录</h3>
+                        <button class="card-action" onclick="loadTracking()">刷新</button>
+                    </div>
+                    <div id="tracking-content">
+                        <p style="color:#64748b;">点击刷新加载追踪记录...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Learning Page -->
+            <div id="learning" class="content-page">
+                <div class="header">
+                    <h1>🧠 单词学习</h1>
+                </div>
+                <div class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">生词本</h3>
+                        <button class="card-action" onclick="loadWords()">刷新</button>
+                    </div>
+                    <div id="words-content">
+                        <p style="color:#64748b;">点击刷新加载单词...</p>
+                    </div>
+                </div>
+                <div class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">长难句</h3>
+                        <button class="card-action" onclick="loadSentences()">刷新</button>
+                    </div>
+                    <div id="sentences-content">
+                        <p style="color:#64748b;">点击刷新加载句子...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Notes Page -->
+            <div id="notes" class="content-page">
+                <div class="header">
+                    <h1>📝 笔记管理</h1>
+                </div>
+                <div class="section">
+                    <div class="section-header">
+                        <h3 class="section-title">结构性笔记</h3>
+                        <button class="card-action" onclick="loadNotes()">刷新</button>
+                    </div>
+                    <div id="notes-content">
+                        <p style="color:#64748b;">点击刷新加载笔记...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- API Test Page -->
+            <div id="api-test" class="content-page">
+                <div class="header">
+                    <h1>🔧 API 测试</h1>
+                </div>
+                <div class="api-panel">
+                    <div class="api-header">
+                        <div class="api-title">API 端点测试</div>
+                    </div>
+                    <div class="api-buttons">
+                        <button class="api-btn" onclick="testAPI('GET', '/')">健康检查</button>
+                        <button class="api-btn" onclick="testAPI('GET', '/api/v1/literature/table')">文献列表</button>
+                        <button class="api-btn" onclick="testAPI('GET', '/api/v1/tracking/records')">追踪记录</button>
+                        <button class="api-btn" onclick="testAPI('GET', '/api/v1/learning/words')">单词列表</button>
+                        <button class="api-btn" onclick="testAPI('GET', '/api/v1/learning/sentences')">长难句</button>
+                        <button class="api-btn" onclick="testAPI('GET', '/api/v1/organization/tags')">标签</button>
+                        <button class="api-btn" onclick="testAPI('GET', '/api/v1/structured/literature')">结构化文献</button>
+                    </div>
+                    <div class="api-result" id="api-result">点击上方按钮测试API端点...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        const BASE_URL = 'http://localhost:8000';
+        const API_PREFIX = '/api/v1';
+        
+        // Check backend status
+        async function checkStatus() {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/health`);
+                if (response.ok) {
+                    dot.classList.remove('error');
+                    text.textContent = '后端运行中';
+                    return true;
+                } else {
+                    throw new Error('Not OK');
+                }
+            } catch (error) {
+                dot.classList.add('error');
+                text.textContent = '后端未连接';
+                return false;
+            }
+        }
+        
+        // Load stats
+        async function loadStats() {
+            if (!await checkStatus()) return;
+            
+            try {
+                const [papers, words, sentences, tags] = await Promise.all([
+                    fetch(`${BASE_URL}${API_PREFIX}/literature/table`).then(r => r.json()),
+                    fetch(`${BASE_URL}${API_PREFIX}/learning/words`).then(r => r.json()),
+                    fetch(`${BASE_URL}${API_PREFIX}/learning/sentences`).then(r => r.json()),
+                    fetch(`${BASE_URL}${API_PREFIX}/organization/tags`).then(r => r.json())
+                ]);
+                
+                document.getElementById('stat-papers').textContent = papers.length || 0;
+                document.getElementById('stat-words').textContent = words.length || 0;
+                document.getElementById('stat-sentences').textContent = sentences.length || 0;
+                document.getElementById('stat-tags').textContent = tags.length || 0;
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+        
+        // Navigation
+        function showPage(pageId) {
+            document.querySelectorAll('.content-page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById(pageId).classList.add('active');
+            event.target.closest('.nav-item')?.classList.add('active');
+            
+            // Load data for specific pages
+            if (pageId === 'literature') loadLiterature();
+            if (pageId === 'tracking') loadTracking();
+            if (pageId === 'learning') { loadWords(); loadSentences(); }
+            if (pageId === 'notes') loadNotes();
+        }
+        
+        // API Test
+        async function testAPI(method, endpoint) {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.textContent = 'Loading...';
+            
+            try {
+                const response = await fetch(`${BASE_URL}${endpoint}`);
+                const data = await response.json();
+                resultDiv.textContent = `${method} ${endpoint}\nStatus: ${response.status}\n\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}\n\n请确保后端服务已启动: python -m uvicorn main:app --reload`;
+            }
+        }
+        
+        // Load Literature
+        async function loadLiterature() {
+            const content = document.getElementById('literature-content');
+            content.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}${API_PREFIX}/literature/table`);
+                const papers = await response.json();
+                
+                if (papers.length === 0) {
+                    content.innerHTML = '<p style="color:#64748b;">暂无文献，请添加文献</p>';
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>DOI</th>
+                                <th>标题</th>
+                                <th>期刊</th>
+                                <th>出版日期</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${papers.map(p => `
+                                <tr>
+                                    <td>${p.doi}</td>
+                                    <td>${p.title_en || p.title_cn || 'N/A'}</td>
+                                    <td>${p.journal || 'N/A'}</td>
+                                    <td>${p.pubdate || 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                content.innerHTML = `<p style="color:red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // Load Tracking
+        async function loadTracking() {
+            const content = document.getElementById('tracking-content');
+            content.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}${API_PREFIX}/tracking/records`);
+                const records = await response.json();
+                
+                if (records.length === 0) {
+                    content.innerHTML = '<p style="color:#64748b;">暂无追踪记录</p>';
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>期刊</th>
+                                <th>标题</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${records.map(r => `
+                                <tr>
+                                    <td>${r.date || 'N/A'}</td>
+                                    <td>${r.journal || 'N/A'}</td>
+                                    <td>${r.title_en || r.title_cn || 'N/A'}</td>
+                                    <td><span class="tag">${r.action}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                content.innerHTML = `<p style="color:red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // Load Words
+        async function loadWords() {
+            const content = document.getElementById('words-content');
+            content.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}${API_PREFIX}/learning/words`);
+                const words = await response.json();
+                
+                if (words.length === 0) {
+                    content.innerHTML = '<p style="color:#64748b;">暂无单词</p>';
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>英文单词</th>
+                                <th>中文释义</th>
+                                <th>状态</th>
+                                <th>复习次数</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${words.map(w => `
+                                <tr>
+                                    <td><strong>${w.word_en}</strong></td>
+                                    <td>${w.word_cn || 'N/A'}</td>
+                                    <td><span class="tag">${w.status}</span></td>
+                                    <td>${w.review_count}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                content.innerHTML = `<p style="color:red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // Load Sentences
+        async function loadSentences() {
+            const content = document.getElementById('sentences-content');
+            content.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}${API_PREFIX}/learning/sentences`);
+                const sentences = await response.json();
+                
+                if (sentences.length === 0) {
+                    content.innerHTML = '<p style="color:#64748b;">暂无长难句</p>';
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>英文句子</th>
+                                <th>中文翻译</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${sentences.map(s => `
+                                <tr>
+                                    <td>${s.sentence_en.substring(0, 80)}...</td>
+                                    <td>${s.sentence_cn ? s.sentence_cn.substring(0, 60) + '...' : 'N/A'}</td>
+                                    <td><span class="tag">${s.status}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                content.innerHTML = `<p style="color:red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // Load Notes
+        async function loadNotes() {
+            const content = document.getElementById('notes-content');
+            content.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}${API_PREFIX}/structured/notes`);
+                const notes = await response.json();
+                
+                if (notes.length === 0) {
+                    content.innerHTML = '<p style="color:#64748b;">暂无笔记</p>';
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>DOI</th>
+                                <th>类型</th>
+                                <th>内容预览</th>
+                                <th>标签</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${notes.map(n => `
+                                <tr>
+                                    <td>${n.doi || 'N/A'}</td>
+                                    <td><span class="tag">${n.note_type}</span></td>
+                                    <td>${n.content ? n.content.substring(0, 60) + '...' : 'N/A'}</td>
+                                    <td>${n.tags ? n.tags.join(', ') : 'N/A'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                content.innerHTML = `<p style="color:red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // Initialize
+        window.onload = () => {
+            checkStatus();
+            loadStats();
+            setInterval(checkStatus, 10000); // Check status every 10s
+        };
+    </script>
+</body>
+</html>
