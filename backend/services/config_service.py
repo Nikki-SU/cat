@@ -30,6 +30,16 @@ DEFAULT_CONFIG = {
         "question_types": ["en2cn", "cn2en", "en2def", "def2en", "sent2cn", "sent2def"],
         "translation_mode": "flash",
         "review_mode": "interval"
+    },
+    "search_engines": {
+        "engines": [
+            {"id": "doi", "name": "DOI直达", "icon": "🔗", "url_template": "https://doi.org/{query}", "enabled": True},
+            {"id": "crossref", "name": "CrossRef", "icon": "📋", "url_template": "https://api.crossref.org/works/{query}", "enabled": True},
+            {"id": "xmol", "name": "X-MOL", "icon": "🧪", "url_template": "https://www.x-mol.com/search?query={query}", "enabled": True},
+            {"id": "scholarscope", "name": "谷粉学术", "icon": "🎓", "url_template": "https://gff.scholarscope.com/?k={query}", "enabled": True},
+            {"id": "google_scholar", "name": "Google Scholar", "icon": "🔍", "url_template": "https://scholar.google.com/scholar?q={query}", "enabled": True},
+            {"id": "semantic", "name": "Semantic Scholar", "icon": "🤖", "url_template": "https://www.semanticscholar.org/search?q={query}", "enabled": True},
+        ]
     }
 }
 

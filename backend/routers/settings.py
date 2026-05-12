@@ -42,6 +42,13 @@ class LearningConfig(BaseModel):
     translation_mode: Optional[str] = None
     review_mode: Optional[str] = None
 
+class SearchEngine(BaseModel):
+    id: Optional[str] = None
+    name: str
+    icon: str = "🔍"
+    url_template: str
+    enabled: bool = True
+
 
 # ========== AI 配置 ==========
 
@@ -131,6 +138,70 @@ def update_learning_config(config: LearningConfig):
     for k, v in data.items():
         cs.set("learning", k, v)
     return {"success": True, "message": "学习配置已更新"}
+
+
+# ========== 搜索引擎配置 ==========
+
+@router.get("/search-engines")
+def get_search_engines():
+    """获取所有搜索引擎"""
+    cs = get_config_service()
+    return cs.get("search_engines", "engines", [])
+
+@router.post("/search-engines")
+def add_search_engine(engine: SearchEngine):
+    """添加搜索引擎"""
+    cs = get_config_service()
+    engines = cs.get("search_engines", "engines", [])
+    
+    # 验证URL模板
+    if "{query}" not in engine.url_template:
+        raise HTTPException(status_code=400, detail="URL模板必须包含 {query} 占位符")
+    
+    # 自动生成ID
+    if not engine.id:
+        import uuid
+        engine.id = str(uuid.uuid4())[:8]
+    
+    engines.append(engine.model_dump())
+    cs.set("search_engines", "engines", engines)
+    return {"success": True, "engine": engine.model_dump()}
+
+@router.put("/search-engines/{engine_id}")
+def update_search_engine(engine_id: str, engine: SearchEngine):
+    """更新搜索引擎"""
+    cs = get_config_service()
+    engines = cs.get("search_engines", "engines", [])
+    
+    # 验证URL模板
+    if "{query}" not in engine.url_template:
+        raise HTTPException(status_code=400, detail="URL模板必须包含 {query} 占位符")
+    
+    for i, e in enumerate(engines):
+        if e.get("id") == engine_id:
+            engine.id = engine_id
+            engines[i] = engine.model_dump()
+            cs.set("search_engines", "engines", engines)
+            return {"success": True}
+    
+    raise HTTPException(status_code=404, detail="搜索引擎不存在")
+
+@router.delete("/search-engines/{engine_id}")
+def delete_search_engine(engine_id: str):
+    """删除搜索引擎"""
+    cs = get_config_service()
+    engines = cs.get("search_engines", "engines", [])
+    engines = [e for e in engines if e.get("id") != engine_id]
+    cs.set("search_engines", "engines", engines)
+    return {"success": True}
+
+@router.post("/search-engines/reset")
+def reset_search_engines():
+    """重置为默认搜索引擎"""
+    cs = get_config_service()
+    from services.config_service import DEFAULT_CONFIG
+    cs.set("search_engines", "engines", DEFAULT_CONFIG["search_engines"]["engines"])
+    return {"success": True}
 
 
 # ========== 全部配置 ==========

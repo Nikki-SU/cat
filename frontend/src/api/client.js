@@ -180,6 +180,13 @@ export const settingsAPI = {
   updateMineruConfig: (config) => apiClient.post('/settings/mineru-config', config),
   updateMineruToken: (token) => apiClient.post('/settings/mineru-token', null, { params: { token } }),
   checkMineruTokenStatus: () => apiClient.get('/settings/mineru-token-status'),
+  
+  // 搜索引擎配置
+  getSearchEngines: () => apiClient.get('/settings/search-engines'),
+  addSearchEngine: (engine) => apiClient.post('/settings/search-engines', engine),
+  updateSearchEngine: (id, engine) => apiClient.put(`/settings/search-engines/${id}`, engine),
+  deleteSearchEngine: (id) => apiClient.delete(`/settings/search-engines/${id}`),
+  resetSearchEngines: () => apiClient.post('/settings/search-engines/reset'),
 }
 
 // ==================== 结构性文献 API ====================

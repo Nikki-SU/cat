@@ -807,6 +807,19 @@ function Settings() {
         )}
       </section>
 
+
+      {/* 搜索引擎管理 */}
+      <section className="bg-white rounded-xl p-4 shadow">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">🔍 搜索引擎管理</h2>
+          <a href="#/tracking" className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600">
+            管理搜索引擎
+          </a>
+        </div>
+        <p className="text-sm text-gray-500">
+          在追踪页管理文献检索的搜索引擎，支持添加、编辑、删除和重置默认搜索引擎。
+        </p>
+      </section>
       {/* 备份与同步 */}
       <section className="bg-white rounded-xl p-4 shadow">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">🔄 备份与同步</h2>
