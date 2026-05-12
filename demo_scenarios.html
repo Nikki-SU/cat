@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat - 用户场景模拟器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 40px 0;
+            color: white;
+        }
+        
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .control-panel {
+            background: rgba(255,255,255,0.95);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .scenario-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .scenario-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 16px;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 3px solid transparent;
+        }
+        
+        .scenario-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .scenario-card.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c3cfe2 100%);
+        }
+        
+        .scenario-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .scenario-card p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .console {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 25px;
+            color: #00ff88;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            height: 500px;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #333;
+        }
+        
+        .console-title {
+            color: #fff;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .console-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .console-btn {
+            padding: 5px 15px;
+            background: #333;
+            border: none;
+            border-radius: 5px;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .console-btn:hover {
+            background: #444;
+            color: white;
+        }
+        
+        .console-content {
+            white-space: pre-wrap;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .log-time {
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .log-info { color: #00ff88; }
+        .log-success { color: #4ade80; }
+        .log-error { color: #f87171; }
+        .log-warning { color: #fbbf24; }
+        
+        .data-preview {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .preview-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .preview-card h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden { display: none; }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐱 Cat</h1>
+            <p class="subtitle">学术文献全流程管理工具 - 用户场景模拟器</p>
+        </header>
+        
+        <div class="control-panel">
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="runAllScenarios()">
+                    🎬 运行所有场景
+                </button>
+                <button class="btn btn-secondary" onclick="clearConsole()">
+                    🗑️ 清空控制台
+                </button>
+                <button class="btn btn-secondary" onclick="checkHealth()">
+                    🔍 检查服务状态
+                </button>
+            </div>
+            
+            <div class="scenario-selector">
+                <div class="scenario-card" onclick="selectScenario('beginner')" id="scenario-beginner">
+                    <h3>🎓 场景1: 新手入门</h3>
+                    <p><strong>用户:</strong> 研一新生小李</p>
+                    <p><strong>目标:</strong> 设置期刊追踪、创建关键词合集、添加第一批文献</p>
+                    <p style="margin-top:10px;color:#888;font-size:12px;">点击运行此场景</p>
+                </div>
+                
+                <div class="scenario-card" onclick="selectScenario('tracking')" id="scenario-tracking">
+                    <h3>🔍 场景2: 日常追踪</h3>
+                    <p><strong>用户:</strong> 博士后张博士</p>
+                    <p><strong>目标:</strong> 每日例行查看目标期刊、筛选并追踪新论文</p>
+                    <p style="margin-top:10px;color:#888;font-size:12px;">点击运行此场景</p>
+                </div>
+                
+                <div class="scenario-card" onclick="selectScenario('reading')" id="scenario-reading">
+                    <h3>📚 场景3: 深度阅读</h3>
+                    <p><strong>用户:</strong> 博士生王研究员</p>
+                    <p><strong>目标:</strong> 精读论文、提取生词和长难句、做结构性笔记</p>
+                    <p style="margin-top:10px;color:#888;font-size:12px;">点击运行此场景</p>
+                </div>
+                
+                <div class="scenario-card" onclick="selectScenario('review')" id="scenario-review">
+                    <h3>🧠 场景4: 间隔复习</h3>
+                    <p><strong>用户:</strong> 研一新生小李</p>
+                    <p><strong>目标:</strong> 每日单词复习、长难句精翻、掌握专业术语</p>
+                    <p style="margin-top:10px;color:#888;font-size:12px;">点击运行此场景</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="console">
+            <div class="console-header">
+                <div class="console-title">
+                    <span>💻</span>
+                    <span>运行控制台</span>
+                </div>
+                <div class="console-actions">
+                    <button class="console-btn" onclick="changeSpeed()">速度: 1x</button>
+                </div>
+            </div>
+            <div class="console-content" id="console-content">
+                <div class="log-entry log-info">
+                    <span class="log-time">[System]</span> 
+                    欢迎使用 Cat 场景模拟器！请选择上方场景开始演示。
+                </div>
+                <div class="log-entry log-info">
+                    <span class="log-time">[Tip]</span> 
+                    建议先运行 "检查服务状态" 确保后端已启动。
+                </div>
+            </div>
+        </div>
+        
+        <div class="data-preview" id="data-preview">
+            <div class="preview-card">
+                <h4>📊 系统状态</h4>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-papers">0</div>
+                        <div class="stat-label">文献</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-words">0</div>
+                        <div class="stat-label">单词</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-sentences">0</div>
+                        <div class="stat-label">长难句</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="preview-card">
+                <h4>🏷️ 最近活动</h4>
+                <div id="recent-activity" style="color:#666;font-size:14px;line-height:1.8;">
+                    暂无活动记录...
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const BASE_URL = 'http://localhost:8000';
+        const API_PREFIX = '/api/v1';
+        let currentScenario = null;
+        let logSpeed = 1;
+        
+        function log(message, type = 'info') {
+            const consoleContent = document.getElementById('console-content');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            entry.style.animation = 'fadeIn 0.3s ease';
+            consoleContent.appendChild(entry);
+            consoleContent.scrollTop = consoleContent.scrollHeight;
+        }
+        
+        function clearConsole() {
+            document.getElementById('console-content').innerHTML = '';
+            log('控制台已清空', 'info');
+        }
+        
+        function changeSpeed() {
+            const speeds = [0.5, 1, 1.5, 2];
+            const currentIndex = speeds.indexOf(logSpeed);
+            logSpeed = speeds[(currentIndex + 1) % speeds.length];
+            event.target.textContent = `速度: ${logSpeed}x`;
+            log(`演示速度调整为 ${logSpeed}x`, 'info');
+        }
+        
+        function selectScenario(scenario) {
+            // 移除所有active类
+            document.querySelectorAll('.scenario-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            
+            // 添加active类
+            document.getElementById(`scenario-${scenario}`).classList.add('active');
+            currentScenario = scenario;
+            
+            log(`已选择场景: ${getScenarioName(scenario)}`, 'success');
+            
+            // 自动运行
+            runScenario(scenario);
+        }
+        
+        function getScenarioName(scenario) {
+            const names = {
+                'beginner': '新手入门',
+                'tracking': '日常追踪',
+                'reading': '深度阅读',
+                'review': '间隔复习'
+            };
+            return names[scenario] || scenario;
+        }
+        
+        async function checkHealth() {
+            log('🔍 检查后端服务状态...', 'info');
+            try {
+                const response = await fetch(`${BASE_URL}/health`);
+                if (response.ok) {
+                    log('✅ 后端服务运行正常', 'success');
+                    updateStats();
+                } else {
+                    log('❌ 后端服务响应异常', 'error');
+                }
+            } catch (error) {
+                log(`❌ 无法连接后端: ${error.message}`, 'error');
+                log('💡 请先启动服务: cd backend && uvicorn main:app --reload', 'warning');
+            }
+        }
+        
+        async function updateStats() {
+            try {
+                // 获取各种统计数据
+                const [papersRes, wordsRes, sentencesRes] = await Promise.all([
+                    fetch(`${BASE_URL}${API_PREFIX}/literature/table`),
+                    fetch(`${BASE_URL}${API_PREFIX}/learning/words`),
+                    fetch(`${BASE_URL}${API_PREFIX}/learning/sentences`)
+                ]);
+                
+                if (papersRes.ok) {
+                    const papers = await papersRes.json();
+                    document.getElementById('stat-papers').textContent = papers.length;
+                }
+                
+                if (wordsRes.ok) {
+                    const words = await wordsRes.json();
+                    document.getElementById('stat-words').textContent = words.length;
+                }
+                
+                if (sentencesRes.ok) {
+                    const sentences = await sentencesRes.json();
+                    document.getElementById('stat-sentences').textContent = sentences.length;
+                }
+            } catch (error) {
+                console.error('更新统计失败:', error);
+            }
+        }
+        
+        async function runAllScenarios() {
+            log('🎬 开始运行所有场景...', 'info');
+            const scenarios = ['beginner', 'tracking', 'reading', 'review'];
+            
+            for (const scenario of scenarios) {
+                await runScenario(scenario);
+                await sleep(2000 / logSpeed);
+            }
+            
+            log('✅ 所有场景运行完成！', 'success');
+            updateStats();
+        }
+        
+        async function runScenario(scenario) {
+            const delay = ms => sleep(ms / logSpeed);
+            
+            switch(scenario) {
+                case 'beginner':
+                    await runBeginnerScenario(delay);
+                    break;
+                case 'tracking':
+                    await runTrackingScenario(delay);
+                    break;
+                case 'reading':
+                    await runReadingScenario(delay);
+                    break;
+                case 'review':
+                    await runReviewScenario(delay);
+                    break;
+            }
+            
+            updateStats();
+        }
+        
+        async function runBeginnerScenario(delay) {
+            log('═══════════════════════════════════════', 'info');
+            log('🎓 场景1: 新手研究员入门', 'success');
+            log('👤 用户: 小李 (研一新生)', 'info');
+            log('📖 背景: 刚入学，导师建议关注 Nature/Science/Cell', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            await delay(1000);
+            
+            // Step 1: 创建期刊合集
+            log('\n📍 Step 1: 创建期刊合集', 'info');
+            try {
+                const response = await fetch(`${BASE_URL}${API_PREFIX}/organization/journal-groups`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: '我的目标期刊',
+                        journals: ['Nature', 'Science', 'Cell', 'Nature Communications']
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ 创建期刊合集成功: ${data.name} (ID: ${data.id})`, 'success');
+                } else {
+                    log('⚠️ 期刊合集可能已存在', 'warning');
+                }
+            } catch (error) {
+                log(`❌ 错误: ${error.message}`, 'error');
+            }
+            
+            await delay(800);
+            
+            // Step 2: 添加文献
+            log('\n📍 Step 2: 添加今日发现的文献', 'info');
+            const papers = [
+                { doi: 'demo-001', title_en: 'Deep learning advances in protein prediction', title_cn: '蛋白质预测中的深度学习进展', journal: 'Nature', pubdate: '2024-01-15' },
+                { doi: 'demo-002', title_en: 'Single-cell ML applications', title_cn: '单细胞机器学习应用', journal: 'Science', pubdate: '2024-01-14' }
+            ];
+            
+            for (const paper of papers) {
+                try {
+                    await fetch(`${BASE_URL}${API_PREFIX}/literature/table`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(paper)
+                    });
+                    log(`✅ 添加文献: ${paper.title_en.substring(0, 40)}...`, 'success');
+                } catch (error) {
+                    log(`⚠️ 文献 ${paper.doi} 可能已存在`, 'warning');
+                }
+                await delay(300);
+            }
+            
+            // Step 3: 添加标签
+            log('\n📍 Step 3: 为文献添加标签', 'info');
+            const tags = [
+                { name: '必读', doi: 'demo-001' },
+                { name: '精读', doi: 'demo-002' }
+            ];
+            
+            for (const tag of tags) {
+                try {
+                    await fetch(`${BASE_URL}${API_PREFIX}/organization/tags`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(tag)
+                    });
+                    log(`🏷️ 添加标签: ${tag.name}`, 'success');
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+            
+            log('\n✅ 场景1完成！', 'success');
+        }
+        
+        async function runTrackingScenario(delay) {
+            log('═══════════════════════════════════════', 'info');
+            log('🔍 场景2: 日常文献追踪', 'success');
+            log('👤 用户: 张博士 (博士后)', 'info');
+            log('📖 背景: 每天例行查看目标期刊最新论文', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            await delay(1000);
+            
+            // 模拟追踪记录
+            log('\n📍 Step 1: 追踪 Nature 最新论文 (模拟)', 'info');
+            log('🔍 查询 CrossRef API...', 'info');
+            await delay(1000);
+            log('✅ 发现 3 篇新论文:', 'success');
+            log('   1. AlphaFold3: Protein structure prediction...', 'info');
+            log('   2. LLMs for biomedical text mining...', 'info');
+            log('   3. Single-cell CRISPR screening...', 'info');
+            
+            await delay(800);
+            
+            log('\n📍 Step 2: 批量添加到追踪列表', 'info');
+            const records = [
+                { date: new Date().toISOString().split('T')[0], doi: 'track-001', journal: 'Nature', title_en: 'AlphaFold3 paper', action: 'added' },
+                { date: new Date().toISOString().split('T')[0], doi: 'track-002', journal: 'Science', title_en: 'LLM paper', action: 'added' }
+            ];
+            
+            for (const record of records) {
+                try {
+                    await fetch(`${BASE_URL}${API_PREFIX}/tracking/records`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(record)
+                    });
+                    log(`📥 追踪: ${record.title_en}`, 'success');
+                } catch (error) {
+                    console.error(error);
+                }
+                await delay(300);
+            }
+            
+            log('\n✅ 场景2完成！', 'success');
+        }
+        
+        async function runReadingScenario(delay) {
+            log('═══════════════════════════════════════', 'info');
+            log('📚 场景3: 深度阅读学习', 'success');
+            log('👤 用户: 王研究员 (博士生)', 'info');
+            log('📖 背景: 精读重要论文，提取生词和长难句', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            await delay(1000);
+            
+            const doi = 'reading-demo-001';
+            
+            // Step 1: 添加论文
+            log('\n📍 Step 1: 添加精读论文', 'info');
+            await fetch(`${BASE_URL}${API_PREFIX}/literature/table`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    doi: doi,
+                    title_en: 'AlphaFold3: High-accuracy protein prediction',
+                    title_cn: 'AlphaFold3: 高精度蛋白质预测',
+                    journal: 'Nature',
+                    pubdate: '2024-01-15'
+                })
+            });
+            log('✅ 添加文献成功', 'success');
+            
+            await delay(600);
+            
+            // Step 2: 添加生词
+            log('\n📍 Step 2: 提取专业术语', 'info');
+            const words = [
+                { word_en: 'diffusion-based architecture', word_cn: '基于扩散的架构', doi: doi, status: 'new' },
+                { word_en: 'attention mechanisms', word_cn: '注意力机制', doi: doi, status: 'new' },
+                { word_en: 'biomolecular interactions', word_cn: '生物分子相互作用', doi: doi, status: 'learning' }
+            ];
+            
+            for (const word of words) {
+                await fetch(`${BASE_URL}${API_PREFIX}/learning/words`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(word)
+                });
+                log(`📝 添加生词: ${word.word_en}`, 'success');
+                await delay(200);
+            }
+            
+            // Step 3: 添加长难句
+            log('\n📍 Step 3: 提取长难句', 'info');
+            await fetch(`${BASE_URL}${API_PREFIX}/learning/sentences`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sentence_en: 'Accurate prediction of protein structures is crucial for understanding biological processes.',
+                    sentence_cn: '准确预测蛋白质结构对于理解生物过程至关重要。',
+                    doi: doi,
+                    status: 'new'
+                })
+            });
+            log('📖 添加长难句成功', 'success');
+            
+            log('\n✅ 场景3完成！', 'success');
+        }
+        
+        async function runReviewScenario(delay) {
+            log('═══════════════════════════════════════', 'info');
+            log('🧠 场景4: 间隔重复学习', 'success');
+            log('👤 用户: 小李 (研一新生)', 'info');
+            log('📖 背景: 每日复习单词和长难句', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            await delay(1000);
+            
+            log('\n📍 Step 1: 查看今日复习清单', 'info');
+            
+            try {
+                const response = await fetch(`${BASE_URL}${API_PREFIX}/learning/words?status=new`);
+                if (response.ok) {
+                    const words = await response.json();
+                    log(`✅ 今日有 ${words.length} 个单词需要复习`, 'success');
+                    
+                    for (const word of words.slice(0, 5)) {
+                        log(`   • ${word.word_en}`, 'info');
+                    }
+                }
+            } catch (error) {
+                log('⚠️ 无法获取单词列表', 'warning');
+            }
+            
+            await delay(800);
+            
+            log('\n📍 Step 2: 模拟复习过程', 'info');
+            const reviews = [
+                { word: 'diffusion-based architecture', known: true },
+                { word: 'attention mechanisms', known: true },
+                { word: 'biomolecular interactions', known: false }
+            ];
+            
+            for (const review of reviews) {
+                const icon = review.known ? '✅' : '❌';
+                log(`   ${icon} ${review.word.substring(0, 30)}...`, review.known ? 'success' : 'error');
+                await delay(300);
+            }
+            
+            log('\n✅ 场景4完成！', 'success');
+            log('\n🎉 所有场景演示结束！', 'success');
+            log('💡 提示: 刷新页面可以重新运行场景', 'info');
+        }
+        
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // 初始化
+        window.onload = () => {
+            checkHealth();
+        };
+    </script>
+</body>
+</html>
