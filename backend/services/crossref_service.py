@@ -256,7 +256,7 @@ class CrossRefService:
         }
         
         try:
-            response = await requests.get(
+            response = await self.client.get(
                 "https://api.crossref.org/journals",
                 params=params
             )
