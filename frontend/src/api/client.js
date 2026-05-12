@@ -218,34 +218,71 @@ export const structuredAPI = {
     apiClient.post(`/structured/extract-keywords/${doi}`, null, { params: { max_keywords: maxKeywords } }),
 }
 
-// ==================== 学习 API ====================
+// ==================== 学习 API（重写版） ====================
 export const learningAPI = {
-  // 单词
+  // ========== 设置 ==========
+  getSettings: () => apiClient.get('/learning/settings'),
+  updateSettings: (data) => apiClient.put('/learning/settings', data),
+  getQuestionTypes: () => apiClient.get('/learning/question-types'),
+
+  // ========== 单词统计 ==========
+  getWordStats: () => apiClient.get('/learning/words/stats'),
+  getDueWords: (limit = 20) => apiClient.get('/learning/words/due', { params: { limit } }),
+
+  // ========== 单词 CRUD ==========
   listWords: (params) => apiClient.get('/learning/words', { params }),
   getWord: (id) => apiClient.get(`/learning/words/${id}`),
   createWord: (data) => apiClient.post('/learning/words', data),
   updateWord: (id, data) => apiClient.put(`/learning/words/${id}`, data),
   deleteWord: (id) => apiClient.delete(`/learning/words/${id}`),
 
-  // 长难句
+  // ========== 单词学习会话 ==========
+  startStudy: (mode = 'learn', queueLength = 5, wordIds = null) => 
+    apiClient.post('/learning/words/start-study', null, { 
+      params: { mode, queue_length: queueLength, word_ids: wordIds } 
+    }),
+  getCurrentQuestion: (sessionId) => apiClient.get(`/learning/words/current-question/${sessionId}`),
+  submitAnswer: (sessionId, wordId, selected) => 
+    apiClient.post('/learning/words/answer', { session_id: sessionId, word_id: wordId, selected }),
+  nextQuestion: (sessionId) => apiClient.get(`/learning/words/next`, { params: { session_id: sessionId } }),
+  zhanWord: (wordId) => apiClient.post(`/learning/words/zhan/${wordId}`),
+  getSession: (sessionId) => apiClient.get(`/learning/words/session/${sessionId}`),
+  endSession: (sessionId) => apiClient.post(`/learning/words/end-session/${sessionId}`),
+
+  // ========== 长难句统计 ==========
+  getSentenceStats: () => apiClient.get('/learning/sentences/stats'),
+  getDueSentences: (limit = 10) => apiClient.get('/learning/sentences/due', { params: { limit } }),
+
+  // ========== 长难句 CRUD ==========
   listSentences: (params) => apiClient.get('/learning/sentences', { params }),
   getSentence: (id) => apiClient.get(`/learning/sentences/${id}`),
   createSentence: (data) => apiClient.post('/learning/sentences', data),
   updateSentence: (id, data) => apiClient.put(`/learning/sentences/${id}`, data),
   deleteSentence: (id) => apiClient.delete(`/learning/sentences/${id}`),
 
-  // 单词表
-  listWordLists: (params) => apiClient.get('/learning/word-lists', { params }),
-  getWordList: (id) => apiClient.get(`/learning/word-lists/${id}`),
-  createWordList: (data) => apiClient.post('/learning/word-lists', data),
-  updateWordList: (id, data) => apiClient.put(`/learning/word-lists/${id}`, data),
-  deleteWordList: (id) => apiClient.delete(`/learning/word-lists/${id}`),
+  // ========== 长难句学习 ==========
+  submitSentenceTranslation: (sentenceId, translation) => 
+    apiClient.post('/learning/sentences/submit-translation', { sentence_id: sentenceId, translation }),
+  markSentenceMastered: (sentenceId) => apiClient.post(`/learning/sentences/mark-mastered/${sentenceId}`),
 
-  // 长难句表
+  // ========== 翻译练习统计 ==========
+  getTranslationStats: () => apiClient.get('/learning/translations/stats'),
+  getDueTranslations: (limit = 10) => apiClient.get('/learning/translations/due', { params: { limit } }),
+
+  // ========== 翻译练习 CRUD ==========
+  listTranslations: (params) => apiClient.get('/learning/translations', { params }),
+  createTranslation: (data) => apiClient.post('/learning/translations', data),
+  submitTranslation: (cardId, translation) => 
+    apiClient.post('/learning/translations/submit', { card_id: cardId, translation }),
+  deleteTranslation: (id) => apiClient.delete(`/learning/translations/${id}`),
+
+  // ========== 单词表/长难句表 ==========
+  listWordLists: (params) => apiClient.get('/learning/word-lists', { params }),
+  createWordList: (data) => apiClient.post('/learning/word-lists', data),
+  deleteWordList: (id) => apiClient.delete(`/learning/word-lists/${id}`),
+  
   listSentenceLists: (params) => apiClient.get('/learning/sentence-lists', { params }),
-  getSentenceList: (id) => apiClient.get(`/learning/sentence-lists/${id}`),
   createSentenceList: (data) => apiClient.post('/learning/sentence-lists', data),
-  updateSentenceList: (id, data) => apiClient.put(`/learning/sentence-lists/${id}`, data),
   deleteSentenceList: (id) => apiClient.delete(`/learning/sentence-lists/${id}`),
 }
 
@@ -374,7 +411,7 @@ export const syncAPI = {
     apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_id: recordId, resolution, local_data: localData, remote_data: remoteData }),
 }
 
-// ==================== 翻译练习 API ====================
+// ==================== 翻译练习 API（兼容旧版） ====================
 export const translationAPI = {
   list: (params) => apiClient.get('/translations', { params }),
   get: (id) => apiClient.get(`/translations/${id}`),

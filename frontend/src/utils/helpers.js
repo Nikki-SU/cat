@@ -1,189 +1,220 @@
 /**
  * 辅助函数
  */
+import { ANKI_INTERVALS } from './constants'
+
+/**
+ * 计算下次复习时间
+ * @param {number} stage - 当前艾宾浩斯阶段 (0-7)
+ * @returns {Date|null} 下次复习时间
+ */
+export function calculateNextReview(stage) {
+  if (stage >= ANKI_INTERVALS.length) {
+    return null // 已掌握，无需复习
+  }
+  const days = ANKI_INTERVALS[stage]
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+/**
+ * 获取艾宾浩斯阶段的天数
+ * @param {number} stage - 当前阶段
+ * @returns {number} 间隔天数
+ */
+export function getAnkiInterval(stage) {
+  if (stage >= ANKI_INTERVALS.length) {
+    return ANKI_INTERVALS[ANKI_INTERVALS.length - 1]
+  }
+  return ANKI_INTERVALS[stage]
+}
 
 /**
  * 格式化日期
- * @param {string|Date} date - 日期
- * @param {string} format - 格式 'full'|'date'|'time'|'relative'
- * @returns {string}
+ * @param {Date|string} date - 日期
+ * @param {string} format - 格式
+ * @returns {string} 格式化后的日期字符串
  */
-export function formatDate(date, format = 'date') {
+export function formatDate(date, format = 'YYYY-MM-DD') {
   if (!date) return ''
-  
   const d = new Date(date)
-  if (isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  const seconds = String(d.getSeconds()).padStart(2, '0')
   
+  return format
+    .replace('YYYY', year)
+    .replace('MM', month)
+    .replace('DD', day)
+    .replace('HH', hours)
+    .replace('mm', minutes)
+    .replace('ss', seconds)
+}
+
+/**
+ * 计算相对时间
+ * @param {Date|string} date - 日期
+ * @returns {string} 相对时间描述
+ */
+export function getRelativeTime(date) {
+  if (!date) return ''
   const now = new Date()
-  const diff = now - d
+  const d = new Date(date)
+  const diff = d - now
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const minutes = Math.floor(diff / (1000 * 60))
   
-  switch (format) {
-    case 'full':
-      return d.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    case 'date':
-      return d.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
-    case 'time':
-      return d.toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    case 'relative':
-      if (diff < 60000) return '刚刚'
-      if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
-      if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
-      if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`
-      return formatDate(d, 'date')
-    default:
-      return d.toLocaleDateString()
+  if (days > 0) {
+    return `${days}天后`
+  } else if (days < 0) {
+    return `${Math.abs(days)}天前`
+  } else if (hours > 0) {
+    return `${hours}小时后`
+  } else if (hours < 0) {
+    return `${Math.abs(hours)}小时前`
+  } else if (minutes > 0) {
+    return `${minutes}分钟后`
+  } else if (minutes < 0) {
+    return `${Math.abs(minutes)}分钟前`
+  } else {
+    return '现在'
   }
 }
 
 /**
- * 截断文本
- * @param {string} text - 文本
+ * 生成选项字母
+ * @param {number} index - 选项索引 (0-based)
+ * @returns {string} 选项字母 (A, B, C, D)
+ */
+export function getOptionKey(index) {
+  return String.fromCharCode(65 + index)
+}
+
+/**
+ * 打乱数组
+ * @param {Array} array - 原始数组
+ * @returns {Array} 打乱后的新数组
+ */
+export function shuffleArray(array) {
+  const newArray = [...array]
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[newArray[i], newArray[j]] = [newArray[j], newArray[i]]
+  }
+  return newArray
+}
+
+/**
+ * 生成选择题选项
+ * @param {string} correct - 正确答案
+ * @param {Array} candidates - 候选项数组
+ * @param {number} count - 选项数量，默认4个
+ * @returns {Array} 打乱后的选项数组
+ */
+export function generateOptions(correct, candidates, count = 4) {
+  const distractors = candidates.filter(c => c !== correct && c.trim())
+  const shuffled = shuffleArray(distractors)
+  const options = [correct, ...shuffled.slice(0, count - 1)]
+  return shuffleArray(options)
+}
+
+/**
+ * 检测是否到期复习
+ * @param {Date|string} nextReview - 下次复习时间
+ * @returns {boolean} 是否到期
+ */
+export function isDueReview(nextReview) {
+  if (!nextReview) return false
+  return new Date(nextReview) <= new Date()
+}
+
+/**
+ * 获取单词状态对应的颜色
+ * @param {string} status - 单词状态
+ * @returns {string} 颜色代码
+ */
+export function getWordStatusColor(status) {
+  const colors = {
+    new: '#E64B35',
+    learning: '#F39B7F',
+    learned: '#F39B7F',
+    mastered: '#00A087'
+  }
+  return colors[status] || colors.new
+}
+
+/**
+ * 文本截断
+ * @param {string} text - 原始文本
  * @param {number} maxLength - 最大长度
- * @param {string} suffix - 省略号
- * @returns {string}
+ * @returns {string} 截断后的文本
  */
-export function truncate(text, maxLength = 50, suffix = '...') {
-  if (!text) return ''
-  if (text.length <= maxLength) return text
-  return text.slice(0, maxLength - suffix.length) + suffix
+export function truncateText(text, maxLength = 100) {
+  if (!text || text.length <= maxLength) return text
+  return text.slice(0, maxLength) + '...'
 }
 
 /**
- * 解析作者列表
- * @param {string|Array} authors - 作者字符串或数组
- * @returns {string}
+ * 提取例句中的单词（用于挖空）
+ * @param {string} sentence - 原始例句
+ * @param {string} word - 要挖空的单词
+ * @returns {string} 挖空后的例句
  */
-export function parseAuthors(authors) {
-  if (!authors) return ''
-  if (Array.isArray(authors)) {
-    return authors.map(a => {
-      if (typeof a === 'string') return a
-      return `${a.family || ''} ${a.given || ''}`.trim()
-    }).join(', ')
-  }
-  return authors
+export function createBlankSentence(sentence, word) {
+  if (!sentence || !word) return sentence
+  const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+  return sentence.replace(regex, '_____', 1)
 }
 
 /**
- * 获取第一作者
- * @param {string|Array} authors - 作者
- * @returns {string}
+ * 高亮文本中的关键词
+ * @param {string} text - 原始文本
+ * @param {string} keyword - 关键词
+ * @returns {React.ReactNode} 高亮后的文本
  */
-export function getFirstAuthor(authors) {
-  const parsed = parseAuthors(authors)
-  const parts = parsed.split(',')
-  return parts[0]?.trim() || ''
+export function highlightKeyword(text, keyword) {
+  if (!text || !keyword) return text
+  const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+  const parts = text.split(regex)
+  return parts.map((part, i) => 
+    regex.test(part) ? <mark key={i} className="bg-yellow-200">{part}</mark> : part
+  )
 }
 
 /**
- * 复制到剪贴板
- * @param {string} text - 文本
- * @returns {Promise<boolean>}
+ * 防抖函数
+ * @param {Function} func - 要防抖的函数
+ * @param {number} wait - 等待时间(毫秒)
+ * @returns {Function} 防抖后的函数
  */
-export async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch (err) {
-    // 降级方案
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
-    try {
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-      return true
-    } catch (e) {
-      document.body.removeChild(textarea)
-      return false
+export function debounce(func, wait = 300) {
+  let timeout
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout)
+      func(...args)
     }
+    clearTimeout(timeout)
+    timeout = setTimeout(later, wait)
   }
-}
-
-/**
- * 下载文件
- * @param {Blob|string} content - 文件内容
- * @param {string} filename - 文件名
- * @param {string} mimeType - MIME类型
- */
-export function downloadFile(content, filename, mimeType = 'text/plain') {
-  const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
-
-/**
- * 防抖
- * @param {Function} fn - 函数
- * @param {number} delay - 延迟（毫秒）
- * @returns {Function}
- */
-export function debounce(fn, delay = 300) {
-  let timer = null
-  return function (...args) {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => fn.apply(this, args), delay)
-  }
-}
-
-/**
- * 节流
- * @param {Function} fn - 函数
- * @param {number} limit - 间隔（毫秒）
- * @returns {Function}
- */
-export function throttle(fn, limit = 300) {
-  let inThrottle = false
-  return function (...args) {
-    if (!inThrottle) {
-      fn.apply(this, args)
-      inThrottle = true
-      setTimeout(() => (inThrottle = false), limit)
-    }
-  }
-}
-
-/**
- * 生成随机ID
- * @returns {string}
- */
-export function generateId() {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
 /**
  * 深拷贝
- * @param {any} obj - 对象
- * @returns {any}
+ * @param {any} obj - 要拷贝的对象
+ * @returns {any} 拷贝后的对象
  */
 export function deepClone(obj) {
   if (obj === null || typeof obj !== 'object') return obj
   if (Array.isArray(obj)) return obj.map(deepClone)
   const cloned = {}
   for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+    if (obj.hasOwnProperty(key)) {
       cloned[key] = deepClone(obj[key])
     }
   }
@@ -191,146 +222,38 @@ export function deepClone(obj) {
 }
 
 /**
- * 提取DOI
- * @param {string} text - 文本
- * @returns {string|null}
+ * 获取选项的百分比
+ * @param {number} value - 当前值
+ * @param {number} total - 总数
+ * @returns {string} 百分比字符串
  */
-export function extractDOI(text) {
-  if (!text) return null
-  const match = text.match(/10\.\d{4,}\/[^\s]+/)
-  return match ? match[0] : null
+export function getPercentage(value, total) {
+  if (!total) return '0%'
+  return `${Math.round((value / total) * 100)}%`
 }
 
 /**
- * 验证DOI格式
- * @param {string} doi - DOI
- * @returns {boolean}
+ * 生成UUID
+ * @returns {string} UUID
  */
-export function isValidDOI(doi) {
-  if (!doi) return false
-  return /^10\.\d{4,}\/[^\s]+$/.test(doi)
-}
-
-/**
- * 格式化文件大小
- * @param {number} bytes - 字节数
- * @returns {string}
- */
-export function formatFileSize(bytes) {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
-}
-
-/**
- * 获取URL参数
- * @param {string} name - 参数名
- * @returns {string|null}
- */
-export function getURLParam(name) {
-  const params = new URLSearchParams(window.location.search)
-  return params.get(name)
-}
-
-/**
- * 设置URL参数
- * @param {object} params - 参数对象
- */
-export function setURLParams(params) {
-  const url = new URL(window.location)
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === null || value === undefined) {
-      url.searchParams.delete(key)
-    } else {
-      url.searchParams.set(key, value)
-    }
+export function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
   })
-  window.history.pushState({}, '', url)
 }
 
 /**
- * 计算下次复习时间（艾宾浩斯）
- * @param {number} correctStreak - 连续正确次数
- * @returns {Date}
+ * 朗读文本
+ * @param {string} text - 要朗读的文本
+ * @param {string} lang - 语言代码，默认 en-US
  */
-export function calculateNextReview(correctStreak) {
-  const intervals = [1, 3, 7, 14, 30, 60, 90, 180] // 天数
-  const days = intervals[Math.min(correctStreak, intervals.length - 1)]
-  const next = new Date()
-  next.setDate(next.getDate() + days)
-  return next
-}
-
-/**
- * 打乱数组顺序
- * @param {Array} array - 数组
- * @returns {Array}
- */
-export function shuffleArray(array) {
-  const arr = [...array]
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
-}
-
-/**
- * 等待指定时间
- * @param {number} ms - 毫秒
- * @returns {Promise}
- */
-export function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-/**
- * 清除对象空值
- * @param {object} obj - 对象
- * @returns {object}
- */
-export function cleanObject(obj) {
-  const cleaned = {}
-  Object.entries(obj).forEach(([key, value]) => {
-    if (value !== null && value !== undefined && value !== '') {
-      cleaned[key] = value
-    }
-  })
-  return cleaned
-}
-
-/**
- * 解析Markdown为纯文本
- * @param {string} markdown - Markdown文本
- * @returns {string}
- */
-export function markdownToPlainText(markdown) {
-  if (!markdown) return ''
-  return markdown
-    .replace(/#{1,6}\s+/g, '')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
-    .replace(/`(.+?)`/g, '$1')
-    .replace(/!\[.+?\]\(.+?\)/g, '')
-    .replace(/\n{2,}/g, '\n')
-    .trim()
-}
-
-/**
- * 判断是否为移动设备
- * @returns {boolean}
- */
-export function isMobile() {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-}
-
-/**
- * 判断是否为竖屏
- * @returns {boolean}
- */
-export function isPortrait() {
-  return window.innerHeight > window.innerWidth
+export function speakText(text, lang = 'en-US') {
+  if (!text || !window.speechSynthesis) return
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = lang
+  utterance.rate = 0.8
+  utterance.pitch = 1
+  speechSynthesis.speak(utterance)
 }
