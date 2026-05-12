@@ -180,7 +180,7 @@ const useAppStore = create((set, get) => ({
 
   fetchTranslationCards: async (params = {}) => {
     try {
-      const data = await translationAPI.listCards(params)
+      const data = await translationAPI.list(params)
       set({ translationCards: data })
     } catch (error) {
       set({ error: error.message })
