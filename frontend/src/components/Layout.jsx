@@ -38,16 +38,29 @@ function GlobalSearch({ isOpen, onClose }) {
       try {
         const [lit, words, sentences, notes] = await Promise.all([
           literatureAPI.searchTable(query, true, true).catch(() => []),
-          learningAPI.listWords({ search: query }).catch(() => []),
-          learningAPI.listSentences({ search: query }).catch(() => []),
-          noteAPI.listGeneralNotes({ search: query }).catch(() => []),
+          learningAPI.listWords().catch(() => []),
+          learningAPI.listSentences().catch(() => []),
+          noteAPI.listGeneralNotes().catch(() => []),
         ])
-        setResults({ literature: lit, words, sentences, notes })
+        // 在客户端过滤搜索结果
+        const filteredWords = words.filter(w => 
+          w.word_en?.toLowerCase().includes(query.toLowerCase()) || 
+          w.word_cn?.toLowerCase().includes(query.toLowerCase())
+        )
+        const filteredSentences = sentences.filter(s =>
+          s.sentence_en?.toLowerCase().includes(query.toLowerCase())
+        )
+        const filteredNotes = notes.filter(n =>
+          n.title?.toLowerCase().includes(query.toLowerCase()) ||
+          n.content?.toLowerCase().includes(query.toLowerCase())
+        )
+        setResults({ literature: lit, words: filteredWords, sentences: filteredSentences, notes: filteredNotes })
       } catch (error) {
         console.error('Search error:', error)
       } finally {
         setLoading(false)
       }
+    }
     }
 
     const timer = setTimeout(search, 300)
