@@ -611,16 +611,6 @@ ${selectedText}
     setEditContent(item.content || '')
   }
   
-  // 文本选择
-  const handleTextSelect = (e, paragraphId) => {
-    const selection = window.getSelection()
-    const text = selection.toString().trim()
-    if (text) {
-      console.log('选中:', text, '在段落:', paragraphId)
-      // 可以在这里添加高亮逻辑
-    }
-  }
-  
   // 添加笔记
   const handleAddNote = async (paragraphId, content) => {
     if (!content.trim()) return
