@@ -714,9 +714,61 @@ async def upload_and_parse(
     db.commit()
     db.refresh(attachment)
     
-    return {
-        "success": True,
-        "attachment_id": attachment.id,
-        "filename": attachment.filename,
-        "message": "上传成功"
-    }
+    # 自动调用 MinerU 解析
+    task_id = None
+    try:
+        api_token = get_mineru_config_value("api_token")
+        model_version = get_mineru_config_value("model_version", "vlm")
+        language = get_mineru_config_value("language", "en")
+        
+        mineru = get_mineru_service(api_token)
+        
+        # 提交解析任务
+        result = await mineru.extract(
+            attachment.file_path,
+            source_type="file",
+            model_version=model_version,
+            language=language
+        )
+        
+        if result.get("success"):
+            markdown = result.get("markdown", "")
+            
+            # 保存为结构性文献
+            await save_structured_literature(
+                doi=doi,
+                content=markdown,
+                db=db
+            )
+            
+            # 更新文献状态
+            if entry:
+                entry.has_structured = True
+                db.commit()
+            
+            return {
+                "success": True,
+                "attachment_id": attachment.id,
+                "filename": attachment.filename,
+                "message": "上传并解析成功",
+                "markdown_length": len(markdown)
+            }
+        else:
+            # 解析失败但上传成功
+            return {
+                "success": True,
+                "attachment_id": attachment.id,
+                "filename": attachment.filename,
+                "message": "上传成功，但解析失败: " + result.get("error", "未知错误"),
+                "parse_error": result.get("error")
+            }
+            
+    except Exception as e:
+        # 解析过程出错但上传成功
+        return {
+            "success": True,
+            "attachment_id": attachment.id,
+            "filename": attachment.filename,
+            "message": "上传成功，但自动解析时出错",
+            "parse_error": str(e)
+        }
