@@ -22,6 +22,120 @@ import useDeepReadStore, {
 import useAppStore from '../stores/useAppStore'
 import ObsidianEditor from '../components/ObsidianEditor'
 import { splitSentences, getSentenceBackgroundColor, isSentenceColoringEnabled } from '../utils/sentenceColors.jsx'
+import { aiAPI, settingsAPI } from '../api/client'
+
+// ==================== 划词选择弹窗 ====================
+const SelectionPopup = ({ 
+  text, 
+  position, 
+  onClose, 
+  fullText,
+  onTranslate,
+  onAIExplain,
+  isLoading 
+}) => {
+  const [mode, setMode] = useState(null) // null | 'translate' | 'explain'
+  const [result, setResult] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleTranslate = async () => {
+    setMode('translate')
+    setLoading(true)
+    try {
+      const response = await onTranslate(text)
+      setResult(response)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAIExplain = async () => {
+    setMode('explain')
+    setLoading(true)
+    try {
+      const response = await onAIExplain(text, fullText)
+      setResult(response)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div 
+      className="fixed z-50 bg-white rounded-xl shadow-2xl border border-gray-200 w-96 max-w-[90vw]"
+      style={{ 
+        left: Math.min(position.x, window.innerWidth - 400),
+        top: position.y + 20,
+      }}
+    >
+      {/* 头部 */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        <span className="text-sm font-medium text-gray-600 truncate max-w-[200px]">
+          选中: {text.substring(0, 20)}{text.length > 20 ? '...' : ''}
+        </span>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">×</button>
+      </div>
+
+      {/* 操作按钮 */}
+      {!mode && (
+        <div className="p-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={handleTranslate}
+            className="flex items-center justify-center gap-2 p-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <span>🌐</span>
+            <span className="text-sm font-medium">翻译</span>
+          </button>
+          <button
+            onClick={handleAIExplain}
+            className="flex items-center justify-center gap-2 p-3 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors"
+          >
+            <span>🤖</span>
+            <span className="text-sm font-medium">AI解读</span>
+          </button>
+        </div>
+      )}
+
+      {/* 结果展示 */}
+      {mode && (
+        <div className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">{mode === 'translate' ? '🌐' : '🤖'}</span>
+            <span className="font-medium text-gray-800">
+              {mode === 'translate' ? '翻译结果' : 'AI解读'}
+            </span>
+          </div>
+          
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400">
+              <span className="animate-spin mr-2">⏳</span>
+              {mode === 'translate' ? '翻译中...' : 'AI思考中...(基于全文)'}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-700 leading-relaxed max-h-60 overflow-y-auto">
+              {mode === 'translate' ? (
+                <p>{result}</p>
+              ) : (
+                <div className="space-y-2">
+                  {result.split('\n').map((line, idx) => (
+                    <p key={idx}>{line}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <button
+            onClick={() => { setMode(null); setResult(''); }}
+            className="mt-3 text-sm text-gray-500 hover:text-gray-700"
+          >
+            ← 返回选择
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ==================== 子组件 ====================
 
@@ -377,6 +491,118 @@ function DeepRead() {
   const [selectedParagraph, setSelectedParagraph] = useState(null)
   const [editContent, setEditContent] = useState('')
   const contentRef = useRef(null)
+  
+  // 划词选择状态
+  const [selectionPopup, setSelectionPopup] = useState(null)
+  const [fullText, setFullText] = useState('')
+
+  // 获取完整文本（用于AI解读上下文）
+  useEffect(() => {
+    if (paragraphs && paragraphs.length > 0) {
+      const text = paragraphs.map(p => p.plainText || p.raw || '').join('\n\n')
+      setFullText(text)
+    }
+  }, [paragraphs])
+
+  // 处理划词选择
+  const handleTextSelect = (e, paragraphId) => {
+    const selection = window.getSelection()
+    const text = selection.toString().trim()
+    
+    if (text && text.length > 0) {
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      
+      setSelectionPopup({
+        text,
+        position: { 
+          x: rect.left + rect.width / 2, 
+          y: rect.bottom + window.scrollY 
+        },
+        paragraphId
+      })
+    }
+  }
+
+  // 关闭划词弹窗
+  const closeSelectionPopup = () => {
+    setSelectionPopup(null)
+  }
+
+  // 翻译功能（兼容Ollama本地模型和在线API）
+  const handleTranslate = async (text) => {
+    try {
+      // 优先使用Ollama本地模型
+      const ollamaConfig = await settingsAPI.getOllamaConfig()
+      
+      if (ollamaConfig.is_available) {
+        // 使用Ollama翻译
+        const response = await fetch('/api/v1/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: '你是一个专业的学术翻译助手，擅长将英语学术文献翻译成准确、流畅的中文。' },
+              { role: 'user', content: `请将以下学术文本翻译成中文，保持学术严谨性：\n\n${text}` }
+            ],
+            temperature: 0.3,
+            max_tokens: 2048
+          })
+        })
+        
+        const data = await response.json()
+        return data.response || data.content || text
+      } else {
+        // 使用在线API翻译
+        const response = await aiAPI.translate(text, 'zh')
+        return response.translation || '翻译失败'
+      }
+    } catch (error) {
+      console.error('翻译失败:', error)
+      return '翻译服务暂不可用'
+    }
+  }
+
+  // AI解读功能（基于全文，兼容Ollama本地模型）
+  const handleAIExplain = async (selectedText, context) => {
+    try {
+      // 构建提示词
+      const prompt = `请基于以下全文内容，解读这段选中的文本：
+
+【全文内容】
+${context.substring(0, 3000)}...
+
+【选中文本】
+${selectedText}
+
+请用中文回答：
+1. 这句话在全文中的作用和意义
+2. 关键概念解释  
+3. 与上下文的联系
+4. 学术价值分析`
+
+      // 调用后端AI接口（自动使用Ollama或在线API）
+      const response = await fetch('/api/v1/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: '你是一位资深的学术文献解读专家，擅长分析学术论文的结构、方法和贡献。' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 2048
+        })
+      })
+      
+      const data = await response.json()
+      return data.response || data.content || data.message || 'AI解读完成'
+
+    } catch (error) {
+      console.error('AI解读失败:', error)
+      return 'AI解读服务暂不可用，请检查Ollama配置或网络连接'
+    }
+  }
   
   // 加载文献
   const handleSelectLiterature = async (item) => {
