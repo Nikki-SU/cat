@@ -1,24 +1,10 @@
-# Cat - 学术文献全流程工具后端
-
-# 核心框架
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-sqlalchemy==2.0.25
-pydantic==2.5.3
-
-# 文件处理
-python-multipart==0.0.6
-aiofiles==23.2.1
-
-# HTTP客户端
-httpx==0.26.0
-
-# 数据处理
+# Cat - 学术文献管理工具依赖
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+sqlalchemy>=2.0.0
+pydantic>=2.0.0
+httpx>=0.24.0
+aiofiles>=23.0.0
 openpyxl>=3.1.0
-
-# MinerU SDK（可选，需要时安装）
-# mineru-open-sdk>=0.1.0
-
-# 开发依赖
-pytest==7.4.4
-pytest-asyncio==0.23.3
+python-multipart>=0.0.6
+jinja2>=3.1.0
