@@ -1,521 +1,367 @@
 /**
- * 学习页面 - 单词、长难句、翻译练习
+ * 学习页面 - 全屏沉浸式单词学习
+ * 支持：六种题型、艾宾浩斯复习、进度保存、断点续传
  */
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import useAppStore from '../stores/useAppStore'
-import { learningAPI, translationAPI } from '../api/client'
-import { formatDate, shuffleArray, calculateNextReview } from '../utils/helpers'
-import { LEARNING_MODES, WORD_STATUS, REVIEW_MODES, TRANSLATION_MODES, QUESTION_TYPES } from '../utils/constants'
+import { learningAPI } from '../api/client'
+import { WORD_QUEUE_LENGTHS } from '../utils/constants'
+
+// 六种题型配置
+const QUESTION_TYPES = {
+  en_select_cn: {
+    name: '英选中',
+    getQuestion: (word) => word.word_en,
+    getAnswer: (word) => word.word_cn,
+  },
+  cn_select_en: {
+    name: '中选英',
+    getQuestion: (word) => word.word_cn,
+    getAnswer: (word) => word.word_en,
+  },
+  en_select_def: {
+    name: '英选定义',
+    getQuestion: (word) => word.word_en,
+    getAnswer: (word, isReview) => isReview ? word.definition_en : word.definition_cn,
+  },
+  def_select_en: {
+    name: '定义选英',
+    getQuestion: (word) => word.definition_cn,
+    getAnswer: (word) => word.word_en,
+  },
+  sent_select_cn: {
+    name: '例句选中',
+    getQuestion: (word) => word.sentence?.replace(word.word_en, '_____'),
+    getAnswer: (word) => word.word_cn,
+  },
+  sent_select_def: {
+    name: '例句选定义',
+    getQuestion: (word) => word.sentence?.replace(word.word_en, '_____'),
+    getAnswer: (word, isReview) => isReview ? word.definition_en : word.definition_cn,
+  },
+}
 
 function Learn() {
-  const { 
-    settings, 
-    words, 
-    longSentences, 
-    translationCards,
-    fetchWords, 
-    fetchLongSentences, 
-    fetchTranslationCards,
-    updateSettings 
-  } = useAppStore()
-
-  const [learningMode, setLearningMode] = useState(LEARNING_MODES.word)
-  const [reviewMode, setReviewMode] = useState(settings.reviewMode || REVIEW_MODES.interval.id)
-  const [translationMode, setTranslationMode] = useState(settings.translationMode || TRANSLATION_MODES.normal.id)
-  
-  // 学习卡片状态
-  const [currentCardIndex, setCurrentCardIndex] = useState(0)
-  const [showAnswer, setShowAnswer] = useState(false)
+  const { fetchWords } = useAppStore()
+  const [mode, setMode] = useState(null)
+  const [session, setSession] = useState(null)
+  const [currentQuestion, setCurrentQuestion] = useState(null)
+  const [showCard, setShowCard] = useState(false)
+  const [selectedAnswer, setSelectedAnswer] = useState(null)
   const [isCorrect, setIsCorrect] = useState(null)
-  
-  // 单词统计数据
-  const wordStats = useMemo(() => {
-    return {
-      new: words.filter(w => w.status === 'new').length,
-      learning: words.filter(w => w.status === 'learning').length,
-      mastered: words.filter(w => w.status === 'mastered').length,
-      total: words.length,
-    }
-  }, [words])
+  const [stats, setStats] = useState({
+    new: 0, studying: 0, learned: 0, mastered: 0,
+    error_book: 0, today_to_review: 0
+  })
+  const [studySettings, setStudySettings] = useState({
+    queueLength: 10,
+    selectedTypes: ['en_select_cn', 'cn_select_en', 'en_select_def',
+                   'def_select_en', 'sent_select_cn', 'sent_select_def'],
+    allowSkip: true
+  })
+  const [showSettings, setShowSettings] = useState(false)
 
-  // 长难句统计数据
-  const sentenceStats = useMemo(() => {
-    return {
-      new: longSentences.filter(s => s.status === 'new').length,
-      learning: longSentences.filter(s => s.status === 'learning').length,
-      mastered: longSentences.filter(s => s.status === 'mastered').length,
-      total: longSentences.length,
-    }
-  }, [longSentences])
-
-  // 待学习的单词（按优先级排序）
-  const learningQueue = useMemo(() => {
-    const now = new Date()
-    return words
-      .filter(w => {
-        if (w.status === 'mastered') return false
-        if (!w.next_review) return true
-        return new Date(w.next_review) <= now
-      })
-      .sort((a, b) => {
-        // 优先级：新学 > 学习中快到期 > 学习中慢到期
-        if (a.status === 'new' && b.status !== 'new') return -1
-        if (b.status === 'new' && a.status !== 'new') return 1
-        if (!a.next_review) return -1
-        if (!b.next_review) return 1
-        return new Date(a.next_review) - new Date(b.next_review)
-      })
-      .slice(0, settings.wordQueueLength || 20)
-  }, [words, settings.wordQueueLength])
-
-  // 当前卡片
-  const currentCard = learningQueue[currentCardIndex]
-
-  // 加载数据
   useEffect(() => {
     fetchWords()
-    fetchLongSentences()
-    fetchTranslationCards()
+    loadStats()
+    loadStudySettings()
+    checkActiveSession()
   }, [])
 
-  // 处理答案判断
-  const handleAnswer = async (correct) => {
-    if (!currentCard) return
-    
-    setIsCorrect(correct)
-    
-    // 更新单词状态
+  const checkActiveSession = async () => {
     try {
-      const newStreak = correct ? (currentCard.correct_streak || 0) + 1 : 0
-      const newStatus = correct && newStreak >= 3 ? 'mastered' : 
-                        correct ? 'learning' : 
-                        currentCard.status === 'new' ? 'learning' : currentCard.status
-      
-      await learningAPI.updateWord(currentCard.id, {
-        status: newStatus,
-        correct_streak: newStreak,
-        last_review: new Date().toISOString(),
-        next_review: correct ? calculateNextReview(newStreak).toISOString() : null,
-        review_count: (currentCard.review_count || 0) + 1,
-      })
-      
-      // 重新获取单词列表
-      await fetchWords()
-    } catch (error) {
-      console.error('Failed to update word:', error)
-    }
-    
-    // 延迟后进入下一张
-    setTimeout(() => {
-      setShowAnswer(false)
-      setIsCorrect(null)
-      if (currentCardIndex < learningQueue.length - 1) {
-        setCurrentCardIndex(prev => prev + 1)
-      } else {
-        // 重新开始或结束
-        setCurrentCardIndex(0)
+      const data = await learningAPI.getActiveSession()
+      if (data.has_active_session) {
+        if (window.confirm('检测到有未完成的学习会话，是否继续？')) {
+          setMode(data.session.mode)
+          const question = await learningAPI.getCurrentQuestion(data.session.id)
+          setSession({ session_id: data.session.id, ...data.session })
+          setCurrentQuestion(question)
+        }
       }
-    }, 1000)
+    } catch (e) {}
   }
 
-  // 处理长难句答案
-  const handleSentenceAnswer = async (correct) => {
-    if (!currentSentence) return
-    
-    setIsCorrect(correct)
-    
+  const loadStats = async () => {
     try {
-      const newStreak = correct ? (currentSentence.correct_streak || 0) + 1 : 0
-      const newStatus = correct && newStreak >= 3 ? 'mastered' : 
-                        correct ? 'learning' : 
-                        currentSentence.status === 'new' ? 'learning' : currentSentence.status
-      
-      await learningAPI.updateSentence(currentSentence.id, {
-        status: newStatus,
-        correct_streak: newStreak,
-        last_review: new Date().toISOString(),
-        next_review: correct ? calculateNextReview(newStreak).toISOString() : null,
-        review_count: (currentSentence.review_count || 0) + 1,
+      const data = await learningAPI.getStudyStats()
+      setStats(data)
+    } catch (e) {}
+  }
+
+  const loadStudySettings = async () => {
+    try {
+      const data = await learningAPI.getStudySettings()
+      setStudySettings({
+        queueLength: data.queue_length || 10,
+        selectedTypes: data.selected_types || studySettings.selectedTypes,
+        allowSkip: data.allow_skip ?? true
       })
-      
-      await fetchLongSentences()
-    } catch (error) {
-      console.error('Failed to update sentence:', error)
+    } catch (e) {}
+  }
+
+  const saveStudySettings = async () => {
+    try {
+      await learningAPI.updateStudySettings({
+        queue_length: studySettings.queueLength,
+        selected_types: studySettings.selectedTypes,
+        allow_skip: studySettings.allowSkip
+      })
+      setShowSettings(false)
+    } catch (e) {}
+  }
+
+  const startSession = async (sessionMode) => {
+    try {
+      const data = await learningAPI.startStudy({
+        mode: sessionMode,
+        queue_length: studySettings.queueLength,
+        selected_types: studySettings.selectedTypes
+      })
+      setMode(sessionMode)
+      setSession(data)
+      setCurrentQuestion(data)
+      resetUI()
+    } catch (e) {
+      alert(e.message || '开始失败')
     }
-    
-    setTimeout(() => {
-      setShowAnswer(false)
-      setIsCorrect(null)
-      if (sentenceIndex < sentenceQueue.length - 1) {
-        setSentenceIndex(prev => prev + 1)
+  }
+
+  const resetUI = () => {
+    setShowCard(false)
+    setSelectedAnswer(null)
+    setIsCorrect(null)
+  }
+
+  const submitAnswer = async (answer) => {
+    if (!currentQuestion?.question || selectedAnswer !== null) return
+    setSelectedAnswer(answer)
+    const correct = answer === currentQuestion.question.correct_answer
+    setIsCorrect(correct)
+
+    try {
+      const result = await learningAPI.submitAnswer(
+        session.session_id, {
+          word_id: currentQuestion.question.word_id,
+          answer
+        }
+      )
+      if (!correct) {
+        setTimeout(() => setShowCard(true), 600)
       } else {
-        setSentenceIndex(0)
+        setTimeout(() => handleNext(result), 800)
       }
-    }, 1000)
+    } catch (e) {}
   }
 
-  // 长难句学习队列
-  const [sentenceIndex, setSentenceIndex] = useState(0)
-  const sentenceQueue = useMemo(() => {
-    const now = new Date()
-    return longSentences
-      .filter(s => {
-        if (s.status === 'mastered') return false
-        if (!s.next_review) return true
-        return new Date(s.next_review) <= now
-      })
-      .slice(0, 10)
-  }, [longSentences])
-  
-  const currentSentence = sentenceQueue[sentenceIndex]
-
-  // 翻译练习
-  const [currentTranslation, setCurrentTranslation] = useState(null)
-  const [translationIndex, setTranslationIndex] = useState(0)
-  const [showTranslationHint, setShowTranslationHint] = useState(false)
-  
-  const translationQueue = useMemo(() => {
-    return shuffleArray(translationCards.filter(t => t)).slice(0, 10)
-  }, [translationCards])
-  
-  useEffect(() => {
-    if (translationQueue.length > 0) {
-      setCurrentTranslation(translationQueue[0])
+  const handleNext = async (result) => {
+    if (result?.session_finished) {
+      finishSession()
+      return
     }
-  }, [learningMode])
-  
-  const handleNextTranslation = () => {
-    if (translationIndex < translationQueue.length - 1) {
-      setTranslationIndex(prev => prev + 1)
-      setCurrentTranslation(translationQueue[translationIndex + 1])
-      setShowTranslationHint(false)
-    } else {
-      setTranslationIndex(0)
-      setCurrentTranslation(translationQueue[0])
-      setShowTranslationHint(false)
+    try {
+      const data = await learningAPI.nextQuestion(session.session_id)
+      if (data) {
+        setCurrentQuestion(data)
+        resetUI()
+      } else {
+        finishSession()
+      }
+    } catch (e) {}
+  }
+
+  const continueAfterCard = async () => {
+    setShowCard(false)
+    setSelectedAnswer(null)
+    setIsCorrect(null)
+    try {
+      const data = await learningAPI.getCurrentQuestion(session.session_id)
+      if (data) setCurrentQuestion(data)
+    } catch (e) {}
+  }
+
+  const skipWord = async () => {
+    if (!currentQuestion?.question) return
+    if (!studySettings.allowSkip) {
+      alert('当前设置不允许斩词')
+      return
+    }
+    try {
+      await learningAPI.skipWord(currentQuestion.question.word_id)
+      handleNext()
+    } catch (e) {}
+  }
+
+  const exitSession = () => {
+    if (window.confirm('确定要退出吗？进度会自动保存')) {
+      setMode(null)
+      setSession(null)
+      setCurrentQuestion(null)
+      loadStats()
     }
   }
 
-  // 统计卡片组件
-  const StatsCard = ({ stats, title }) => (
-    <div className="bg-white rounded-xl p-4 card-shadow">
-      <h3 className="font-semibold text-text-main mb-3">{title}</h3>
-      <div className="flex justify-around">
-        <div className="text-center">
-          <div 
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold mb-1"
-            style={{ backgroundColor: WORD_STATUS.new.color }}
-          >
-            {stats.new}
+  const finishSession = () => {
+    const modeText = mode === 'learn' ? '学习' : mode === 'review' ? '复习' : '错词本'
+    alert(`${modeText}完成！`)
+    setMode(null)
+    setSession(null)
+    setCurrentQuestion(null)
+    loadStats()
+  }
+
+  if (mode && currentQuestion) {
+    const { question, current_idx, total_words, type_name, is_retry } = currentQuestion
+
+    return (
+      <div className="fixed inset-0 bg-white z-50 flex flex-col">
+        <div className="h-14 bg-red-800 text-white flex items-center justify-between px-4 shrink-0">
+          <button onClick={exitSession} className="hover:opacity-80">退出</button>
+          <div className="flex items-center gap-3 text-sm">
+            <span>{current_idx} / {total_words}</span>
+            <span className="bg-white/20 px-3 py-1 rounded-full text-xs">
+              {type_name}{is_retry && ' (重)'}
+            </span>
           </div>
-          <span className="text-xs text-text-secondary">新学</span>
+          <button onClick={skipWord} disabled={!studySettings.allowSkip} className="hover:opacity-80">
+            斩词
+          </button>
         </div>
-        <div className="text-center">
-          <div 
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold mb-1"
-            style={{ backgroundColor: WORD_STATUS.learning.color }}
-          >
-            {stats.learning}
+
+        <div className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="text-3xl md:text-4xl font-bold text-gray-900 mb-10 text-center">
+            {question?.question || '加载中...'}
           </div>
-          <span className="text-xs text-text-secondary">学习中</span>
+
+          {question?.options && (
+            <div className="w-full max-w-md space-y-3">
+              {question.options.map((option, idx) => {
+                const isSelected = selectedAnswer === option
+                const showResult = selectedAnswer !== null
+                const isCorrectOption = option === question.correct_answer
+                let btnClass = 'w-full p-4 md:p-5 rounded-xl text-lg font-medium transition-all border-2 '
+                
+                if (!showResult) {
+                  btnClass += 'bg-gray-50 hover:bg-red-800 hover:text-white border-transparent'
+                } else if (isCorrectOption) {
+                  btnClass += 'bg-green-500 text-white border-green-500'
+                } else if (isSelected) {
+                  btnClass += 'bg-red-500 text-white border-red-500'
+                } else {
+                  btnClass += 'bg-gray-100 text-gray-500 border-transparent'
+                }
+
+                return (
+                  <button key={idx} onClick={() => submitAnswer(option)} disabled={showResult} className={btnClass}>
+                    {option}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
-        <div className="text-center">
-          <div 
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold mb-1"
-            style={{ backgroundColor: WORD_STATUS.mastered.color }}
-          >
-            {stats.mastered}
+
+        {showCard && question?.word_data && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-3xl font-bold text-gray-900 mb-4 text-center">{question.word_data.word_en}</h3>
+              <div className="space-y-3 text-center">
+                <p className="text-2xl text-red-800 font-medium">{question.word_data.word_cn}</p>
+                {question.word_data.definition_cn && (
+                  <p className="text-gray-600 bg-gray-50 p-3 rounded-lg">{question.word_data.definition_cn}</p>
+                )}
+                {question.word_data.sentence && (
+                  <p className="text-sm text-gray-500 italic border-t pt-3">"{question.word_data.sentence}"</p>
+                )}
+              </div>
+              <button onClick={continueAfterCard} className="w-full mt-6 bg-red-800 text-white py-3 rounded-xl">
+                记住了，继续重做
+              </button>
+            </div>
           </div>
-          <span className="text-xs text-text-secondary">已掌握</span>
-        </div>
+        )}
       </div>
-      <p className="text-center text-sm text-text-secondary mt-2">
-        共 {stats.total} 条
-      </p>
-    </div>
-  )
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      {/* 页面标题 */}
-      <div className="text-center py-4">
-        <h1 className="text-2xl font-bold text-primary-blue mb-2">📚 学习中心</h1>
-        <p className="text-text-secondary">单词、长难句、翻译练习</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+        <div className="text-center py-4">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">学习中心</h1>
+          <p className="text-gray-600">艾宾浩斯记忆法背单词</p>
+        </div>
 
-      {/* 学习模式切换 */}
-      <div className="bg-white rounded-xl p-4 card-shadow">
-        <div className="flex bg-gray-100 rounded-lg p-1">
-          {[
-            { id: LEARNING_MODES.word, icon: '📝', label: '背单词' },
-            { id: LEARNING_MODES.sentence, icon: '📖', label: '长难句' },
-            { id: LEARNING_MODES.translation, icon: '🔄', label: '翻译练习' },
-          ].map((mode) => (
-            <button
-              key={mode.id}
-              onClick={() => setLearningMode(mode.id)}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-                learningMode === mode.id
-                  ? 'bg-white shadow text-primary-blue'
-                  : 'text-text-secondary hover:text-text-main'
-              }`}
-            >
-              <span className="mr-1">{mode.icon}</span>
-              {mode.label}
+        <div className="bg-white rounded-2xl p-5 shadow">
+          <h3 className="font-semibold text-gray-900 mb-4 text-lg">学习统计</h3>
+          <div className="grid grid-cols-4 gap-3 text-center">
+            <div><div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mx-auto mb-1 text-sm">{stats.new}</div><span className="text-xs text-gray-600">新学</span></div>
+            <div><div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold mx-auto mb-1 text-sm">{stats.studying}</div><span className="text-xs text-gray-600">正在学</span></div>
+            <div><div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold mx-auto mb-1 text-sm">{stats.learned}</div><span className="text-xs text-gray-600">待复习</span></div>
+            <div><div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold mx-auto mb-1 text-sm">{stats.mastered}</div><span className="text-xs text-gray-600">已掌握</span></div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 shadow">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 text-lg">学习设置</h3>
+            <button onClick={() => setShowSettings(!showSettings)} className="text-sm text-red-800">
+              {showSettings ? '收起' : '设置'}
             </button>
-          ))}
+          </div>
+
+          {showSettings && (
+            <div className="space-y-4 border-t pt-4">
+              <div>
+                <label className="text-sm text-gray-600 block mb-2">每组单词数（队列长度）</label>
+                <div className="flex gap-2 flex-wrap">
+                  {WORD_QUEUE_LENGTHS.map(n => (
+                    <button key={n} onClick={() => setStudySettings({...studySettings, queueLength: n})} className={`px-4 py-2 rounded-lg text-sm ${studySettings.queueLength === n ? 'bg-red-800 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                      {n}个
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-600 block mb-2">题型选择</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(QUESTION_TYPES).map(([key, type]) => (
+                    <label key={key} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={studySettings.selectedTypes.includes(key)} onChange={(e) => {
+                        const newTypes = e.target.checked ? [...studySettings.selectedTypes, key] : studySettings.selectedTypes.filter(t => t !== key)
+                        setStudySettings({...studySettings, selectedTypes: newTypes})
+                      }} className="w-4 h-4" />
+                      <span>{type.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={saveStudySettings} className="w-full py-2 bg-red-800 text-white rounded-lg">保存设置</button>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3 pt-2">
+          <button onClick={() => startSession('learn')} className="w-full bg-red-800 text-white py-4 rounded-xl text-lg flex items-center justify-center gap-3 hover:bg-red-900">
+            <span>开始学习</span>
+            <span className="text-sm opacity-80">{stats.new + stats.studying} 个单词待学习</span>
+          </button>
+
+          <button onClick={() => startSession('review')} disabled={stats.today_to_review === 0} className="w-full bg-green-600 text-white py-4 rounded-xl text-lg flex items-center justify-center gap-3 hover:bg-green-700 disabled:opacity-50">
+            <span>开始复习</span>
+            <span className="text-sm opacity-80">{stats.today_to_review} 个单词待复习</span>
+          </button>
+
+          {stats.error_book > 0 && (
+            <button onClick={() => startSession('error_book')} className="w-full bg-red-500 text-white py-4 rounded-xl text-lg flex items-center justify-center gap-3 hover:bg-red-600">
+              <span>错词本</span>
+              <span className="text-sm opacity-80">{stats.error_book} 个单词</span>
+            </button>
+          )}
         </div>
       </div>
-
-      {/* 单词学习 */}
-      {learningMode === LEARNING_MODES.word && (
-        <>
-          <StatsCard stats={wordStats} title="📝 单词统计" />
-          
-          {/* 复习模式选择 */}
-          <div className="bg-white rounded-xl p-4 card-shadow">
-            <h3 className="font-semibold text-text-main mb-3">复习模式</h3>
-            <div className="flex gap-3">
-              {Object.values(REVIEW_MODES).map((mode) => (
-                <button
-                  key={mode.id}
-                  onClick={() => {
-                    setReviewMode(mode.id)
-                    updateSettings({ reviewMode: mode.id })
-                  }}
-                  className={`flex-1 p-3 rounded-lg border-2 transition-all ${
-                    reviewMode === mode.id
-                      ? 'border-primary-blue bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <p className="font-medium">{mode.label}</p>
-                  <p className="text-xs text-text-secondary mt-1">{mode.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 学习卡片 */}
-          {learningQueue.length > 0 && currentCard ? (
-            <div className="bg-white rounded-xl p-6 card-shadow">
-              <div className="text-center mb-6">
-                <p className="text-sm text-text-secondary mb-2">
-                  {currentCardIndex + 1} / {learningQueue.length}
-                </p>
-                <p 
-                  className="text-3xl font-bold mb-4"
-                  style={{ color: WORD_STATUS[currentCard.status]?.color || '#3C5488' }}
-                >
-                  {currentCard.word_en}
-                </p>
-                
-                {showAnswer && (
-                  <div className="mt-4 space-y-2 animate-fade-in">
-                    <p className="text-lg text-text-main">{currentCard.word_cn}</p>
-                    {currentCard.definition_en && (
-                      <p className="text-sm text-text-secondary">{currentCard.definition_en}</p>
-                    )}
-                    {currentCard.sentence && (
-                      <p className="text-sm text-text-secondary italic mt-2">
-                        "{currentCard.sentence}"
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              {/* 操作按钮 */}
-              <div className="flex justify-center gap-4">
-                {!showAnswer ? (
-                  <button
-                    onClick={() => setShowAnswer(true)}
-                    className="btn btn-primary px-8"
-                  >
-                    显示答案
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => handleAnswer(false)}
-                      className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                        isCorrect === false
-                          ? 'bg-status-error text-white'
-                          : 'bg-red-100 text-red-600 hover:bg-red-200'
-                      }`}
-                    >
-                      不认识 😵
-                    </button>
-                    <button
-                      onClick={() => handleAnswer(true)}
-                      className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                        isCorrect === true
-                          ? 'bg-status-success text-white'
-                          : 'bg-green-100 text-green-600 hover:bg-green-200'
-                      }`}
-                    >
-                      记住了 ✨
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl p-8 card-shadow text-center">
-              <p className="text-4xl mb-4">🎉</p>
-              <p className="text-text-main font-medium">太棒了！</p>
-              <p className="text-text-secondary mt-2">今天的单词已经复习完成</p>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* 长难句学习 */}
-      {learningMode === LEARNING_MODES.sentence && (
-        <>
-          <StatsCard stats={sentenceStats} title="📖 长难句统计" />
-          
-          {sentenceQueue.length > 0 && currentSentence ? (
-            <div className="bg-white rounded-xl p-6 card-shadow">
-              <div className="text-center mb-6">
-                <p className="text-sm text-text-secondary mb-4">
-                  {sentenceIndex + 1} / {sentenceQueue.length}
-                </p>
-                <p className="text-lg font-medium text-text-main leading-relaxed mb-4">
-                  {currentSentence.sentence_en}
-                </p>
-                
-                {showAnswer && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg animate-fade-in">
-                    <p className="text-lg text-primary-blue">{currentSentence.sentence_cn}</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex justify-center gap-4">
-                {!showAnswer ? (
-                  <button
-                    onClick={() => setShowAnswer(true)}
-                    className="btn btn-primary px-8"
-                  >
-                    显示翻译
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => handleSentenceAnswer(false)}
-                      className="px-6 py-3 rounded-lg font-medium bg-red-100 text-red-600 hover:bg-red-200 transition-all"
-                    >
-                      不认识
-                    </button>
-                    <button
-                      onClick={() => handleSentenceAnswer(true)}
-                      className="px-6 py-3 rounded-lg font-medium bg-green-100 text-green-600 hover:bg-green-200 transition-all"
-                    >
-                      掌握了
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl p-8 card-shadow text-center">
-              <p className="text-4xl mb-4">🎉</p>
-              <p className="text-text-main font-medium">长难句已复习完成</p>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* 翻译练习 */}
-      {learningMode === LEARNING_MODES.translation && (
-        <>
-          {/* 翻译模式选择 */}
-          <div className="bg-white rounded-xl p-4 card-shadow">
-            <h3 className="font-semibold text-text-main mb-3">练习模式</h3>
-            <div className="flex gap-3">
-              {Object.values(TRANSLATION_MODES).map((mode) => (
-                <button
-                  key={mode.id}
-                  onClick={() => {
-                    setTranslationMode(mode.id)
-                    updateSettings({ translationMode: mode.id })
-                  }}
-                  className={`flex-1 p-3 rounded-lg border-2 transition-all ${
-                    translationMode === mode.id
-                      ? 'border-primary-blue bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <p className="font-medium">{mode.label}</p>
-                  <p className="text-xs text-text-secondary mt-1">{mode.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 翻译卡片列表 */}
-          {translationQueue.length > 0 && currentTranslation ? (
-            <div className="bg-white rounded-xl p-6 card-shadow">
-              <div className="mb-4">
-                <p className="text-sm text-text-secondary">
-                  {translationIndex + 1} / {translationQueue.length}
-                </p>
-              </div>
-              
-              {/* 原文 */}
-              <div className="p-4 bg-gray-50 rounded-lg mb-4">
-                <p className="text-sm text-text-secondary mb-2">原文摘要</p>
-                <p className="text-text-main leading-relaxed">
-                  {currentTranslation.original_text}
-                </p>
-              </div>
-              
-              {/* 提示区域（突击模式直接显示，严格模式需点击） */}
-              {translationMode === TRANSLATION_MODES.strict.id && !showTranslationHint && (
-                <button
-                  onClick={() => setShowTranslationHint(true)}
-                  className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg text-text-secondary hover:border-primary-blue hover:text-primary-blue transition-all"
-                >
-                  点击回忆 / 查看翻译
-                </button>
-              )}
-              
-              {(translationMode === TRANSLATION_MODES.normal.id || showTranslationHint) && (
-                <div className="p-4 bg-blue-50 rounded-lg mb-4">
-                  <p className="text-sm text-text-secondary mb-2">你的翻译</p>
-                  <p className="text-text-main leading-relaxed mb-4">
-                    {currentTranslation.user_translation || '（待填写）'}
-                  </p>
-                  
-                  <p className="text-sm text-text-secondary mb-2">参考翻译</p>
-                  <p className="text-primary-blue leading-relaxed">
-                    {currentTranslation.ai_feedback || '（暂无参考）'}
-                  </p>
-                </div>
-              )}
-              
-              <div className="flex justify-center gap-4">
-                <button
-                  onClick={handleNextTranslation}
-                  className="btn btn-primary px-6"
-                >
-                  下一题 →
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl p-8 card-shadow text-center">
-              <p className="text-4xl mb-4">📚</p>
-              <p className="text-text-main font-medium">暂无翻译练习</p>
-              <p className="text-text-secondary mt-2">阅读文献时创建翻译练习</p>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* 底部占位 */}
-      <div className="h-8" />
     </div>
   )
 }
