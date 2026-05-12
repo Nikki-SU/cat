@@ -520,7 +520,7 @@ async def _parse_and_extract_task(
             _task_status[task_id]["message"] = f"正在处理 {len(selected)} 个长难句..."
             
             # 保存长难句
-            from models.learning import SentenceEntry
+            from models.learning import LongSentence
             
             for i, sentence in enumerate(selected):
                 # 翻译
@@ -532,11 +532,10 @@ async def _parse_and_extract_task(
                 except:
                     pass
                 
-                sentence_entry = SentenceEntry(
+                sentence_entry = LongSentence(
                     doi=attachment.doi,
                     sentence_en=sentence,
-                    sentence_cn=translation,
-                    context=markdown[:500]
+                    sentence_cn=translation
                 )
                 db.add(sentence_entry)
                 
@@ -551,7 +550,7 @@ async def _parse_and_extract_task(
         
         # 4. 提取单词（简化版本：从长句中提取）
         if ai_service and markdown:
-            from models.learning import WordEntry
+            from models.learning import Word
             import re
             
             # 简单提取：找到看起来像单词的词（首字母大写后的词）
@@ -559,7 +558,7 @@ async def _parse_and_extract_task(
             words = list(set(words))[:max_words]
             
             for word in words:
-                word_entry = WordEntry(
+                word_entry = Word(
                     doi=attachment.doi,
                     word_en=word,
                     status="new"
