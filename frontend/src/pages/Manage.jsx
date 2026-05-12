@@ -89,6 +89,8 @@ function Manage({ defaultTab = 'tracking' }) {
   const [sortOrder, setSortOrder] = useState('desc')
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportTags, setExportTags] = useState([])
+  const [editingLiterature, setEditingLiterature] = useState(null)
+  const [editFormData, setEditFormData] = useState({})
   
   // 标签管理状态
   const [tagSearchQuery, setTagSearchQuery] = useState('')
@@ -456,10 +458,12 @@ function Manage({ defaultTab = 'tracking' }) {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">文献</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">标题</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">期刊/年份</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">作者</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">标签</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">关联</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">跳转</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOI</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
                         </tr>
                       </thead>
@@ -467,7 +471,7 @@ function Manage({ defaultTab = 'tracking' }) {
                         {filteredLiterature.map(item => (
                           <tr key={item.doi} className="hover:bg-gray-50">
                             <td className="px-4 py-3">
-                              <div className="max-w-[400px]">
+                              <div className="max-w-[300px]">
                                 <div className="font-medium text-sm text-[#3C5488] truncate" title={item.title_cn || item.title_en}>
                                   {item.title_cn || item.title_en || '无标题'}
                                 </div>
@@ -476,15 +480,18 @@ function Manage({ defaultTab = 'tracking' }) {
                                     {item.title_en}
                                   </div>
                                 )}
-                                <div className="text-xs text-[#4DBBD5] mt-1">{item.doi}</div>
                               </div>
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">
-                              <div className="truncate max-w-[150px]" title={item.journal}>{item.journal}</div>
+                              <div className="truncate max-w-[120px]" title={item.journal}>{item.journal}</div>
                               <div className="text-xs text-gray-400">{item.pubdate}</div>
                             </td>
+                            <td className="px-4 py-3 text-xs text-gray-600">
+                              <div className="truncate max-w-[100px]" title={item.first_author}>{item.first_author || '-'}</div>
+                              <div className="truncate max-w-[100px] text-gray-400" title={item.communication_author}>{item.communication_author || '-'}</div>
+                            </td>
                             <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              <div className="flex flex-wrap gap-1 max-w-[150px]">
                                 {tagsByDoi[item.doi]?.slice(0, 3).map(tag => (
                                   <span key={tag.id} className={`px-2 py-0.5 text-xs rounded ${getTagColor(tag.name)}`}>
                                     {tag.name}
@@ -496,27 +503,43 @@ function Manage({ defaultTab = 'tracking' }) {
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <div className="flex gap-2 text-xs">
-                                {item.has_card && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded">卡片</span>}
-                                {item.has_attachment && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">附件</span>}
-                                {item.has_note && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded">笔记</span>}
-                                {item.has_structured && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded">结构</span>}
+                              <div className="flex gap-1 text-xs">
+                                {item.has_attachment ? (
+                                  <a href={`/attachments/by-doi/${item.doi}`} className="px-2 py-0.5 bg-green-100 text-green-700 rounded hover:bg-green-200">附件</a>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">附件</span>
+                                )}
+                                {item.has_structured ? (
+                                  <a href={`/deep-read?doi=${item.doi}`} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded hover:bg-purple-200">结构</a>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">结构</span>
+                                )}
+                                {item.has_card ? (
+                                  <a href={`/browse?doi=${item.doi}`} className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">卡片</a>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded">卡片</span>
+                                )}
                               </div>
                             </td>
                             <td className="px-4 py-3">
+                              <span className="text-xs text-[#4DBBD5] font-mono">{item.doi}</span>
+                            </td>
+                            <td className="px-4 py-3">
                               <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingLiterature(item)
+                                    setEditFormData({...item})
+                                  }}
+                                  className="text-blue-400 hover:text-blue-600 text-sm"
+                                >
+                                  编辑
+                                </button>
                                 <button
                                   onClick={() => handleDelete('literature', item.doi, false)}
                                   className="text-red-400 hover:text-red-600 text-sm"
                                 >
                                   删除
-                                </button>
-                                <button
-                                  onClick={() => handleDelete('literature', item.doi, true)}
-                                  className="text-orange-400 hover:text-orange-600 text-sm"
-                                  title="级联删除"
-                                >
-                                  级联
                                 </button>
                               </div>
                             </td>
@@ -524,6 +547,73 @@ function Manage({ defaultTab = 'tracking' }) {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+                
+                {/* 编辑弹窗 */}
+                {editingLiterature && (
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+                      <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                        <h2 className="font-semibold">编辑文献</h2>
+                        <button onClick={() => setEditingLiterature(null)} className="text-2xl">×</button>
+                      </div>
+                      <form onSubmit={async (e) => {
+                        e.preventDefault()
+                        try {
+                          await literatureAPI.updateTableEntry(editFormData.doi, {
+                            title_cn: editFormData.title_cn,
+                            title_en: editFormData.title_en,
+                            journal: editFormData.journal,
+                            pubdate: editFormData.pubdate,
+                            first_author: editFormData.first_author,
+                            communication_author: editFormData.communication_author,
+                          })
+                          setEditingLiterature(null)
+                          fetchData()
+                          alert('更新成功')
+                        } catch (error) {
+                          alert('更新失败: ' + error.message)
+                        }
+                      }} className="flex-1 overflow-auto p-4 space-y-3">
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">DOI (不可编辑)</label>
+                          <input type="text" value={editFormData.doi} disabled className="w-full px-3 py-2 border rounded bg-gray-100" />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">中文标题</label>
+                          <input type="text" value={editFormData.title_cn || ''} onChange={(e) => setEditFormData({...editFormData, title_cn: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 mb-1">英文标题</label>
+                          <input type="text" value={editFormData.title_en || ''} onChange={(e) => setEditFormData({...editFormData, title_en: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">期刊</label>
+                            <input type="text" value={editFormData.journal || ''} onChange={(e) => setEditFormData({...editFormData, journal: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">出版日期</label>
+                            <input type="text" value={editFormData.pubdate || ''} onChange={(e) => setEditFormData({...editFormData, pubdate: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">第一作者</label>
+                            <input type="text" value={editFormData.first_author || ''} onChange={(e) => setEditFormData({...editFormData, first_author: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">通讯作者</label>
+                            <input type="text" value={editFormData.communication_author || ''} onChange={(e) => setEditFormData({...editFormData, communication_author: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-4">
+                          <button type="button" onClick={() => setEditingLiterature(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded flex-1">取消</button>
+                          <button type="submit" className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] flex-1">保存</button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
                 )}
               </div>
