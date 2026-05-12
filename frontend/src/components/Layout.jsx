@@ -61,7 +61,6 @@ function GlobalSearch({ isOpen, onClose }) {
         setLoading(false)
       }
     }
-    }
 
     const timer = setTimeout(search, 300)
     return () => clearTimeout(timer)
