@@ -5,7 +5,6 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
 dist/
 downloads/
 eggs/
@@ -39,16 +38,20 @@ env/
 *.sqlite
 *.sqlite3
 data/
+uploads/
 *.log
 
 # Frontend
 node_modules/
-dist/
 .DS_Store
 *.local
 .env
 .env.local
 .env.*.local
+
+# Build output
+frontend/dist/
+backend/static/
 
 # Testing
 coverage/
