@@ -19,8 +19,15 @@ from .structured import (
 from .learning import (
     WordCreate, WordUpdate, WordResponse,
     LongSentenceCreate, LongSentenceUpdate, LongSentenceResponse,
+    TranslationCardCreate, TranslationCardUpdate, TranslationCardResponse,
     WordListCreate, WordListUpdate, WordListResponse,
-    SentenceListCreate, SentenceListUpdate, SentenceListResponse
+    SentenceListCreate, SentenceListUpdate, SentenceListResponse,
+    StudySessionCreate, StudySessionResponse,
+    StudySettingsBase, StudySettingsUpdate, StudySettingsResponse,
+    QuestionOption, Question, QuestionResponse,
+    AnswerSubmit, AnswerResult, StudyStats,
+    SentenceTranslationSubmit, SentenceTranslationResult, SentenceDueResponse,
+    TranslationSubmit, TranslationResult, TranslationDueResponse
 )
 from .note import (
     GeneralNoteCreate, GeneralNoteUpdate, GeneralNoteResponse,
@@ -47,8 +54,15 @@ __all__ = [
     "StructuredNoteCreate", "StructuredNoteUpdate", "StructuredNoteResponse",
     "WordCreate", "WordUpdate", "WordResponse",
     "LongSentenceCreate", "LongSentenceUpdate", "LongSentenceResponse",
+    "TranslationCardCreate", "TranslationCardUpdate", "TranslationCardResponse",
     "WordListCreate", "WordListUpdate", "WordListResponse",
     "SentenceListCreate", "SentenceListUpdate", "SentenceListResponse",
+    "StudySessionCreate", "StudySessionResponse",
+    "StudySettingsBase", "StudySettingsUpdate", "StudySettingsResponse",
+    "QuestionOption", "Question", "QuestionResponse",
+    "AnswerSubmit", "AnswerResult", "StudyStats",
+    "SentenceTranslationSubmit", "SentenceTranslationResult", "SentenceDueResponse",
+    "TranslationSubmit", "TranslationResult", "TranslationDueResponse",
     "GeneralNoteCreate", "GeneralNoteUpdate", "GeneralNoteResponse",
     "NoteTemplateCreate", "NoteTemplateUpdate", "NoteTemplateResponse",
     "TagCreate", "TagUpdate", "TagResponse",

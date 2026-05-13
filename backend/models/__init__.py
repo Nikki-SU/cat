@@ -6,7 +6,7 @@ from .tracking import TrackingRecord
 from .card import LiteratureCard, CardPromptTemplate, CardTemplate
 from .attachment import LiteratureAttachment
 from .structured import StructuredLiterature, StructuredNote
-from .learning import Word, LongSentence, WordList, SentenceList
+from .learning import Word, LongSentence, TranslationCard, WordList, SentenceList, StudySession, StudySettings
 from .note import GeneralNote, NoteTemplate
 from .organization import Tag, Collection, CollectionItem, JournalGroup, KeywordGroup
 from .translation import TranslationCard
@@ -23,8 +23,11 @@ __all__ = [
     # 学习相关
     "Word",
     "LongSentence",
+    "TranslationCard",
     "WordList",
     "SentenceList",
+    "StudySession",
+    "StudySettings",
     # 笔记相关
     "GeneralNote",
     "NoteTemplate",
@@ -37,6 +40,4 @@ __all__ = [
     # 模板相关
     "CardPromptTemplate",
     "CardTemplate",
-    # 翻译相关
-    "TranslationCard",
 ]
