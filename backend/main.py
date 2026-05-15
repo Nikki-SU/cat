@@ -63,6 +63,8 @@ app.include_router(settings_router.router, prefix=settings.API_PREFIX)
 @app.get("/")
 async def root():
     """根路径"""
+    # Android/Chaquopy: static files are in the same directory as main.py
+    # Desktop: static files are in backend/static
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
@@ -80,12 +82,17 @@ def health():
     return {"status": "healthy"}
 
 
+# Mount static files - support both desktop and Android
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR, html=False), name="static")
 
 
 def startup_with_browser():
+    """Open browser on desktop (disabled on Android)"""
+    # Skip browser opening on Android
+    if os.getenv("CAT_NO_BROWSER"):
+        return
     import threading
     def open_browser():
         import time

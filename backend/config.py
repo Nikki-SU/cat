@@ -6,13 +6,22 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+def get_data_dir():
+    """Get data directory, supporting both desktop and Android environments"""
+    # Android/Chaquopy: data directory passed from PythonService
+    if os.getenv("CAT_DATA_DIR"):
+        return os.getenv("CAT_DATA_DIR")
+    # Desktop: use backend/data relative path
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+
 class Settings(BaseModel):
     """应用配置"""
     # API配置
     API_PREFIX: str = "/api/v1"
     
-    # 数据库配置
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./cat.db")
+    # 数据库配置 - 支持Android环境变量
+    DATABASE_URL: str = os.getenv("DATABASE_URL") or os.getenv("CAT_DB_URL") or "sqlite:///./cat.db"
     
     # CORS配置
     CORS_ORIGINS: list = ["*"]
@@ -26,9 +35,9 @@ class Settings(BaseModel):
     MINERU_MODEL_VERSION: str = os.getenv("MINERU_MODEL_VERSION", "vlm")  # pipeline/vlm
     MINERU_LANGUAGE: str = os.getenv("MINERU_LANGUAGE", "en")
     
-    # 文件存储配置
-    ATTACHMENTS_DIR: str = os.getenv("ATTACHMENTS_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "attachments"))
-    STRUCTURED_DIR: str = os.getenv("STRUCTURED_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "structured"))
+    # 文件存储配置 - 支持Android环境变量
+    ATTACHMENTS_DIR: str = os.getenv("ATTACHMENTS_DIR") or os.getenv("CAT_ATTACHMENTS_DIR") or os.path.join(get_data_dir(), "attachments")
+    STRUCTURED_DIR: str = os.getenv("STRUCTURED_DIR") or os.getenv("CAT_STRUCTURED_DIR") or os.path.join(get_data_dir(), "structured")
     
     # 文献追踪配置
     CROSSREF_EMAIL: str = os.getenv("CROSSREF_EMAIL", "cat@example.com")

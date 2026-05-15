@@ -31,6 +31,7 @@ env/
 *.swp
 *.swo
 *~
+*.iml
 
 # Backend
 *.db
@@ -63,3 +64,19 @@ htmlcov/
 *.tmp
 *.temp
 .cache/
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/cat/local.properties
+android/*.iml
+android/app/src/main/python/
+android/app/src/main/assets/
+android/gradle-app.setting
+
+# Keep Chaquopy requirements
+!android/app/chaquopy/requirements.txt
+
+# Local config for Android
+android/local.properties
