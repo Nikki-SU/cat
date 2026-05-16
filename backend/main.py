@@ -45,6 +45,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# API routes
 app.include_router(literature.router, prefix=settings.API_PREFIX)
 app.include_router(tracking.router, prefix=settings.API_PREFIX)
 app.include_router(card.router, prefix=settings.API_PREFIX)
@@ -60,13 +61,71 @@ app.include_router(backup.sync_router, prefix=settings.API_PREFIX)
 app.include_router(settings_router.router, prefix=settings.API_PREFIX)
 
 
+# Static files configuration
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
+
+# Serve root-level static files (cat.svg, manifest.json, sw.js, icons)
+@app.get("/cat.svg")
+async def cat_svg():
+    path = os.path.join(STATIC_DIR, "cat.svg")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/svg+xml")
+    return {"error": "not found"}, 404
+
+
+@app.get("/manifest.json")
+async def manifest():
+    path = os.path.join(STATIC_DIR, "manifest.json")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="application/json")
+    return {"error": "not found"}, 404
+
+
+@app.get("/sw.js")
+async def sw():
+    path = os.path.join(STATIC_DIR, "sw.js")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="application/javascript")
+    return {"error": "not found"}, 404
+
+
+@app.get("/icon-192.png")
+async def icon_192():
+    path = os.path.join(STATIC_DIR, "icon-192.png")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/png")
+    return {"error": "not found"}, 404
+
+
+@app.get("/icon-512.png")
+async def icon_512():
+    path = os.path.join(STATIC_DIR, "icon-512.png")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/png")
+    return {"error": "not found"}, 404
+
+
+# Mount assets directory at /assets/ (Vite build output)
+ASSETS_DIR = os.path.join(STATIC_DIR, "assets")
+if os.path.exists(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
+# Mount /static/ for any other static resources
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR, html=False), name="static")
+
+
+# Root route and SPA catch-all - must be LAST route
 @app.get("/")
 async def root():
-    """根路径"""
-    # Android/Chaquopy: static files are in the same directory as main.py
-    # Desktop: static files are in backend/static
-    static_dir = os.path.join(os.path.dirname(__file__), "static")
-    index_path = os.path.join(static_dir, "index.html")
+    """根路径 - serve index.html"""
+    index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {
@@ -77,15 +136,18 @@ async def root():
     }
 
 
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
-
-
-# Mount static files - support both desktop and Android
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR, html=False), name="static")
+@app.get("/{full_path:path}")
+async def spa_catchall(full_path: str):
+    """SPA catch-all: serve static file if exists, otherwise index.html"""
+    # Check if it's a static file that exists
+    file_path = os.path.join(STATIC_DIR, full_path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # SPA fallback: serve index.html for client-side routing
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"error": "not found"}, 404
 
 
 def startup_with_browser():
