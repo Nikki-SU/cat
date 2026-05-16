@@ -250,7 +250,7 @@ export const learningAPI = {
   getCurrentQuestion: (sessionId) => apiClient.get(`/learning/words/current-question/${sessionId}`),
   submitAnswer: (sessionId, wordId, selected) => 
     apiClient.post('/learning/words/answer', { session_id: sessionId, word_id: wordId, selected }),
-  nextQuestion: (sessionId) => apiClient.get(`/learning/words/next`, { params: { session_id: sessionId } }),
+  nextQuestion: (sessionId) => apiClient.get(`/learning/words/next/${sessionId}`),
   zhanWord: (wordId) => apiClient.post(`/learning/words/zhan/${wordId}`),
   getSession: (sessionId) => apiClient.get(`/learning/words/session/${sessionId}`),
   endSession: (sessionId) => apiClient.post(`/learning/words/end-session/${sessionId}`),

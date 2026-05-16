@@ -7,12 +7,11 @@ import json
 
 from sqlalchemy.orm import Session
 from models.literature import LiteratureEntry, LiteratureTableEntry
-from models.learning import Word, LongSentence, WordList, SentenceList
+from models.learning import Word, LongSentence, WordList, SentenceList, TranslationCard
 from models.note import GeneralNote, NoteTemplate
 from models.card import LiteratureCard
 from models.structured import StructuredLiterature, StructuredNote
 from models.organization import Tag, Collection, CollectionItem
-from models.translation import TranslationCard
 
 
 class SyncService:

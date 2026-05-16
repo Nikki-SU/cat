@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from models.translation import TranslationCard
+from models.learning import TranslationCard
 from schemas.translation import TranslationCardCreate, TranslationCardUpdate, TranslationCardResponse
 
 router = APIRouter(prefix="/translation", tags=["翻译"])

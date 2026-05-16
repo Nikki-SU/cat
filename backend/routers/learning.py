@@ -307,7 +307,7 @@ def submit_answer(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/words/next")
+@router.get("/words/next/{session_id}")
 def next_question(
     session_id: int,
     service: StudyService = Depends(get_study_service)
