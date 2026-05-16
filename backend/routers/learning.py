@@ -27,6 +27,22 @@ def get_study_service(db: Session = Depends(get_db)) -> StudyService:
     return StudyService(db)
 
 
+def get_settings_data(db: Session = Depends(get_db)) -> dict:
+    """获取学习设置的依赖函数"""
+    service = StudyService(db)
+    settings = service.get_or_create_settings()
+    return {
+        "id": settings.id,
+        "word_queue_length": settings.word_queue_length,
+        "allow_zhan": settings.allow_zhan,
+        "master_count": settings.master_count,
+        "question_types": settings.question_types if isinstance(settings.question_types, list) else [],
+        "voice_enabled": settings.voice_enabled,
+        "created_at": settings.created_at,
+        "updated_at": settings.updated_at
+    }
+
+
 # ========== 设置 API ==========
 
 @router.get("/settings", response_model=StudySettingsResponse)
@@ -240,7 +256,7 @@ def start_word_study(
     queue_length: int = 5,
     word_ids: Optional[List[int]] = None,
     service: StudyService = Depends(get_study_service),
-    settings: StudySettingsResponse = Depends(get_settings)
+    settings: dict = Depends(get_settings_data)
 ):
     """开始单词学习会话"""
     # 获取启用的题型
@@ -377,7 +393,7 @@ def get_due_sentences(
     sentences = service.get_due_sentences(limit)
     return [
         {
-            "sentence_id": s.id,
+            "id": s.id,
             "sentence_en": s.sentence_en,
             "sentence_cn": s.sentence_cn,
             "status": s.status,
@@ -528,7 +544,7 @@ def get_due_translations(
     cards = service.get_due_translations(limit)
     return [
         {
-            "card_id": c.id,
+            "id": c.id,
             "original_text": c.original_text,
             "doi": c.doi,
             "ai_score": c.ai_score,

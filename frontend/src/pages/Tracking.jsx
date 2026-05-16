@@ -132,7 +132,9 @@ function Tracking() {
 
     setIsAddingByDoi(true)
     try {
-      const result = await trackingAPI.addByDoi(doi, true)
+      // 获取当前日期
+      const today = new Date().toISOString().split('T')[0]
+      const result = await trackingAPI.addByDoi(doi, true, false, today)
       if (result.table_entry) {
         alert('文献添加成功！')
         setDoiDirectInput('')

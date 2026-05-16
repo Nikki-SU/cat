@@ -81,17 +81,23 @@ export const trackingAPI = {
   validateJournals: (journals) => apiClient.post('/tracking/validate-journals', journals),
   
   // CrossRef搜索
-  searchByDoi: (doi, translate) => apiClient.get(`/tracking/search/by-doi/${doi}`, { params: { translate } }),
-  searchByJournal: (journal, keywords = [], fromDate, untilDate) => 
+  searchByDoi: (doi, translateAbstract = false) => apiClient.get(`/tracking/search/by-doi/${doi}`, { params: { translate_abstract: translateAbstract } }),
+  searchByJournal: (journal, keywords = [], fromDate, untilDate, translateAbstract = false) => 
     apiClient.post(`/tracking/search/by-journal`, null, { params: { 
       journal_name: journal, 
-      keywords,
+      keywords: typeof keywords === 'string' ? keywords : JSON.stringify(keywords),
       from_date: fromDate,
-      until_date: untilDate
+      until_date: untilDate,
+      translate_abstract: translateAbstract
     }}),
   
   // DOI直接添加
-  addByDoi: (doi, translate) => apiClient.post('/tracking/add-by-doi', { doi, translate }),
+  addByDoi: (doi, translateTitle = true, translateAbstract = false, trackingDate) => apiClient.post('/tracking/add-by-doi', null, { params: { 
+      doi, 
+      translate_title: translateTitle,
+      translate_abstract: translateAbstract,
+      tracking_date: trackingDate
+    }}),
   
   // 导出
   exportRecords: (params) => apiClient.get('/tracking/export', { params }),
