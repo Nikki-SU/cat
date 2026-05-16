@@ -168,3 +168,38 @@ export const DATE_FORMATS = {
   long: 'YYYY-MM-DD HH:mm',
   full: 'YYYY-MM-DD HH:mm:ss'
 }
+
+// 显示语言选项
+export const DISPLAY_LANGUAGES = [
+  { key: 'both', name: '中英双语' },
+  { key: 'cn', name: '仅中文' },
+  { key: 'en', name: '仅英文' }
+]
+
+// 显示详情选项
+export const DISPLAY_DETAILS = [
+  { key: 'full', name: '完整显示' },
+  { key: 'minimal', name: '简洁模式' }
+]
+
+// 追踪间隔选项
+export const TRACKING_INTERVALS = [
+  { key: 'daily', name: '每日', days: 1 },
+  { key: 'weekly', name: '每周', days: 7 },
+  { key: 'biweekly', name: '两周一次', days: 14 },
+  { key: 'monthly', name: '每月', days: 30 }
+]
+
+// 单词队列长度选项
+export const WORD_QUEUE_LENGTHS = [
+  { key: 5, name: '5个' },
+  { key: 7, name: '7个' },
+  { key: 9, name: '9个' },
+  { key: 10, name: '10个' }
+]
+
+// 跳转模式
+export const JUMP_MODES = [
+  { key: 'auto', name: '自动下一题' },
+  { key: 'manual', name: '手动确认' }
+]

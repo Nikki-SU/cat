@@ -220,7 +220,6 @@ function Manage({ defaultTab = 'tracking' }) {
       collection: '确定要删除这个合集吗？',
       collectionItem: '确定要从合集中移除这条记录吗？',
       attachment: '确定要删除这个附件吗？',
-      attachment: '确定要删除这个附件吗？',
     }
     if (!confirm(messages[type] || '确定要删除吗？')) return
     
@@ -257,10 +256,6 @@ function Manage({ defaultTab = 'tracking' }) {
         case 'collectionItem':
           await organizationAPI.removeItemFromCollection(selectedCollection.id, id)
           setCollectionItems(prev => prev.filter(i => i.id !== id))
-          break
-        case 'attachment':
-          await attachmentAPI.delete(id)
-          setAttachments(prev => prev.filter(a => a.id !== id))
           break
         case 'attachment':
           await attachmentAPI.delete(id)
@@ -843,7 +838,7 @@ function Manage({ defaultTab = 'tracking' }) {
             </div>
           </div>
         </div>
-      )
+      )}
                 
                 {/* 编辑弹窗 */}
                 {editingLiterature && (
@@ -960,7 +955,6 @@ function Manage({ defaultTab = 'tracking' }) {
                     </div>
                   </div>
                 )}
-}
 
       {/* 合集创建弹窗 */}
       {showCollectionModal && (

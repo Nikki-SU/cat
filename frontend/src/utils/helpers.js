@@ -10,7 +10,7 @@ import { ANKI_INTERVALS } from './constants'
  */
 export function calculateNextReview(stage) {
   if (stage >= ANKI_INTERVALS.length) {
-    return null // 已掌握，无需复习
+    return null
   }
   const days = ANKI_INTERVALS[stage]
   const next = new Date()
@@ -175,15 +175,13 @@ export function createBlankSentence(sentence, word) {
  * 高亮文本中的关键词
  * @param {string} text - 原始文本
  * @param {string} keyword - 关键词
- * @returns {React.ReactNode} 高亮后的文本
+ * @returns {string} 高亮后的HTML字符串
  */
 export function highlightKeyword(text, keyword) {
   if (!text || !keyword) return text
-  const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
-  const parts = text.split(regex)
-  return parts.map((part, i) => 
-    regex.test(part) ? <mark key={i} className="bg-yellow-200">{part}</mark> : part
-  )
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${escaped})`, 'gi')
+  return text.replace(regex, '<mark class="bg-yellow-200">$1</mark>')
 }
 
 /**
@@ -245,6 +243,22 @@ export function generateUUID() {
 }
 
 /**
+ * 检测是否为移动设备
+ * @returns {boolean} 是否为移动设备
+ */
+export function isMobile() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+}
+
+/**
+ * 检测是否为竖屏模式
+ * @returns {boolean} 是否为竖屏
+ */
+export function isPortrait() {
+  return window.innerHeight > window.innerWidth
+}
+
+/**
  * 朗读文本
  * @param {string} text - 要朗读的文本
  * @param {string} lang - 语言代码，默认 en-US
@@ -256,4 +270,22 @@ export function speakText(text, lang = 'en-US') {
   utterance.rate = 0.8
   utterance.pitch = 1
   speechSynthesis.speak(utterance)
+}
+
+/**
+ * 下载文件
+ * @param {string} content - 文件内容
+ * @param {string} filename - 文件名
+ * @param {string} mimeType - MIME类型
+ */
+export function downloadFile(content, filename, mimeType = 'text/plain') {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }

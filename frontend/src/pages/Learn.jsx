@@ -485,8 +485,8 @@ function Learn() {
                   <label className="block text-sm text-gray-600 mb-2">题型选择</label>
                   <div className="flex flex-wrap gap-2">
                     {QUESTION_TYPES.map(t => (
-                      <label key={t.key} className="flex items-center gap-1 px-3 py-1 rounded border cursor-pointer"
-                        className={`px-3 py-1 rounded border cursor-pointer ${settings.question_types?.includes(t.key) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200'}`}
+                      <label key={t.key}
+                        className={`px-3 py-1 rounded border cursor-pointer flex items-center gap-1 ${settings.question_types?.includes(t.key) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200'}`}
                       >
                         <input
                           type="checkbox"
