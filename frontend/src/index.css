@@ -42,6 +42,25 @@ body {
   body {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  
+  /* 增大移动端按钮和链接触摸区域 - Apple HIG建议最小44px */
+  button,
+  a.btn,
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* 输入框最小触摸高度 */
+  input[type="text"],
+  input[type="search"],
+  input[type="url"],
+  input[type="email"],
+  input[type="password"],
+  select,
+  textarea {
+    min-height: 44px;
+  }
 }
 
 /* 滚动条样式 */

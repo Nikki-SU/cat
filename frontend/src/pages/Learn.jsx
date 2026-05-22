@@ -779,7 +779,7 @@ function Learn() {
           <button
             onClick={startSentenceLearning}
             disabled={sentenceStats.total === 0}
-            className="w-full py-6 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="w-full py-4 sm:py-6 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <span className="block text-xl">📖 开始长难句学习</span>
             <span className="text-sm opacity-80">
@@ -905,7 +905,7 @@ function Learn() {
           <button
             onClick={startTranslation}
             disabled={translationStats.total === 0}
-            className="w-full py-6 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="w-full py-4 sm:py-6 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <span className="block text-xl">🔄 开始翻译练习</span>
             <span className="text-sm opacity-80">

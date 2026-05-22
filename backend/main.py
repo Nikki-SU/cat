@@ -167,4 +167,4 @@ if __name__ == "__main__":
     if "--no-browser" not in sys.argv:
         startup_with_browser()
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=7860, reload=False)
