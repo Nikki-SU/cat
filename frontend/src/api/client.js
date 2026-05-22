@@ -439,3 +439,27 @@ export const translationAPI = {
 }
 
 export default apiClient
+
+// ==================== 同步 V2 API (Phase 1 去中心化同步) ====================
+export const syncV2API = {
+  // 设备发现
+  discover: () => apiClient.get('/sync/discover'),
+  
+  // Hub信息
+  getHubInfo: () => apiClient.get('/sync/hub-info'),
+  
+  // 设备管理
+  getDevices: () => apiClient.get('/sync/devices'),
+  register: (data) => apiClient.post('/sync/register', data),
+  unregister: (deviceId) => apiClient.delete(`/sync/devices/${deviceId}`),
+  
+  // 同步操作
+  push: (deviceId, changes) => apiClient.post('/sync/push', { device_id: deviceId, changes }),
+  pull: (deviceId, sinceLogId) => apiClient.post('/sync/pull', { device_id: deviceId, since_log_id: sinceLogId }),
+  
+  // 状态
+  getStatus: () => apiClient.get('/sync/status'),
+  
+  // 角色切换
+  switchRole: (role) => apiClient.post('/sync/switch-role', { role }),
+}

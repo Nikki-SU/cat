@@ -3,7 +3,7 @@
  */
 import { useState, useEffect } from 'react'
 import useAppStore from '../stores/useAppStore'
-import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI, settingsAPI } from '../api/client'
+import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI, syncV2API, settingsAPI } from '../api/client'
 import { 
   DISPLAY_LANGUAGES, 
   DISPLAY_DETAILS, 
@@ -13,6 +13,7 @@ import {
   EXPORT_FORMATS,
 } from '../utils/constants'
 import { downloadFile, formatDate } from '../utils/helpers'
+import { syncManager } from '../utils/syncWorker'
 import { SENTENCE_COLOR_SCHEMES } from '../stores/useDeepReadStore'
 
 // AI提供商配置
@@ -73,13 +74,124 @@ function Settings() {
   const [syncInterval, setSyncInterval] = useState(Number(localStorage.getItem('syncInterval') || 300))
   const [syncServer, setSyncServer] = useState(localStorage.getItem('syncServer') || '')
   const [syncing, setSyncing] = useState(false)
+  
+  // Phase 1 同步V2状态
+  const [syncV2Status, setSyncV2Status] = useState(null)
+  const [syncV2Devices, setSyncV2Devices] = useState([])
+  const [discoveredHubs, setDiscoveredHubs] = useState([])
+  const [isDiscovering, setIsDiscovering] = useState(false)
+  const [isSyncingV2, setIsSyncingV2] = useState(false)
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(localStorage.getItem('autoSync') !== 'false')
 
   useEffect(() => {
     fetchJournalGroups()
     fetchKeywordGroups()
     fetchBackups()
-    fetchSyncStatus()
+    fetchSyncV2Status()
   }, [])
+
+  // Phase 1 同步V2函数
+  const fetchSyncV2Status = async () => {
+    try {
+      const status = await syncV2API.getStatus()
+      setSyncV2Status(status)
+      
+      if (status.role === 'hub') {
+        const devices = await syncV2API.getDevices()
+        setSyncV2Devices(devices || [])
+      }
+    } catch (error) {
+      console.error('Failed to fetch sync V2 status:', error)
+    }
+  }
+
+  const handleDiscoverHubs = async () => {
+    setIsDiscovering(true)
+    setDiscoveredHubs([])
+    try {
+      const hubs = await syncV2API.discover()
+      setDiscoveredHubs(hubs || [])
+    } catch (error) {
+      console.error('Failed to discover hubs:', error)
+    } finally {
+      setIsDiscovering(false)
+    }
+  }
+
+  const handleConnectToHub = async (hub) => {
+    try {
+      await syncV2API.register({
+        device_id: hub.device_id,
+        device_name: hub.device_name,
+        device_type: 'desktop',
+        hub_url: `http://${hub.host}:${hub.port}`
+      })
+      alert('已连接到Hub')
+      fetchSyncV2Status()
+    } catch (error) {
+      alert('连接失败: ' + error.message)
+    }
+  }
+
+  const handleRemoveDevice = async (deviceId) => {
+    if (!confirm('确定移除该设备？')) return
+    try {
+      await syncV2API.unregister(deviceId)
+      fetchSyncV2Status()
+    } catch (error) {
+      console.error('Failed to remove device:', error)
+    }
+  }
+
+  const handleSwitchRole = async (newRole) => {
+    const msg = newRole === 'hub' 
+      ? '切换为Hub模式后，本设备将作为数据主机，其他设备可连接同步。确定切换？'
+      : '切换为Leaf模式后，本设备将从主机同步数据。确定切换？'
+    if (!confirm(msg)) return
+    
+    try {
+      await syncV2API.switchRole(newRole)
+      alert('角色切换成功')
+      fetchSyncV2Status()
+    } catch (error) {
+      alert('角色切换失败: ' + error.message)
+    }
+  }
+
+  const handleManualSyncV2 = async () => {
+    setIsSyncingV2(true)
+    try {
+      await syncManager.doSync()
+      fetchSyncV2Status()
+      alert('同步完成')
+    } catch (error) {
+      alert('同步失败: ' + error.message)
+    } finally {
+      setIsSyncingV2(false)
+    }
+  }
+
+  const handleToggleAutoSync = (enabled) => {
+    setAutoSyncEnabled(enabled)
+    syncManager.setAutoSync(enabled)
+    if (enabled) {
+      syncManager.start()
+    } else {
+      syncManager.stop()
+    }
+  }
+
+  // 根据设备类型获取图标
+  const getDeviceTypeIcon = (type) => {
+    const icons = { desktop: '💻', mobile: '📱', tablet: '📟' }
+    return icons[type] || '💻'
+  }
+
+  // 获取设备类型名称
+  const getDeviceTypeName = (type) => {
+    const names = { desktop: '电脑', mobile: '手机', tablet: '平板' }
+    return names[type] || '未知'
+  }
 
   // AI配置保存
   const handleSaveAiConfig = async () => {
