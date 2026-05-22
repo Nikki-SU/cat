@@ -3,7 +3,7 @@
  */
 import { useState, useEffect } from 'react'
 import useAppStore from '../stores/useAppStore'
-import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI, syncV2API, settingsAPI } from '../api/client'
+import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI, syncV2API, settingsAPI, pairingAPI } from '../api/client'
 import { 
   DISPLAY_LANGUAGES, 
   DISPLAY_DETAILS, 
@@ -14,6 +14,7 @@ import {
 } from '../utils/constants'
 import { downloadFile, formatDate } from '../utils/helpers'
 import { syncManager } from '../utils/syncWorker'
+import PairingModal from '../components/PairingModal'
 import { SENTENCE_COLOR_SCHEMES } from '../stores/useDeepReadStore'
 
 // AI提供商配置
@@ -76,6 +77,12 @@ function Settings() {
   const [syncing, setSyncing] = useState(false)
   
   // Phase 1 同步V2状态
+// Phase 2 配对状态
+  const [showPairingModal, setShowPairingModal] = useState(false)
+  const [pairingMode, setPairingMode] = useState('hub')  // 'hub' or 'leaf'
+  const [relayUrl, setRelayUrl] = useState(localStorage.getItem('relayUrl') || '')
+  const [relayStatus, setRelayStatus] = useState(null)
+  const [showRelayConfig, setShowRelayConfig] = useState(false)
   const [syncV2Status, setSyncV2Status] = useState(null)
   const [syncV2Devices, setSyncV2Devices] = useState([])
   const [discoveredHubs, setDiscoveredHubs] = useState([])
@@ -83,11 +90,22 @@ function Settings() {
   const [isSyncingV2, setIsSyncingV2] = useState(false)
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(localStorage.getItem('autoSync') !== 'false')
 
+  // Phase 2: 获取中继状态
+  const fetchRelayStatus = async () => {
+    try {
+      const status = await pairingAPI.getRelayStatus()
+      setRelayStatus(status)
+    } catch (error) {
+      console.error('Failed to fetch relay status:', error)
+    }
+  }
+
   useEffect(() => {
     fetchJournalGroups()
     fetchKeywordGroups()
     fetchBackups()
     fetchSyncV2Status()
+    fetchRelayStatus()
   }, [])
 
   // Phase 1 同步V2函数
@@ -1010,6 +1028,116 @@ function Settings() {
               )}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Phase 2: 配对码同步 (跨网络) */}
+      <section className="bg-white rounded-xl p-4 shadow">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">🔗 配对码同步</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          通过配对码实现跨网络设备同步，无需在同一局域网内。
+        </p>
+        
+        <div className="space-y-4">
+          {/* 中继服务器配置 */}
+          <div className="border-b pb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-medium">中继服务器</h3>
+              <button 
+                onClick={() => setShowRelayConfig(!showRelayConfig)}
+                className="text-sm text-blue-500"
+              >
+                {showRelayConfig ? '收起' : '配置'}
+              </button>
+            </div>
+            
+            {showRelayConfig && (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={relayUrl}
+                  onChange={(e) => setRelayUrl(e.target.value)}
+                  placeholder="https://your-relay.workers.dev"
+                  className="w-full px-3 py-2 border rounded text-sm"
+                />
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleConfigureRelay}
+                    className="px-4 py-2 bg-blue-500 text-white rounded text-sm"
+                  >
+                    保存
+                  </button>
+                  <button 
+                    onClick={handleTestRelay}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm"
+                  >
+                    测试连接
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {relayStatus && (
+              <div className="text-xs text-gray-500 mt-2">
+                状态: {relayStatus.configured ? '已配置' : '未配置'} | 
+                {relayStatus.connected ? '已连接' : '未连接'}
+                {relayStatus.relay_url && ` | ${relayStatus.relay_url}`}
+              </div>
+            )}
+          </div>
+          
+          {/* 配对操作 */}
+          <div>
+            <h3 className="font-medium mb-2">设备配对</h3>
+            <div className="flex gap-2">
+              {syncV2Status?.role === 'hub' ? (
+                <button 
+                  onClick={() => openPairingModal('hub')}
+                  className="px-4 py-2 bg-blue-500 text-white rounded text-sm"
+                >
+                  📱 添加设备
+                </button>
+              ) : (
+                <button 
+                  onClick={() => openPairingModal('leaf')}
+                  className="px-4 py-2 bg-green-500 text-white rounded text-sm"
+                >
+                  🔗 连接Hub
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              {syncV2Status?.role === 'hub' 
+                ? '点击生成配对码，让其他设备扫码或输入配对码连接' 
+                : '点击输入Hub上的配对码进行连接'}
+            </p>
+          </div>
+          
+          {/* 已配对设备 */}
+          {syncV2Status?.role === 'hub' && syncV2Devices?.length > 0 && (
+            <div>
+              <h3 className="font-medium mb-2">已连接设备</h3>
+              <div className="space-y-2">
+                {syncV2Devices.map((device) => (
+                  <div key={device.device_id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div className="flex items-center gap-2">
+                      <span>{getDeviceTypeIcon(device.device_type)}</span>
+                      <span className="text-sm">{device.device_name}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${device.is_online ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                        {device.is_online ? '在线' : '离线'}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => handleRemoveDevice(device.device_id)}
+                      className="text-red-500 text-sm hover:text-red-600"
+                    >
+                      移除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

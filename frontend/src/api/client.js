@@ -463,3 +463,24 @@ export const syncV2API = {
   // 角色切换
   switchRole: (role) => apiClient.post('/sync/switch-role', { role }),
 }
+
+// ==================== 配对码 API (Phase 2 跨网络配对) ====================
+export const pairingAPI = {
+  // Hub生成配对码
+  generateCode: () => apiClient.post('/pairing/generate'),
+  
+  // Leaf验证配对码
+  verifyCode: (code) => apiClient.post(`/pairing/verify?code=${code}`),
+  
+  // Leaf使用配对码连接Hub
+  connectWithCode: (code, leafInfo) => apiClient.post(`/pairing/connect?code=${code}`, leafInfo),
+  
+  // 配置中继服务器
+  configureRelay: (url) => apiClient.post(`/pairing/relay-configure?url=${encodeURIComponent(url)}`),
+  
+  // 获取中继状态
+  getRelayStatus: () => apiClient.get('/pairing/relay-status'),
+  
+  // 建立中继连接
+  relayConnect: () => apiClient.post('/pairing/relay-connect'),
+}
