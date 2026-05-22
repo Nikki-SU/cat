@@ -1,21 +1,66 @@
 @echo off
 chcp 65001 >nul
-echo ===============================================================
-echo    Cat - 构建前端静态文件
-echo ===============================================================
-cd /d "%~dp0"
-echo 步骤1/3: 安装前端依赖...
-cd frontend
-if not exist "node_modules" call npm install --registry=https://registry.npmmirror.com
+echo ========================================
+echo   Cat - Build Desktop Version
+echo ========================================
 echo.
-echo 步骤2/3: 构建前端...
+
+py --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Python not found
+    pause
+    exit /b 1
+)
+
+node --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js not found
+    pause
+    exit /b 1
+)
+
+echo [1/5] Install backend deps...
+cd backend
+pip install pyinstaller -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+if errorlevel 1 (
+    echo [ERROR] Backend deps failed
+    pause
+    exit /b 1
+)
+
+echo.
+echo [2/5] Build frontend...
+cd ..\frontend
+call npm install --registry=https://registry.npmirror.com
+if errorlevel 1 (
+    echo [ERROR] Frontend install failed
+    pause
+    exit /b 1
+)
 call npm run build
-if not exist "dist" (echo 错误! & pause & exit /b 1)
+if errorlevel 1 (
+    echo [ERROR] Frontend build failed
+    pause
+    exit /b 1
+)
+
 echo.
-echo 步骤3/3: 复制静态文件到后端...
-cd /d "%~dp0"
-if exist "backend\static" rmdir /s /q "backend\static"
-xcopy /s /e /i /y "frontend\dist" "backend\static"
+echo [3/5] Copy frontend dist...
+xcopy /E /Y /Q dist ..\backend\static
+
 echo.
-echo 构建完成! 访问 http://localhost:8000
+echo [4/5] PyInstaller packaging...
+cd ..\
+pyinstaller cat.spec --clean --noconfirm
+if errorlevel 1 (
+    echo [ERROR] PyInstaller failed
+    pause
+    exit /b 1
+)
+
+echo.
+echo [5/5] Done!
+echo   Output: dist\Cat.exe
+echo   Data: %APPDATA%\Cat\
 pause

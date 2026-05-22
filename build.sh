@@ -1,27 +1,39 @@
 #!/bin/bash
-echo "=============================================================="
-echo "  Cat - 构建前端静态文件"
-echo "=============================================================="
-echo ""
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
-if ! command -v node &> /dev/null; then
-    echo "错误: 未找到Node.js"
+# Cat - Build Desktop Version (Linux/Mac)
+set -e
+
+echo "========================================="
+echo "  Cat - Build Desktop Version"
+echo "========================================"
+
+# Check Python
+if ! command -v python3 &>/dev/null; then
+    echo "[ERROR] Python3 not found"
     exit 1
 fi
-echo "步骤1/3: 安装前端依赖..."
-cd frontend
-[ ! -d "node_modules" ] && npm install --registry=https://registry.npmmirror.com || echo "跳过..."
-echo ""
-echo "步骤2/3: 构建前端..."
+
+# Check Node
+if ! command -v node &>/dev/null; then
+    echo "[ERROR] Node.js not found"
+    exit 1
+fi
+
+echo "[1/5] Install backend deps..."
+cd backend
+pip3 install pyinstaller
+pip3 install -r requirements.txt
+
+echo "[2/5] Build frontend..."
+cd ../frontend
+npm install
 npm run build
-[ ! -d "dist" ] && exit 1
-echo ""
-echo "步骤3/3: 复制静态文件到后端..."
-cd "$SCRIPT_DIR"
-rm -rf backend/static 2>/dev/null
-cp -r frontend/dist backend/static
-echo ""
-echo "=============================================================="
-echo "  构建完成！访问 http://localhost:8000"
-echo "=============================================================="
+
+echo "[3/5] Copy frontend dist..."
+cp -r dist/* ../backend/static/
+
+echo [4/5] PyInstaller packaging...
+cd ..
+pyinstaller cat.spec --clean --noconfirm
+
+echo [5/5] Done!
+echo "  Output: dist/Cat"

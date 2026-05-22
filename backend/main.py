@@ -116,7 +116,7 @@ app.include_router(pairing.router, prefix=settings.API_PREFIX)
 
 
 # Static files configuration
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+STATIC_DIR = os.getenv("CAT_STATIC_DIR") or os.path.join(os.path.dirname(__file__), "static")
 
 # 笔记图片目录 - 支持上传后直接通过 URL 访问
 NOTE_IMAGES_DIR = os.path.join(
@@ -221,7 +221,7 @@ def startup_with_browser():
     def open_browser():
         import time
         time.sleep(1.5)
-        webbrowser.open("http://localhost:8000")
+        webbrowser.open("http://localhost:7860")
     threading.Thread(target=open_browser, daemon=True).start()
 
 
