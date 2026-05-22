@@ -52,5 +52,11 @@ def get_db():
 
 def init_db():
     """初始化数据库 - 创建所有表"""
-    from models import literature, tracking, card, attachment, structured, learning, note, organization, translation
+    from models import literature, tracking, card, attachment, structured, learning, note, organization, translation, sync
     Base.metadata.create_all(bind=engine)
+
+
+def setup_change_tracking():
+    """设置变更追踪（需要在SessionLocal创建后调用）"""
+    from services.change_tracker import setup_change_tracking
+    setup_change_tracking(SessionLocal)

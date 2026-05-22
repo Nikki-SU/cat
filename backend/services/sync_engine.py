@@ -1,0 +1,405 @@
+"""
+同步引擎核心 - Hub/Leaf去中心化同步
+"""
+import json
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import and_
+
+from models.sync import Device, SyncLog, SyncState
+from models.literature import LiteratureEntry, LiteratureTableEntry
+from models.learning import Word, LongSentence, WordList, SentenceList, TranslationCard
+from models.note import GeneralNote, NoteTemplate
+from models.card import LiteratureCard
+from models.structured import StructuredLiterature, StructuredNote
+from models.organization import Tag, Collection, CollectionItem
+from services.change_tracker import SyncIgnoreContext, set_current_device_id
+
+
+# 表名到模型的映射
+TABLE_MODELS = {
+    "literature_entries": LiteratureEntry,
+    "literature_table_entries": LiteratureTableEntry,
+    "words": Word,
+    "long_sentences": LongSentence,
+    "word_lists": WordList,
+    "sentence_lists": SentenceList,
+    "general_notes": GeneralNote,
+    "note_templates": NoteTemplate,
+    "literature_cards": LiteratureCard,
+    "structured_literature": StructuredLiterature,
+    "structured_notes": StructuredNote,
+    "tags": Tag,
+    "collections": Collection,
+    "collection_items": CollectionItem,
+    "translation_cards": TranslationCard,
+}
+
+
+class SyncEngine:
+    """同步引擎 - 处理Hub和Leaf之间的数据同步"""
+    
+    def __init__(self, db: Session, device_id: str):
+        self.db = db
+        self.device_id = device_id
+    
+    def track_change(
+        self,
+        table_name: str,
+        operation: str,
+        record_pk: str,
+        record_data: Optional[str] = None
+    ) -> SyncLog:
+        """
+        记录变更日志（通常由change_tracker自动调用）
+        """
+        log_entry = SyncLog(
+            device_id=self.device_id,
+            table_name=table_name,
+            operation=operation,
+            record_pk=record_pk,
+            record_data=record_data,
+            synced=False
+        )
+        self.db.add(log_entry)
+        self.db.commit()
+        return log_entry
+    
+    def push_changes(self, changes: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Leaf向Hub推送变更
+        Hub应用变更到主数据库，记录到Hub的sync_log
+        
+        Args:
+            changes: 变更列表
+            
+        Returns:
+            处理结果
+        """
+        result = {
+            "success": True,
+            "processed": 0,
+            "errors": []
+        }
+        
+        for change in changes:
+            try:
+                self._apply_change(change, is_remote=True)
+                result["processed"] += 1
+            except Exception as e:
+                result["errors"].append({
+                    "table": change.get("table_name"),
+                    "pk": change.get("record_pk"),
+                    "error": str(e)
+                })
+                result["success"] = False
+        
+        self.db.commit()
+        return result
+    
+    def pull_changes(self, since_log_id: int = 0) -> Dict[str, Any]:
+        """
+        Leaf从Hub拉取变更
+        
+        Args:
+            since_log_id: 从哪个日志ID之后开始拉取
+            
+        Returns:
+            变更列表和最新日志ID
+        """
+        # 获取since_log_id之后的所有日志
+        logs = self.db.query(SyncLog).filter(
+            SyncLog.id > since_log_id
+        ).order_by(SyncLog.id.asc()).limit(1000).all()
+        
+        changes = []
+        for log in logs:
+            changes.append({
+                "id": log.id,
+                "device_id": log.device_id,
+                "table_name": log.table_name,
+                "operation": log.operation,
+                "record_pk": log.record_pk,
+                "record_data": log.record_data,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None
+            })
+        
+        # 获取最新的日志ID
+        latest_log = self.db.query(SyncLog).order_by(SyncLog.id.desc()).first()
+        latest_log_id = latest_log.id if latest_log else since_log_id
+        
+        return {
+            "changes": changes,
+            "latest_log_id": latest_log_id,
+            "has_more": len(changes) == 1000
+        }
+    
+    def apply_changes(self, changes: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        将拉取的变更应用到本地数据库
+        
+        Args:
+            changes: 从Hub拉取的变更列表
+            
+        Returns:
+            应用结果
+        """
+        result = {
+            "success": True,
+            "applied": 0,
+            "skipped": 0,
+            "errors": []
+        }
+        
+        for change in changes:
+            try:
+                applied = self._apply_change(change, is_remote=True)
+                if applied:
+                    result["applied"] += 1
+                else:
+                    result["skipped"] += 1
+            except Exception as e:
+                result["errors"].append({
+                    "table": change.get("table_name"),
+                    "pk": change.get("record_pk"),
+                    "error": str(e)
+                })
+        
+        self.db.commit()
+        return result
+    
+    def _apply_change(
+        self,
+        change: Dict[str, Any],
+        is_remote: bool = False
+    ) -> bool:
+        """
+        应用单条变更
+        
+        Args:
+            change: 变更数据
+            is_remote: 是否是远程变更（会进行冲突检测）
+            
+        Returns:
+            是否成功应用
+        """
+        table_name = change.get("table_name")
+        operation = change.get("operation")
+        record_pk = change.get("record_pk")
+        record_data_str = change.get("record_data")
+        change_timestamp = change.get("timestamp")
+        
+        model = TABLE_MODELS.get(table_name)
+        if not model:
+            return False
+        
+        # 解析record_data
+        record_data = None
+        if record_data_str:
+            try:
+                record_data = json.loads(record_data_str)
+            except json.JSONDecodeError:
+                return False
+        
+        # 获取主键列
+        pk_columns = [col for col in model.__table__.columns if col.primary_key]
+        if not pk_columns:
+            return False
+        
+        # 解析主键值
+        try:
+            if len(pk_columns) == 1:
+                pk_value = record_pk
+                pk_filter = (getattr(model, pk_columns[0].name) == pk_value)
+            else:
+                pk_dict = json.loads(record_pk)
+                pk_filter = and_(*[
+                    getattr(model, col.name) == pk_dict.get(col.name)
+                    for col in pk_columns
+                ])
+        except (json.JSONDecodeError, KeyError):
+            return False
+        
+        # 在SyncIgnoreContext中执行，避免触发新的变更日志
+        with SyncIgnoreContext(self.device_id):
+            if operation == "INSERT":
+                return self._apply_insert(model, pk_filter, record_data, change_timestamp)
+            elif operation == "UPDATE":
+                return self._apply_update(model, pk_filter, record_data, change_timestamp)
+            elif operation == "DELETE":
+                return self._apply_delete(model, pk_filter)
+        
+        return False
+    
+    def _apply_insert(
+        self,
+        model,
+        pk_filter,
+        record_data: Optional[Dict],
+        change_timestamp: Optional[str]
+    ) -> bool:
+        """应用INSERT操作"""
+        if record_data is None:
+            return False
+        
+        # 检查是否已存在
+        existing = self.db.query(model).filter(pk_filter).first()
+        if existing:
+            # 已存在，跳过（可能已被其他设备创建）
+            return False
+        
+        # 创建新记录
+        try:
+            # 移除主键，让数据库自动生成
+            if 'id' in record_data:
+                del record_data['id']
+            
+            new_record = model(**record_data)
+            self.db.add(new_record)
+            return True
+        except Exception as e:
+            print(f"Insert error: {e}")
+            return False
+    
+    def _apply_update(
+        self,
+        model,
+        pk_filter,
+        record_data: Optional[Dict],
+        change_timestamp: Optional[str]
+    ) -> bool:
+        """应用UPDATE操作"""
+        if record_data is None:
+            return False
+        
+        existing = self.db.query(model).filter(pk_filter).first()
+        if not existing:
+            # 不存在，尝试插入
+            return self._apply_insert(model, pk_filter, record_data, change_timestamp)
+        
+        # 检查时间戳冲突（Last-Write-Wins）
+        if change_timestamp:
+            try:
+                remote_time = datetime.fromisoformat(change_timestamp.replace('Z', '+00:00'))
+                if hasattr(existing, 'updated_at') and existing.updated_at:
+                    local_time = existing.updated_at
+                    # 如果本地时间更新，跳过
+                    if local_time > remote_time:
+                        return False
+            except (ValueError, TypeError):
+                pass
+        
+        # 更新记录
+        try:
+            for key, value in record_data.items():
+                if key != 'id' and hasattr(existing, key):
+                    setattr(existing, key, value)
+            if hasattr(existing, 'updated_at'):
+                existing.updated_at = datetime.utcnow()
+            return True
+        except Exception as e:
+            print(f"Update error: {e}")
+            return False
+    
+    def _apply_delete(self, model, pk_filter) -> bool:
+        """应用DELETE操作"""
+        existing = self.db.query(model).filter(pk_filter).first()
+        if not existing:
+            # 不存在，跳过
+            return False
+        
+        try:
+            self.db.delete(existing)
+            return True
+        except Exception as e:
+            print(f"Delete error: {e}")
+            return False
+    
+    def resolve_conflict(
+        self,
+        local_data: Optional[Dict],
+        remote_data: Optional[Dict]
+    ) -> str:
+        """
+        Last-Write-Wins冲突解决
+        
+        Args:
+            local_data: 本地数据
+            remote_data: 远程数据
+            
+        Returns:
+            赢的数据："local" 或 "remote"
+        """
+        if not local_data:
+            return "remote"
+        if not remote_data:
+            return "local"
+        
+        local_time = local_data.get("updated_at")
+        remote_time = remote_data.get("updated_at")
+        
+        if not local_time or not remote_time:
+            return "remote"  # 默认使用远程数据
+        
+        try:
+            local_dt = datetime.fromisoformat(local_time.replace('Z', '+00:00'))
+            remote_dt = datetime.fromisoformat(remote_time.replace('Z', '+00:00'))
+            return "remote" if remote_dt > local_dt else "local"
+        except (ValueError, TypeError):
+            return "remote"
+    
+    def get_sync_status(self) -> Dict[str, Any]:
+        """获取同步状态"""
+        # 获取同步状态记录
+        state = self.db.query(SyncState).filter(
+            SyncState.device_id == self.device_id
+        ).first()
+        
+        # 获取未同步的日志数量
+        unsynced_count = self.db.query(SyncLog).filter(
+            SyncLog.device_id == self.device_id,
+            SyncLog.synced == False
+        ).count()
+        
+        # 获取总日志数
+        total_logs = self.db.query(SyncLog).count()
+        
+        return {
+            "device_id": self.device_id,
+            "last_sync_log_id": state.last_sync_log_id if state else 0,
+            "last_sync_time": state.last_sync_time.isoformat() if state and state.last_sync_time else None,
+            "unsynced_changes": unsynced_count,
+            "total_logs": total_logs
+        }
+    
+    def update_sync_state(self, last_log_id: int):
+        """更新同步状态"""
+        state = self.db.query(SyncState).filter(
+            SyncState.device_id == self.device_id
+        ).first()
+        
+        if state:
+            state.last_sync_log_id = last_log_id
+            state.last_sync_time = datetime.utcnow()
+        else:
+            state = SyncState(
+                device_id=self.device_id,
+                last_sync_log_id=last_log_id,
+                last_sync_time=datetime.utcnow()
+            )
+            self.db.add(state)
+        
+        self.db.commit()
+    
+    def mark_logs_synced(self, log_ids: List[int]):
+        """标记日志为已同步"""
+        self.db.query(SyncLog).filter(
+            SyncLog.id.in_(log_ids)
+        ).update({SyncLog.synced: True}, synchronize_session=False)
+        self.db.commit()
+
+
+def create_sync_engine(db: Session, device_id: str) -> SyncEngine:
+    """创建同步引擎实例"""
+    return SyncEngine(db, device_id)

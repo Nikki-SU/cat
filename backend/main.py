@@ -10,20 +10,53 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 
-from database import init_db
+from database import init_db, setup_change_tracking, SessionLocal
 from config import settings
 from routers import (
     literature, tracking, card, attachment, structured, 
     learning, note, organization, translation, ai_proxy, backup,
-    settings as settings_router, note_image
+    settings as settings_router, note_image, sync_v2
 )
+from services.hub_manager import get_hub_manager
+from services.discovery import start_broadcaster, stop_broadcaster, start_scanner, stop_scanner
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    # 初始化数据库
     init_db()
+    
+    # 设置变更追踪
+    setup_change_tracking()
+    
+    # 检测角色并启动相应的网络服务
+    db = SessionLocal()
+    try:
+        manager = get_hub_manager()
+        role = manager.detect_role(db)
+        
+        if role == "hub":
+            # Hub启动广播
+            start_broadcaster(
+                device_id=manager.get_device_id(),
+                device_name=manager.get_device_name()
+            )
+            print(f"[Cat] Started as Hub: {manager.get_device_id()}")
+        else:
+            # Leaf启动扫描
+            start_scanner()
+            print(f"[Cat] Started as Leaf: {manager.get_device_id()}")
+    finally:
+        db.close()
+    
     yield
+    
+    # 关闭时停止网络服务
+    stop_broadcaster()
+    stop_scanner()
+    
+    # 关闭其他服务
     from services import close_crossref_service, close_mineru_service, close_ai_service
     await close_crossref_service()
     await close_mineru_service()
@@ -60,6 +93,9 @@ app.include_router(backup.router, prefix=settings.API_PREFIX)
 app.include_router(backup.sync_router, prefix=settings.API_PREFIX)
 app.include_router(settings_router.router, prefix=settings.API_PREFIX)
 app.include_router(note_image.router, prefix=settings.API_PREFIX)
+
+# 新的同步v2路由
+app.include_router(sync_v2.router, prefix=settings.API_PREFIX)
 
 
 # Static files configuration
