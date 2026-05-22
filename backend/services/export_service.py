@@ -177,11 +177,10 @@ class ExportService:
         if until_date:
             entries = [e for e in entries if e.get("created_at", "") <= until_date]
         
-        # UTF-8 BOM for Excel compatibility
-        output = BytesIO()
-        output.write('\ufeff'.encode('utf-8'))
+        # UTF-8 BOM for Excel compatibility (使用 StringIO + UTF-8-SIG 编码)
+        output = StringIO()
         
-        writer = csv.writer(output, encoding='utf-8-sig')
+        writer = csv.writer(output)
         
         # 写入表头
         writer.writerow([column_names.get(col, col) for col in columns])
@@ -196,8 +195,12 @@ class ExportService:
                 row.append(value)
             writer.writerow(row)
         
+        # 转换为 BytesIO with UTF-8 BOM
         output.seek(0)
-        return output
+        result = BytesIO()
+        result.write(output.getvalue().encode('utf-8-sig'))
+        result.seek(0)
+        return result
     
     def export_words(
         self,
@@ -281,11 +284,10 @@ class ExportService:
         return output
     
     def _export_words_csv(self, words: List[Dict[str, Any]]) -> BytesIO:
-        """导出单词为CSV"""
-        output = BytesIO()
-        output.write('\ufeff'.encode('utf-8'))
+        """导出单词为CSV (UTF-8 BOM编码，Excel兼容)"""
+        output = StringIO()
         
-        writer = csv.writer(output, encoding='utf-8-sig')
+        writer = csv.writer(output)
         writer.writerow(["ID", "英文单词", "中文释义", "英文定义", "中文定义", "例句", "DOI", "状态", "复习次数", "创建时间"])
         
         status_map = {"new": "新词", "learning": "学习中", "mastered": "已掌握"}
@@ -304,8 +306,12 @@ class ExportService:
                 word.get("created_at", "")
             ])
         
+        # 转换为 BytesIO with UTF-8 BOM
         output.seek(0)
-        return output
+        result = BytesIO()
+        result.write(output.getvalue().encode('utf-8-sig'))
+        result.seek(0)
+        return result
     
     def export_sentences(
         self,
@@ -374,11 +380,10 @@ class ExportService:
         return output
     
     def _export_sentences_csv(self, sentences: List[Dict[str, Any]]) -> BytesIO:
-        """导出长难句为CSV"""
-        output = BytesIO()
-        output.write('\ufeff'.encode('utf-8'))
+        """导出长难句为CSV (UTF-8 BOM编码，Excel兼容)"""
+        output = StringIO()
         
-        writer = csv.writer(output, encoding='utf-8-sig')
+        writer = csv.writer(output)
         writer.writerow(["ID", "英文句子", "中文翻译", "DOI", "状态", "复习次数", "创建时间"])
         
         status_map = {"new": "新句", "learning": "学习中", "mastered": "已掌握"}
@@ -394,8 +399,12 @@ class ExportService:
                 sentence.get("created_at", "")
             ])
         
+        # 转换为 BytesIO with UTF-8 BOM
         output.seek(0)
-        return output
+        result = BytesIO()
+        result.write(output.getvalue().encode('utf-8-sig'))
+        result.seek(0)
+        return result
     
     def export_translation_cards_markdown(self, cards: List[Dict[str, Any]]) -> BytesIO:
         """导出翻译卡片为Markdown"""
