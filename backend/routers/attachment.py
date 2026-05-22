@@ -108,260 +108,72 @@ def get_attachments_by_doi(doi: str, db: Session = Depends(get_db)):
     return attachments
 
 
-@router.get("/{attachment_id}", response_model=AttachmentResponse)
-def get_attachment(attachment_id: int, db: Session = Depends(get_db)):
-    """获取单个附件"""
-    attachment = db.query(LiteratureAttachment).filter(
-        LiteratureAttachment.id == attachment_id
-    ).first()
-    if not attachment:
-        raise HTTPException(status_code=404, detail="附件不存在")
-    return attachment
-
-
-@router.post("", response_model=AttachmentResponse)
-async def create_attachment(
-    doi: str = Form(...),
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
+@router.get("/manifest")
+def get_attachment_manifest(db: Session = Depends(get_db)):
     """
-    上传附件
-    
-    Args:
-        doi: 文献DOI
-        file: 上传的文件
+    获取附件清单（用于同步）
+    返回所有附件的元信息（文件名、大小、hash）
     """
-    ensure_attachments_dir()
-    
-    # 验证文件
-    is_valid, error_msg, ext = validate_file(file)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_msg)
-    
-    # 生成唯一文件名，保持原扩展名
-    unique_filename = f"{uuid.uuid4().hex}{ext}"
-    file_dir = get_attachment_dir(doi)
-    file_path = os.path.join(file_dir, unique_filename)
-    
-    # 保存文件
-    content = await file.read()
-    file_size = len(content)
-    
-    # 检查文件大小
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail=f"文件大小超过限制: {MAX_FILE_SIZE / 1024 / 1024}MB")
-    
-    async with aiofiles.open(file_path, 'wb') as f:
-        await f.write(content)
-    
-    # 创建数据库记录
-    attachment = LiteratureAttachment(
-        doi=doi,
-        filename=file.filename,
-        file_type=ext.lstrip("."),
-        file_path=file_path,
-        file_size=file_size
-    )
-    db.add(attachment)
-    
-    # 更新文献关联状态
-    entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
-    if entry:
-        entry.has_attachment = True
-    
-    db.commit()
-    db.refresh(attachment)
-    return attachment
+    from services.attachment_sync import get_attachment_sync_service
+    service = get_attachment_sync_service(db)
+    return service.get_attachment_manifest()
 
 
-@router.put("/{attachment_id}", response_model=AttachmentResponse)
-def update_attachment(
-    attachment_id: int, 
-    data: AttachmentUpdate, 
-    db: Session = Depends(get_db)
-):
-    """更新附件信息"""
-    attachment = db.query(LiteratureAttachment).filter(
-        LiteratureAttachment.id == attachment_id
-    ).first()
-    if not attachment:
-        raise HTTPException(status_code=404, detail="附件不存在")
-    
-    for key, value in data.model_dump(exclude_unset=True).items():
-        setattr(attachment, key, value)
-    
-    db.commit()
-    db.refresh(attachment)
-    return attachment
+@router.get("/stats")
+def get_attachment_stats(db: Session = Depends(get_db)):
+    """
+    获取附件统计信息
+    """
+    from services.attachment_sync import get_attachment_sync_service
+    service = get_attachment_sync_service(db)
+    return service.get_attachment_stats()
 
 
-@router.delete("/{attachment_id}")
-def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
-    """删除附件"""
-    attachment = db.query(LiteratureAttachment).filter(
-        LiteratureAttachment.id == attachment_id
-    ).first()
-    if not attachment:
-        raise HTTPException(status_code=404, detail="附件不存在")
+@router.get("/download/{doi}")
+def download_attachment_for_sync(doi: str, db: Session = Depends(get_db)):
+    """
+    下载附件文件（用于同步）
+    Leaf设备通过此端点从Hub下载附件
+    """
+    from services.attachment_sync import get_attachment_sync_service
+    service = get_attachment_sync_service(db)
     
-    # 删除物理文件
-    if attachment.file_path and os.path.exists(attachment.file_path):
-        try:
-            os.remove(attachment.file_path)
-        except OSError:
-            pass
+    filepath = service.get_attachment_filepath(doi)
+    if not filepath:
+        raise HTTPException(status_code=404, detail="附件不存在或文件丢失")
     
-    # 更新文献关联状态
-    doi = attachment.doi
-    db.delete(attachment)
-    db.commit()
-    
-    # 检查是否还有其他附件
-    remaining = db.query(LiteratureAttachment).filter(
-        LiteratureAttachment.doi == doi
-    ).count()
-    if remaining == 0:
-        entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
-        if entry:
-            entry.has_attachment = False
-            db.commit()
-    
-    return {"message": "删除成功"}
-
-
-# ==================== 附件下载 ====================
-
-@router.get("/{attachment_id}/download")
-def download_attachment(attachment_id: int, db: Session = Depends(get_db)):
-    """下载附件"""
-    attachment = db.query(LiteratureAttachment).filter(
-        LiteratureAttachment.id == attachment_id
-    ).first()
-    if not attachment:
-        raise HTTPException(status_code=404, detail="附件不存在")
-    
-    if not attachment.file_path or not os.path.exists(attachment.file_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
+    attachment = service.get_attachment_by_doi(doi)
+    filename = attachment.filename if attachment else f"{doi}.pdf"
     
     return FileResponse(
-        attachment.file_path, 
-        filename=attachment.filename,
-        media_type='application/octet-stream'
+        filepath, 
+        filename=filename,
+        media_type=attachment.content_type if attachment else "application/pdf"
     )
 
 
-# ==================== MinerU 解析接口 ====================
-
-@router.post("/{attachment_id}/parse")
-async def parse_attachment(
-    attachment_id: int,
-    mode: str = Query("auto", description="解析模式: auto/pipeline/vlm"),
-    db: Session = Depends(get_db)
-):
+@router.get("/missing")
+def get_missing_attachments(manifest: str, db: Session = Depends(get_db)):
     """
-    解析附件为结构性文献
+    获取本地缺少的附件列表
     
-    使用MinerU解析PDF/DOC等文件，提取Markdown内容，
-    保存为结构性文献。
-    
-    Args:
-        attachment_id: 附件ID
-        mode: 解析模式
-            - auto: 自动选择（有Token用Precision，否则用Agent）
-            - pipeline: 强制使用Precision Pipeline模型
-            - vlm: 强制使用Precision VLM模型（推荐）
-            - agent: 强制使用Agent轻量API（免Token）
+    Query参数:
+        manifest: 远程附件清单的JSON字符串
     """
-    attachment = db.query(LiteratureAttachment).filter(
-        LiteratureAttachment.id == attachment_id
-    ).first()
-    if not attachment:
-        raise HTTPException(status_code=404, detail="附件不存在")
+    import json
+    from services.attachment_sync import get_attachment_sync_service
     
-    if not attachment.file_path or not os.path.exists(attachment.file_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
+    try:
+        remote_manifest = json.loads(manifest)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="无效的manifest JSON")
     
-    # 检查文件类型
-    supported_types = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']
-    if attachment.file_type.lower() not in supported_types:
-        raise HTTPException(status_code=400, detail=f"不支持的文件类型: {attachment.file_type}")
-    
-    # 生成任务ID
-    task_id = str(uuid.uuid4())
-    
-    # 获取配置
-    api_token = get_mineru_config_value("api_token")
-    model_version = get_mineru_config_value("model_version", "vlm")
-    language = get_mineru_config_value("language", "en")
-    
-    # 存储任务状态
-    _task_status[task_id] = {
-        "status": "pending",
-        "attachment_id": attachment_id,
-        "doi": attachment.doi,
-        "progress": 0,
-        "message": "准备解析..."
-    }
-    
-    # 后台执行解析
-    asyncio.create_task(_parse_attachment_task(
-        task_id, attachment, api_token, model_version, language, db
-    ))
+    service = get_attachment_sync_service(db)
+    missing = service.get_missing_attachments(remote_manifest)
     
     return {
-        "success": True,
-        "task_id": task_id,
-        "message": "解析任务已提交"
-    }
-
-
-@router.post("/{attachment_id}/parse-and-extract")
-async def parse_and_extract_attachment(
-    attachment_id: int,
-    max_sentences: int = Query(10, description="最大提取句子数"),
-    max_words: int = Query(20, description="最大提取单词数"),
-    db: Session = Depends(get_db)
-):
-    """
-    解析+AI提取
-    
-    先解析为markdown，再调用AI提取长难句和单词，
-    全部自动挂载到DOI下。
-    """
-    attachment = db.query(LiteratureAttachment).filter(
-        LiteratureAttachment.id == attachment_id
-    ).first()
-    if not attachment:
-        raise HTTPException(status_code=404, detail="附件不存在")
-    
-    if not attachment.file_path or not os.path.exists(attachment.file_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
-    
-    # 生成任务ID
-    task_id = str(uuid.uuid4())
-    
-    # 获取配置
-    api_token = get_mineru_config_value("api_token")
-    
-    # 存储任务状态
-    _task_status[task_id] = {
-        "status": "pending",
-        "attachment_id": attachment_id,
-        "doi": attachment.doi,
-        "progress": 0,
-        "message": "准备解析..."
-    }
-    
-    # 后台执行解析+提取
-    asyncio.create_task(_parse_and_extract_task(
-        task_id, attachment, api_token, max_sentences, max_words, db
-    ))
-    
-    return {
-        "success": True,
-        "task_id": task_id,
-        "message": "解析+提取任务已提交"
+        "missing": missing,
+        "count": len(missing)
     }
 
 
@@ -776,70 +588,262 @@ async def upload_and_parse(
 
 # ==================== Phase 3: 附件同步API ====================
 
-@router.get("/manifest")
-def get_attachment_manifest(db: Session = Depends(get_db)):
-    """
-    获取附件清单（用于同步）
-    返回所有附件的元信息（文件名、大小、hash）
-    """
-    from services.attachment_sync import get_attachment_sync_service
-    service = get_attachment_sync_service(db)
-    return service.get_attachment_manifest()
+@router.get("/{attachment_id}", response_model=AttachmentResponse)
+def get_attachment(attachment_id: int, db: Session = Depends(get_db)):
+    """获取单个附件"""
+    attachment = db.query(LiteratureAttachment).filter(
+        LiteratureAttachment.id == attachment_id
+    ).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    return attachment
 
 
-@router.get("/stats")
-def get_attachment_stats(db: Session = Depends(get_db)):
+@router.post("", response_model=AttachmentResponse)
+async def create_attachment(
+    doi: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
     """
-    获取附件统计信息
-    """
-    from services.attachment_sync import get_attachment_sync_service
-    service = get_attachment_sync_service(db)
-    return service.get_attachment_stats()
-
-
-@router.get("/download/{doi}")
-def download_attachment_for_sync(doi: str, db: Session = Depends(get_db)):
-    """
-    下载附件文件（用于同步）
-    Leaf设备通过此端点从Hub下载附件
-    """
-    from services.attachment_sync import get_attachment_sync_service
-    service = get_attachment_sync_service(db)
+    上传附件
     
-    filepath = service.get_attachment_filepath(doi)
-    if not filepath:
-        raise HTTPException(status_code=404, detail="附件不存在或文件丢失")
+    Args:
+        doi: 文献DOI
+        file: 上传的文件
+    """
+    ensure_attachments_dir()
     
-    attachment = service.get_attachment_by_doi(doi)
-    filename = attachment.filename if attachment else f"{doi}.pdf"
+    # 验证文件
+    is_valid, error_msg, ext = validate_file(file)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # 生成唯一文件名，保持原扩展名
+    unique_filename = f"{uuid.uuid4().hex}{ext}"
+    file_dir = get_attachment_dir(doi)
+    file_path = os.path.join(file_dir, unique_filename)
+    
+    # 保存文件
+    content = await file.read()
+    file_size = len(content)
+    
+    # 检查文件大小
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"文件大小超过限制: {MAX_FILE_SIZE / 1024 / 1024}MB")
+    
+    async with aiofiles.open(file_path, 'wb') as f:
+        await f.write(content)
+    
+    # 创建数据库记录
+    attachment = LiteratureAttachment(
+        doi=doi,
+        filename=file.filename,
+        file_type=ext.lstrip("."),
+        file_path=file_path,
+        file_size=file_size
+    )
+    db.add(attachment)
+    
+    # 更新文献关联状态
+    entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+    if entry:
+        entry.has_attachment = True
+    
+    db.commit()
+    db.refresh(attachment)
+    return attachment
+
+
+@router.put("/{attachment_id}", response_model=AttachmentResponse)
+def update_attachment(
+    attachment_id: int, 
+    data: AttachmentUpdate, 
+    db: Session = Depends(get_db)
+):
+    """更新附件信息"""
+    attachment = db.query(LiteratureAttachment).filter(
+        LiteratureAttachment.id == attachment_id
+    ).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(attachment, key, value)
+    
+    db.commit()
+    db.refresh(attachment)
+    return attachment
+
+
+@router.delete("/{attachment_id}")
+def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
+    """删除附件"""
+    attachment = db.query(LiteratureAttachment).filter(
+        LiteratureAttachment.id == attachment_id
+    ).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    
+    # 删除物理文件
+    if attachment.file_path and os.path.exists(attachment.file_path):
+        try:
+            os.remove(attachment.file_path)
+        except OSError:
+            pass
+    
+    # 更新文献关联状态
+    doi = attachment.doi
+    db.delete(attachment)
+    db.commit()
+    
+    # 检查是否还有其他附件
+    remaining = db.query(LiteratureAttachment).filter(
+        LiteratureAttachment.doi == doi
+    ).count()
+    if remaining == 0:
+        entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+        if entry:
+            entry.has_attachment = False
+            db.commit()
+    
+    return {"message": "删除成功"}
+
+
+# ==================== 附件下载 ====================
+
+@router.get("/{attachment_id}/download")
+def download_attachment(attachment_id: int, db: Session = Depends(get_db)):
+    """下载附件"""
+    attachment = db.query(LiteratureAttachment).filter(
+        LiteratureAttachment.id == attachment_id
+    ).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    
+    if not attachment.file_path or not os.path.exists(attachment.file_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
     
     return FileResponse(
-        filepath, 
-        filename=filename,
-        media_type=attachment.content_type if attachment else "application/pdf"
+        attachment.file_path, 
+        filename=attachment.filename,
+        media_type='application/octet-stream'
     )
 
 
-@router.get("/missing")
-def get_missing_attachments(manifest: str, db: Session = Depends(get_db)):
+# ==================== MinerU 解析接口 ====================
+
+@router.post("/{attachment_id}/parse")
+async def parse_attachment(
+    attachment_id: int,
+    mode: str = Query("auto", description="解析模式: auto/pipeline/vlm"),
+    db: Session = Depends(get_db)
+):
     """
-    获取本地缺少的附件列表
+    解析附件为结构性文献
     
-    Query参数:
-        manifest: 远程附件清单的JSON字符串
+    使用MinerU解析PDF/DOC等文件，提取Markdown内容，
+    保存为结构性文献。
+    
+    Args:
+        attachment_id: 附件ID
+        mode: 解析模式
+            - auto: 自动选择（有Token用Precision，否则用Agent）
+            - pipeline: 强制使用Precision Pipeline模型
+            - vlm: 强制使用Precision VLM模型（推荐）
+            - agent: 强制使用Agent轻量API（免Token）
     """
-    import json
-    from services.attachment_sync import get_attachment_sync_service
+    attachment = db.query(LiteratureAttachment).filter(
+        LiteratureAttachment.id == attachment_id
+    ).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
     
-    try:
-        remote_manifest = json.loads(manifest)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="无效的manifest JSON")
+    if not attachment.file_path or not os.path.exists(attachment.file_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
     
-    service = get_attachment_sync_service(db)
-    missing = service.get_missing_attachments(remote_manifest)
+    # 检查文件类型
+    supported_types = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']
+    if attachment.file_type.lower() not in supported_types:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型: {attachment.file_type}")
+    
+    # 生成任务ID
+    task_id = str(uuid.uuid4())
+    
+    # 获取配置
+    api_token = get_mineru_config_value("api_token")
+    model_version = get_mineru_config_value("model_version", "vlm")
+    language = get_mineru_config_value("language", "en")
+    
+    # 存储任务状态
+    _task_status[task_id] = {
+        "status": "pending",
+        "attachment_id": attachment_id,
+        "doi": attachment.doi,
+        "progress": 0,
+        "message": "准备解析..."
+    }
+    
+    # 后台执行解析
+    asyncio.create_task(_parse_attachment_task(
+        task_id, attachment, api_token, model_version, language, db
+    ))
     
     return {
-        "missing": missing,
-        "count": len(missing)
+        "success": True,
+        "task_id": task_id,
+        "message": "解析任务已提交"
     }
+
+
+@router.post("/{attachment_id}/parse-and-extract")
+async def parse_and_extract_attachment(
+    attachment_id: int,
+    max_sentences: int = Query(10, description="最大提取句子数"),
+    max_words: int = Query(20, description="最大提取单词数"),
+    db: Session = Depends(get_db)
+):
+    """
+    解析+AI提取
+    
+    先解析为markdown，再调用AI提取长难句和单词，
+    全部自动挂载到DOI下。
+    """
+    attachment = db.query(LiteratureAttachment).filter(
+        LiteratureAttachment.id == attachment_id
+    ).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    
+    if not attachment.file_path or not os.path.exists(attachment.file_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
+    
+    # 生成任务ID
+    task_id = str(uuid.uuid4())
+    
+    # 获取配置
+    api_token = get_mineru_config_value("api_token")
+    
+    # 存储任务状态
+    _task_status[task_id] = {
+        "status": "pending",
+        "attachment_id": attachment_id,
+        "doi": attachment.doi,
+        "progress": 0,
+        "message": "准备解析..."
+    }
+    
+    # 后台执行解析+提取
+    asyncio.create_task(_parse_and_extract_task(
+        task_id, attachment, api_token, max_sentences, max_words, db
+    ))
+    
+    return {
+        "success": True,
+        "task_id": task_id,
+        "message": "解析+提取任务已提交"
+    }
+
+
+
+
