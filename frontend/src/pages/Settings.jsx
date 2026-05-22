@@ -1353,7 +1353,7 @@ function Settings() {
         
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            {EXPORT_FORMATS.map(format => (
+            {Object.values(EXPORT_FORMATS).map(format => (
               <button
                 key={format}
                 onClick={() => handleExportData(format)}
