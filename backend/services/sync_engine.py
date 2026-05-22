@@ -1,5 +1,6 @@
 """
 同步引擎核心 - Hub/Leaf去中心化同步
+Phase 3: 离线模式 + 冲突检测与解决
 """
 import json
 from datetime import datetime
@@ -36,6 +37,25 @@ TABLE_MODELS = {
     "translation_cards": TranslationCard,
 }
 
+# 表名中文映射
+TABLE_NAME_LABELS = {
+    "literature_entries": "文献条目",
+    "literature_table_entries": "文献",
+    "words": "单词",
+    "long_sentences": "长难句",
+    "word_lists": "单词表",
+    "sentence_lists": "句子表",
+    "general_notes": "笔记",
+    "note_templates": "笔记模板",
+    "literature_cards": "文献卡片",
+    "structured_literature": "结构化文献",
+    "structured_notes": "结构化笔记",
+    "tags": "标签",
+    "collections": "合集",
+    "collection_items": "合集项",
+    "translation_cards": "翻译卡片",
+}
+
 
 class SyncEngine:
     """同步引擎 - 处理Hub和Leaf之间的数据同步"""
@@ -65,6 +85,207 @@ class SyncEngine:
         self.db.add(log_entry)
         self.db.commit()
         return log_entry
+    
+    # ==================== Phase 3: 离线模式 + 冲突检测 ====================
+    
+    def get_unsynced_changes(self, device_id: str) -> list:
+        """获取设备未同步的变更"""
+        unsynced = self.db.query(SyncLog).filter(
+            SyncLog.synced == False,
+            SyncLog.device_id == device_id
+        ).order_by(SyncLog.id).all()
+        return unsynced
+    
+    def mark_as_synced(self, log_ids: list):
+        """标记变更为已同步"""
+        self.db.query(SyncLog).filter(SyncLog.id.in_(log_ids)).update(
+            {"synced": True}, synchronize_session=False
+        )
+        self.db.commit()
+    
+    def get_local_changes_since(self, since_log_id: int) -> list:
+        """获取指定log_id之后的所有本地变更（Hub和Leaf都用）"""
+        changes = self.db.query(SyncLog).filter(
+            SyncLog.id > since_log_id
+        ).order_by(SyncLog.id).all()
+        return changes
+    
+    def check_conflicts(self, incoming_changes: list) -> list:
+        """
+        检测冲突：同一条记录被不同设备修改
+        
+        Args:
+            incoming_changes: 从远程拉取的变更列表
+            
+        Returns:
+            冲突列表，每个冲突包含incoming、local和local_record
+        """
+        conflicts = []
+        for change in incoming_changes:
+            # 查找本地对同一条记录的未同步修改
+            local_changes = self.db.query(SyncLog).filter(
+                SyncLog.table_name == change["table_name"],
+                SyncLog.record_pk == change["record_pk"],
+                SyncLog.device_id != change["device_id"],
+                SyncLog.operation != "DELETE"
+            ).all()
+            if local_changes:
+                conflicts.append({
+                    "incoming": change,
+                    "local": self._record_to_dict(local_changes[-1]),
+                    "local_record": self._get_current_record(change["table_name"], change["record_pk"])
+                })
+        return conflicts
+    
+    def get_conflict_records(self) -> list:
+        """
+        获取当前所有冲突记录（同一记录被多个设备修改）
+        用于前端冲突解决UI
+        
+        Returns:
+            冲突列表
+        """
+        conflicts = self.db.query(SyncLog).filter(
+            SyncLog.synced == False
+        ).all()
+        
+        # 检测重复主键
+        conflict_map = {}
+        for log in conflicts:
+            key = f"{log.table_name}:{log.record_pk}"
+            if key not in conflict_map:
+                conflict_map[key] = []
+            conflict_map[key].append(log)
+        
+        # 只返回有多个设备修改同一记录的冲突
+        result = []
+        for key, logs in conflict_map.items():
+            device_ids = set(l.device_id for l in logs)
+            if len(device_ids) > 1:
+                table_name, record_pk = key.split(":")
+                current = self._get_current_record(table_name, record_pk)
+                result.append({
+                    "table_name": table_name,
+                    "table_label": TABLE_NAME_LABELS.get(table_name, table_name),
+                    "record_pk": record_pk,
+                    "current_data": current,
+                    "conflicting_changes": [self._record_to_dict(l) for l in logs],
+                    "devices": list(device_ids),
+                    "conflict_count": len(logs)
+                })
+        return result
+    
+    def resolve_conflict(self, table_name: str, record_pk: str, resolution: str, chosen_data: dict = None):
+        """
+        解决冲突
+        
+        Args:
+            table_name: 表名
+            record_pk: 主键值
+            resolution: "local" | "remote" | "merge"
+            chosen_data: merge时用户选择的数据
+        """
+        if resolution == "remote":
+            if chosen_data:
+                self._apply_single_change(table_name, "UPDATE", record_pk, chosen_data)
+        elif resolution == "local":
+            # 保持本地数据，不做变更
+            pass
+        elif resolution == "merge" and chosen_data:
+            self._apply_single_change(table_name, "UPDATE", record_pk, chosen_data)
+        
+        # 标记相关冲突日志为已处理
+        self.db.query(SyncLog).filter(
+            SyncLog.table_name == table_name,
+            SyncLog.record_pk == record_pk,
+            SyncLog.synced == False
+        ).update({"synced": True}, synchronize_session=False)
+        self.db.commit()
+    
+    def _apply_single_change(self, table_name: str, operation: str, record_pk: str, record_data: dict) -> bool:
+        """应用单条变更（用于解决冲突）"""
+        model = TABLE_MODELS.get(table_name)
+        if not model:
+            return False
+        
+        pk_columns = [col for col in model.__table__.columns if col.primary_key]
+        if not pk_columns:
+            return False
+        
+        try:
+            if len(pk_columns) == 1:
+                pk_value = record_pk
+                pk_filter = (getattr(model, pk_columns[0].name) == pk_value)
+            else:
+                pk_dict = json.loads(record_pk)
+                pk_filter = and_(*[
+                    getattr(model, col.name) == pk_dict.get(col.name)
+                    for col in pk_columns
+                ])
+        except (json.JSONDecodeError, KeyError):
+            return False
+        
+        with SyncIgnoreContext(self.device_id):
+            if operation == "UPDATE":
+                existing = self.db.query(model).filter(pk_filter).first()
+                if existing:
+                    for key, value in record_data.items():
+                        if key != 'id' and hasattr(existing, key):
+                            setattr(existing, key, value)
+                    if hasattr(existing, 'updated_at'):
+                        existing.updated_at = datetime.utcnow()
+                    self.db.commit()
+                    return True
+            elif operation == "INSERT":
+                if 'id' in record_data:
+                    del record_data['id']
+                new_record = model(**record_data)
+                self.db.add(new_record)
+                self.db.commit()
+                return True
+        
+        return False
+    
+    def _get_current_record(self, table_name: str, record_pk: str) -> dict:
+        """获取当前记录的完整数据"""
+        model = TABLE_MODELS.get(table_name)
+        if not model:
+            return None
+        pk_column = [col for col in model.__table__.columns if col.primary_key]
+        if not pk_column:
+            return None
+        
+        try:
+            if len(pk_column) == 1:
+                pk_value = record_pk
+                pk_filter = (getattr(model, pk_column[0].name) == pk_value)
+            else:
+                pk_dict = json.loads(record_pk)
+                pk_filter = and_(*[
+                    getattr(model, col.name) == pk_dict.get(col.name)
+                    for col in pk_column
+                ])
+            record = self.db.query(model).filter(pk_filter).first()
+            if record:
+                return self._record_to_dict(record)
+        except (json.JSONDecodeError, KeyError, AttributeError):
+            pass
+        return None
+    
+    def _record_to_dict(self, record) -> dict:
+        """将模型记录转换为字典"""
+        if hasattr(record, '__table__'):
+            result = {}
+            for col in record.__table__.columns:
+                value = getattr(record, col.name)
+                if isinstance(value, datetime):
+                    result[col.name] = value.isoformat()
+                else:
+                    result[col.name] = value
+            return result
+        elif isinstance(record, dict):
+            return record
+        return {}
     
     def push_changes(self, changes: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -129,10 +350,14 @@ class SyncEngine:
         latest_log = self.db.query(SyncLog).order_by(SyncLog.id.desc()).first()
         latest_log_id = latest_log.id if latest_log else since_log_id
         
+        # Phase 3: 检测冲突
+        conflicts = self.check_conflicts(changes)
+        
         return {
             "changes": changes,
             "latest_log_id": latest_log_id,
-            "has_more": len(changes) == 1000
+            "has_more": len(changes) == 1000,
+            "conflicts": conflicts  # Phase 3: 返回冲突列表
         }
     
     def apply_changes(self, changes: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -365,12 +590,17 @@ class SyncEngine:
         # 获取总日志数
         total_logs = self.db.query(SyncLog).count()
         
+        # Phase 3: 获取冲突数量
+        conflict_records = self.get_conflict_records()
+        conflict_count = len(conflict_records)
+        
         return {
             "device_id": self.device_id,
             "last_sync_log_id": state.last_sync_log_id if state else 0,
             "last_sync_time": state.last_sync_time.isoformat() if state and state.last_sync_time else None,
             "unsynced_changes": unsynced_count,
-            "total_logs": total_logs
+            "total_logs": total_logs,
+            "conflict_count": conflict_count  # Phase 3
         }
     
     def update_sync_state(self, last_log_id: int):

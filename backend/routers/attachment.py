@@ -772,3 +772,74 @@ async def upload_and_parse(
             "message": "上传成功，但自动解析时出错",
             "parse_error": str(e)
         }
+
+
+# ==================== Phase 3: 附件同步API ====================
+
+@router.get("/manifest")
+def get_attachment_manifest(db: Session = Depends(get_db)):
+    """
+    获取附件清单（用于同步）
+    返回所有附件的元信息（文件名、大小、hash）
+    """
+    from services.attachment_sync import get_attachment_sync_service
+    service = get_attachment_sync_service(db)
+    return service.get_attachment_manifest()
+
+
+@router.get("/stats")
+def get_attachment_stats(db: Session = Depends(get_db)):
+    """
+    获取附件统计信息
+    """
+    from services.attachment_sync import get_attachment_sync_service
+    service = get_attachment_sync_service(db)
+    return service.get_attachment_stats()
+
+
+@router.get("/download/{doi}")
+def download_attachment_for_sync(doi: str, db: Session = Depends(get_db)):
+    """
+    下载附件文件（用于同步）
+    Leaf设备通过此端点从Hub下载附件
+    """
+    from services.attachment_sync import get_attachment_sync_service
+    service = get_attachment_sync_service(db)
+    
+    filepath = service.get_attachment_filepath(doi)
+    if not filepath:
+        raise HTTPException(status_code=404, detail="附件不存在或文件丢失")
+    
+    attachment = service.get_attachment_by_doi(doi)
+    filename = attachment.filename if attachment else f"{doi}.pdf"
+    
+    return FileResponse(
+        filepath, 
+        filename=filename,
+        media_type=attachment.content_type if attachment else "application/pdf"
+    )
+
+
+@router.get("/missing")
+def get_missing_attachments(manifest: str, db: Session = Depends(get_db)):
+    """
+    获取本地缺少的附件列表
+    
+    Query参数:
+        manifest: 远程附件清单的JSON字符串
+    """
+    import json
+    from services.attachment_sync import get_attachment_sync_service
+    
+    try:
+        remote_manifest = json.loads(manifest)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="无效的manifest JSON")
+    
+    service = get_attachment_sync_service(db)
+    missing = service.get_missing_attachments(remote_manifest)
+    
+    return {
+        "missing": missing,
+        "count": len(missing)
+    }

@@ -15,6 +15,7 @@ import {
 import { downloadFile, formatDate } from '../utils/helpers'
 import { syncManager } from '../utils/syncWorker'
 import PairingModal from '../components/PairingModal'
+import ConflictModal from '../components/ConflictModal'
 import { SENTENCE_COLOR_SCHEMES } from '../stores/useDeepReadStore'
 
 // AI提供商配置
@@ -90,6 +91,14 @@ function Settings() {
   const [isSyncingV2, setIsSyncingV2] = useState(false)
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(localStorage.getItem('autoSync') !== 'false')
 
+  // Phase 3: 离线模式 + 冲突解决
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [conflicts, setConflicts] = useState([])
+  const [showConflictModal, setShowConflictModal] = useState(false)
+  const [attachmentStats, setAttachmentStats] = useState(null)
+  const [isSyncingAttachments, setIsSyncingAttachments] = useState(false)
+  const [syncLogs, setSyncLogs] = useState([])
+
   // Phase 2: 获取中继状态
   const fetchRelayStatus = async () => {
     try {
@@ -106,6 +115,26 @@ function Settings() {
     fetchBackups()
     fetchSyncV2Status()
     fetchRelayStatus()
+    // Phase 3: 加载离线状态和附件统计
+    fetchAttachmentStats()
+    
+    // 监听网络状态变化
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    
+    // 监听同步状态变化
+    syncManager.onStatusChange((status) => {
+      if (status.hasConflicts) {
+        setConflicts(status.conflicts || [])
+      }
+    })
+    
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
   }, [])
 
   // Phase 1 同步V2函数
@@ -120,6 +149,73 @@ function Settings() {
       }
     } catch (error) {
       console.error('Failed to fetch sync V2 status:', error)
+
+  // Phase 3: 获取冲突列表
+  const fetchConflicts = async () => {
+    try {
+      const result = await syncV2API.getConflicts()
+      setConflicts(result.conflicts || [])
+    } catch (error) {
+      console.error('Failed to fetch conflicts:', error)
+    }
+  }
+
+  // Phase 3: 获取附件统计
+  const fetchAttachmentStats = async () => {
+    try {
+      const stats = await fetch('/api/attachments/stats').then(r => r.json())
+      setAttachmentStats(stats)
+    } catch (error) {
+      console.error('Failed to fetch attachment stats:', error)
+    }
+  }
+
+  // Phase 3: 解决单个冲突
+  const handleResolveConflict = async (tableName, recordPk, resolution, chosenData) => {
+    try {
+      await syncV2API.resolveConflict(tableName, recordPk, resolution, chosenData)
+      // 刷新冲突列表
+      fetchConflicts()
+      fetchSyncV2Status()
+    } catch (error) {
+      console.error('Failed to resolve conflict:', error)
+      throw error
+    }
+  }
+
+  // Phase 3: 批量解决所有冲突
+  const handleResolveAllConflicts = async (resolution) => {
+    try {
+      await syncV2API.resolveAllConflicts(resolution)
+      setShowConflictModal(false)
+      setConflicts([])
+      fetchSyncV2Status()
+    } catch (error) {
+      console.error('Failed to resolve all conflicts:', error)
+      alert('批量解决冲突失败: ' + error.message)
+    }
+  }
+
+  // Phase 3: 同步附件
+  const handleSyncAttachments = async () => {
+    setIsSyncingAttachments(true)
+    try {
+      await syncManager.syncAttachments()
+      alert('附件同步完成')
+      fetchAttachmentStats()
+    } catch (error) {
+      alert('附件同步失败: ' + error.message)
+    } finally {
+      setIsSyncingAttachments(false)
+    }
+  }
+
+  // Phase 3: 打开冲突弹窗
+  const openConflictModal = () => {
+    fetchConflicts()
+    setShowConflictModal(true)
+  }
+
     }
   }
 
@@ -1141,6 +1237,107 @@ function Settings() {
         </div>
       </section>
 
+      {/* Phase 3: 离线模式 + 冲突解决 + 附件同步 */}
+      <section className="bg-white rounded-xl p-4 shadow">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">📴 同步状态</h2>
+        
+        <div className="space-y-4">
+          {/* 离线状态提示 */}
+          <div className={`flex items-center gap-2 p-3 rounded-lg ${isOnline ? 'bg-green-50' : 'bg-yellow-50'}`}>
+            <span className="text-xl">{isOnline ? '🟢' : '📴'}</span>
+            <div className="flex-1">
+              <div className="font-medium text-sm">
+                {isOnline ? '已连接' : '离线模式'}
+              </div>
+              {!isOnline && (
+                <div className="text-xs text-yellow-700">
+                  数据保存在本地，联网后自动同步
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 同步状态详情 */}
+          {syncV2Status && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs text-gray-500 mb-1">待同步变更</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {syncV2Status.unsynced_changes || 0}
+                  <span className="text-sm font-normal text-gray-500"> 条</span>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-xs text-gray-500 mb-1">冲突记录</div>
+                <div className="text-2xl font-bold text-orange-600">
+                  {syncV2Status.conflict_count || 0}
+                  {syncV2Status.conflict_count > 0 && (
+                    <button
+                      onClick={openConflictModal}
+                      className="ml-2 text-sm font-normal text-blue-500 hover:underline"
+                    >
+                      [查看]
+                    </button>
+                  )}
+                  <span className="text-sm font-normal text-gray-500"> 条</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 附件统计 */}
+          {attachmentStats && (
+            <div className="bg-blue-50 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-blue-800">
+                    📎 附件同步
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    {attachmentStats.existing_files} / {attachmentStats.total_count} 个文件，{attachmentStats.total_size_mb} MB
+                  </div>
+                </div>
+                <button
+                  onClick={handleSyncAttachments}
+                  disabled={isSyncingAttachments || !isOnline}
+                  className="px-3 py-1 bg-blue-500 text-white rounded text-sm disabled:opacity-50"
+                >
+                  {isSyncingAttachments ? '同步中...' : '同步附件'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 手动同步按钮 */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleManualSyncV2}
+              disabled={isSyncingV2 || !isOnline}
+              className="flex-1 px-4 py-2 bg-purple-500 text-white rounded text-sm disabled:opacity-50"
+            >
+              {isSyncingV2 ? '同步中...' : '🔄 手动同步'}
+            </button>
+            <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoSyncEnabled}
+                onChange={(e) => handleToggleAutoSync(e.target.checked)}
+                className="w-4 h-4"
+              />
+              自动同步
+            </label>
+          </div>
+
+          {/* 最后同步时间 */}
+          {syncV2Status?.last_sync_time && (
+            <div className="text-xs text-gray-500 text-center">
+              最后同步: {new Date(syncV2Status.last_sync_time).toLocaleString('zh-CN')}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* 数据管理 */}
       <section className="bg-white rounded-xl p-4 shadow">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">💾 数据管理</h2>
@@ -1232,5 +1429,15 @@ function Settings() {
     </div>
   )
 }
+
+      {/* Phase 3: 冲突解决弹窗 */}
+      {showConflictModal && (
+        <ConflictModal
+          conflicts={conflicts}
+          onResolve={handleResolveConflict}
+          onResolveAll={handleResolveAllConflicts}
+          onClose={() => setShowConflictModal(false)}
+        />
+      )}
 
 export default Settings

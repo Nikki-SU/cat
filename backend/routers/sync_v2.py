@@ -320,3 +320,81 @@ def apply_remote_changes(request: PullRequest, db: Session = Depends(get_db)):
         }
     finally:
         clear_current_device_id()
+
+# ==================== Phase 3: 离线模式 + 冲突解决API ====================
+
+@router.get("/unsynced")
+def get_unsynced_changes(device_id: str, db: Session = Depends(get_db)):
+    """获取未同步的变更数量"""
+    from models.sync import SyncLog
+    count = db.query(SyncLog).filter(
+        SyncLog.synced == False,
+        SyncLog.device_id == device_id
+    ).count()
+    return {"count": count, "device_id": device_id}
+
+
+@router.get("/conflicts")
+def get_conflicts(db: Session = Depends(get_db)):
+    """获取当前冲突列表"""
+    manager = get_hub_manager()
+    device_id = manager.get_device_id()
+    
+    engine = create_sync_engine(db, device_id)
+    conflicts = engine.get_conflict_records()
+    return {
+        "conflicts": conflicts,
+        "total": len(conflicts)
+    }
+
+
+@router.post("/resolve-conflict")
+def resolve_conflict(
+    table_name: str,
+    record_pk: str, 
+    resolution: str,  # "local" | "remote" | "merge"
+    chosen_data: Optional[dict] = None,
+    db: Session = Depends(get_db)
+):
+    """解决冲突"""
+    manager = get_hub_manager()
+    device_id = manager.get_device_id()
+    
+    engine = create_sync_engine(db, device_id)
+    engine.resolve_conflict(table_name, record_pk, resolution, chosen_data)
+    return {"success": True}
+
+
+@router.post("/resolve-all-conflicts")
+def resolve_all_conflicts(
+    resolution: str,  # "local" | "remote"
+    db: Session = Depends(get_db)
+):
+    """批量解决所有冲突"""
+    manager = get_hub_manager()
+    device_id = manager.get_device_id()
+    
+    engine = create_sync_engine(db, device_id)
+    conflicts = engine.get_conflict_records()
+    
+    resolved = 0
+    for conflict in conflicts:
+        # 获取远程数据（来自冲突变更中非本地设备的变更）
+        chosen_data = None
+        for change in conflict.get("conflicting_changes", []):
+            if resolution == "remote":
+                # 使用远程变更的数据
+                if change.get("record_data"):
+                    import json
+                    chosen_data = json.loads(change["record_data"])
+                    break
+        
+        engine.resolve_conflict(
+            conflict["table_name"],
+            conflict["record_pk"],
+            resolution,
+            chosen_data
+        )
+        resolved += 1
+    
+    return {"success": True, "resolved": resolved}

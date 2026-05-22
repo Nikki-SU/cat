@@ -460,8 +460,38 @@ export const syncV2API = {
   // 状态
   getStatus: () => apiClient.get('/sync/status'),
   
+
   // 角色切换
   switchRole: (role) => apiClient.post('/sync/switch-role', { role }),
+
+  // ==================== Phase 3: 离线模式 + 冲突解决 ====================
+  
+  // 获取未同步变更数量
+  getUnsynced: (deviceId) => apiClient.get('/sync/unsynced', { params: { device_id: deviceId } }),
+  
+  // 获取冲突列表
+  getConflicts: () => apiClient.get('/sync/conflicts'),
+  
+  // 解决单个冲突
+  resolveConflict: (tableName, recordPk, resolution, chosenData) => 
+    apiClient.post('/sync/resolve-conflict', null, { 
+      params: { 
+        table_name: tableName, 
+        record_pk: recordPk,
+        resolution,
+        chosen_data: chosenData
+      } 
+    }),
+  
+  // 批量解决所有冲突
+  resolveAllConflicts: (resolution) => 
+    apiClient.post('/sync/resolve-all-conflicts', null, { params: { resolution } }),
+  
+  // 获取附件清单
+  getAttachmentManifest: () => apiClient.get('/attachments/manifest'),
+  
+  // 获取附件统计
+  getAttachmentStats: () => apiClient.get('/attachments/stats'),
 }
 
 // ==================== 配对码 API (Phase 2 跨网络配对) ====================
