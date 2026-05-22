@@ -4,9 +4,17 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# 配置文件路径：与cat.db同目录
-CONFIG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_FILE = os.path.join(CONFIG_DIR, "data", "config.json")
+# 配置文件路径：与database.py使用相同的DATA_DIR
+def _get_data_dir():
+    """获取数据目录，与database.py保持一致"""
+    # Android/Chaquopy: data directory passed from PythonService
+    if os.getenv("CAT_DATA_DIR"):
+        return os.getenv("CAT_DATA_DIR")
+    # Desktop: use backend/data relative path
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+DATA_DIR = _get_data_dir()
+CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 
 DEFAULT_CONFIG = {
     "ai": {

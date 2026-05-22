@@ -13,7 +13,6 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 
 from config import settings
-from routers.settings import get_mineru_config_value
 
 
 class MinerUService:
@@ -30,7 +29,9 @@ class MinerUService:
         Args:
             api_token: MinerU API Token（可选，不提供则使用Agent轻量API）
         """
-        self.api_token = api_token or get_mineru_config_value("api_token") or settings.MINERU_API_TOKEN
+        self.api_token = api_token or settings.MINERU_API_TOKEN
+        self.model_version = settings.MINERU_MODEL_VERSION
+        self.language = settings.MINERU_LANGUAGE
         self.client = httpx.AsyncClient(timeout=300.0)
     
     def _get_headers(self) -> dict:

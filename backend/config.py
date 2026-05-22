@@ -11,8 +11,8 @@ def get_data_dir():
     # Android/Chaquopy: data directory passed from PythonService
     if os.getenv("CAT_DATA_DIR"):
         return os.getenv("CAT_DATA_DIR")
-    # Desktop: use backend/data relative path
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+    # Desktop: use backend/data relative path (same as database.py)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 
 class Settings(BaseModel):
