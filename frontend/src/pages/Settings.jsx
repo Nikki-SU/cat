@@ -149,6 +149,8 @@ function Settings() {
       }
     } catch (error) {
       console.error('Failed to fetch sync V2 status:', error)
+    }
+  }
 
   // Phase 3: 获取冲突列表
   const fetchConflicts = async () => {
@@ -216,7 +218,14 @@ function Settings() {
     setShowConflictModal(true)
   }
 
-    }
+  // Phase 2: 打开配对弹窗
+  const openPairingModal = (mode) => {
+    setPairingMode(mode)
+    setShowPairingModal(true)
+  }
+
+  const closePairingModal = () => {
+    setShowPairingModal(false)
   }
 
   const handleDiscoverHubs = async () => {
@@ -1426,9 +1435,17 @@ function Settings() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
+      {/* Phase 2: 配对弹窗 */}
+      {showPairingModal && (
+        <PairingModal
+          mode={pairingMode}
+          onClose={closePairingModal}
+          onPaired={() => {
+            closePairingModal()
+            fetchSyncV2Status()
+          }}
+        />
+      )}
 
       {/* Phase 3: 冲突解决弹窗 */}
       {showConflictModal && (
@@ -1439,5 +1456,8 @@ function Settings() {
           onClose={() => setShowConflictModal(false)}
         />
       )}
+    </div>
+  )
+}
 
 export default Settings
