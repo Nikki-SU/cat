@@ -305,6 +305,16 @@ export const noteAPI = {
   createTemplate: (data) => apiClient.post('/notes/templates', data),
   updateTemplate: (id, data) => apiClient.put(`/notes/templates/${id}`, data),
   deleteTemplate: (id) => apiClient.delete(`/notes/templates/${id}`),
+
+  // 笔记图片上传
+  uploadImage: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await apiClient.post('/notes/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response
+  },
 }
 
 // ==================== 组织 API ====================

@@ -15,7 +15,7 @@ from config import settings
 from routers import (
     literature, tracking, card, attachment, structured, 
     learning, note, organization, translation, ai_proxy, backup,
-    settings as settings_router
+    settings as settings_router, note_image
 )
 
 
@@ -59,10 +59,19 @@ app.include_router(ai_proxy.router, prefix=settings.API_PREFIX)
 app.include_router(backup.router, prefix=settings.API_PREFIX)
 app.include_router(backup.sync_router, prefix=settings.API_PREFIX)
 app.include_router(settings_router.router, prefix=settings.API_PREFIX)
+app.include_router(note_image.router, prefix=settings.API_PREFIX)
 
 
 # Static files configuration
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+# 笔记图片目录 - 支持上传后直接通过 URL 访问
+NOTE_IMAGES_DIR = os.path.join(
+    os.getenv("CAT_DATA_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "data"),
+    "note_images"
+)
+os.makedirs(NOTE_IMAGES_DIR, exist_ok=True)
+app.mount("/note-images", StaticFiles(directory=NOTE_IMAGES_DIR), name="note-images")
 
 
 @app.get("/health")

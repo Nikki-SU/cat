@@ -20,6 +20,7 @@ import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import mermaid from 'mermaid'
+import { noteAPI } from '../api/client'
 
 // ==================== 思维导图组件 ====================
 
@@ -92,6 +93,8 @@ const EditorToolbar = ({ onInsert, readOnly }) => {
 const ImageUploader = ({ onUpload, onClose }) => {
   const [url, setUrl] = useState('')
   const [dragActive, setDragActive] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef(null)
   
   const handleDrag = (e) => {
@@ -101,6 +104,25 @@ const ImageUploader = ({ onUpload, onClose }) => {
       setDragActive(true)
     } else if (e.type === 'dragleave') {
       setDragActive(false)
+    }
+  }
+  
+  const uploadFile = async (file) => {
+    setUploading(true)
+    setUploadError('')
+    try {
+      const result = await noteAPI.uploadImage(file)
+      if (result.success) {
+        onUpload(result.url)
+        onClose()
+      } else {
+        setUploadError('上传失败，请重试')
+      }
+    } catch (error) {
+      console.error('图片上传失败:', error)
+      setUploadError(error?.response?.data?.detail || error?.message || '上传失败')
+    } finally {
+      setUploading(false)
     }
   }
   
@@ -115,14 +137,6 @@ const ImageUploader = ({ onUpload, onClose }) => {
         uploadFile(file)
       }
     }
-  }
-  
-  const uploadFile = (file) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      onUpload(e.target.result)
-    }
-    reader.readAsDataURL(file)
   }
   
   const handlePaste = (e) => {
@@ -165,30 +179,45 @@ const ImageUploader = ({ onUpload, onClose }) => {
             dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
           }`}
         >
-          <p className="text-gray-500">拖拽图片到此处，或</p>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            选择文件
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0])}
-            className="hidden"
-          />
-          <p className="text-xs text-gray-400 mt-2">支持粘贴截图</p>
+          {uploading ? (
+            <div className="flex flex-col items-center">
+              <span className="animate-spin text-2xl mb-2">⏳</span>
+              <p className="text-blue-600">上传中...</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-gray-500">拖拽图片到此处，或</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                选择文件
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0])}
+                className="hidden"
+              />
+              <p className="text-xs text-gray-400 mt-2">支持粘贴截图</p>
+            </>
+          )}
         </div>
+        
+        {/* 上传错误提示 */}
+        {uploadError && (
+          <p className="mt-2 text-sm text-red-500">{uploadError}</p>
+        )}
         
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
             取消
           </button>
           <button 
-            onClick={() => { if (url) onUpload(url); onClose() }}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            onClick={() => { if (url) { onUpload(url); onClose() } }}
+            disabled={!url}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
           >
             插入
           </button>
@@ -518,6 +547,45 @@ const ObsidianEditor = ({
     }
   }
   
+  // 处理编辑器内直接粘贴图片
+  const handleEditorPaste = async (e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    
+    for (let item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (!file) continue
+        
+        // 在光标位置插入上传占位符
+        const placeholder = `![上传中...]()`
+        const before = content.substring(0, selection.start)
+        const after = content.substring(selection.end)
+        const newContent = before + placeholder + after
+        handleChange(newContent)
+        
+        // 上传图片
+        try {
+          const result = await noteAPI.uploadImage(file)
+          if (result.success) {
+            // 替换占位符为真实图片
+            const imageMarkdown = `![图片](${result.url})`
+            handleChange(newContent.replace(placeholder, imageMarkdown))
+          } else {
+            // 上传失败，移除占位符
+            handleChange(newContent.replace(placeholder, ''))
+            console.error('粘贴图片上传失败')
+          }
+        } catch (error) {
+          handleChange(newContent.replace(placeholder, ''))
+          console.error('粘贴图片上传失败:', error)
+        }
+        return // 只处理第一张图片
+      }
+    }
+  }
+  
   // 处理图片上传
   const handleImageUpload = (imageUrl) => {
     const imageMarkdown = `![图片描述](${imageUrl})`
@@ -656,6 +724,7 @@ const ObsidianEditor = ({
             onSelect={handleSelect}
             onClick={handleSelect}
             onKeyUp={handleSelect}
+            onPaste={handleEditorPaste}
             placeholder={placeholder}
             className="w-full min-h-[150px] p-4 resize-y font-mono text-sm focus:outline-none"
           />
