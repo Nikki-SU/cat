@@ -52,7 +52,7 @@ xcopy /E /Y /Q dist ..\backend\static
 echo.
 echo [4/5] PyInstaller packaging...
 cd ..\
-pyinstaller cat.spec --clean --noconfirm
+py -m PyInstaller cat.spec --clean --noconfirm
 if errorlevel 1 (
     echo [ERROR] PyInstaller failed
     pause
