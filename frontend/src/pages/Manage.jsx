@@ -9,7 +9,7 @@ const tabs = [
   { id: 'literature', label: '文献表' },
   { id: 'learning', label: '学习管理' },
   { id: 'notes', label: '笔记管理' },
-  { id: 'organization', label: '标签合集' },
+  { id: 'organization', label: '合集管理' },
 ]
 
 // 标签颜色
@@ -134,6 +134,15 @@ function Manage({ defaultTab = 'tracking' }) {
   const [showTrackingEditModal, setShowTrackingEditModal] = useState(false)
   const [editingTracking, setEditingTracking] = useState(null)
   const [trackingFormData, setTrackingFormData] = useState({ date: '', journal: '', title_cn: '', title_en: '', action: '' })
+  // 期刊/关键词合集管理状态
+  const [showJournalGroupModal, setShowJournalGroupModal] = useState(false)
+  const [showKeywordGroupModal, setShowKeywordGroupModal] = useState(false)
+  const [editingJournalGroup, setEditingJournalGroup] = useState(null)
+  const [editingKeywordGroup, setEditingKeywordGroup] = useState(null)
+  const [jgName, setJgName] = useState('')
+  const [jgItems, setJgItems] = useState('')
+  const [kgName, setKgName] = useState('')
+  const [kgItems, setKgItems] = useState('')
 
   useEffect(() => {
     fetchData()
@@ -888,6 +897,69 @@ function Manage({ defaultTab = 'tracking' }) {
             {/* 标签合集 */}
             {activeTab === 'organization' && (
               <div className="space-y-4">
+                {/* 期刊合集管理 */}
+                <div className="bg-white rounded-lg shadow p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-[#3C5488]">📰 期刊合集 ({journalGroups.length})</h3>
+                    <button
+                      onClick={() => { setEditingJournalGroup(null); setJgName(''); setJgItems(''); setShowJournalGroupModal(true) }}
+                      className="px-3 py-1 bg-[#4DBBD5] text-white rounded text-sm hover:bg-[#3a9ab5]"
+                    >
+                      + 新建
+                    </button>
+                  </div>
+                  {journalGroups.length === 0 ? (
+                    <p className="text-gray-400 text-center py-4">暂无期刊合集</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {journalGroups.map(group => (
+                        <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-medium text-[#3C5488]">{group.name}</p>
+                            <p className="text-xs text-[#8491B4] mt-1">{group.journals?.length || 0} 个期刊</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleValidateJournalGroup(group.id)} className="px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded" title="验证">✓验证</button>
+                            <button onClick={() => handleEditJournalGroup(group)} className="px-2 py-1 text-xs text-[#4DBBD5] hover:bg-blue-50 rounded">编辑</button>
+                            <button onClick={() => handleDeleteJournalGroup(group.id)} className="px-2 py-1 text-xs text-red-400 hover:bg-red-50 rounded">删除</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 关键词合集管理 */}
+                <div className="bg-white rounded-lg shadow p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-[#3C5488]">🔑 关键词合集 ({keywordGroups.length})</h3>
+                    <button
+                      onClick={() => { setEditingKeywordGroup(null); setKgName(''); setKgItems(''); setShowKeywordGroupModal(true) }}
+                      className="px-3 py-1 bg-[#4DBBD5] text-white rounded text-sm hover:bg-[#3a9ab5]"
+                    >
+                      + 新建
+                    </button>
+                  </div>
+                  {keywordGroups.length === 0 ? (
+                    <p className="text-gray-400 text-center py-4">暂无关键词合集</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {keywordGroups.map(group => (
+                        <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-medium text-[#3C5488]">{group.name}</p>
+                            <p className="text-xs text-[#8491B4] mt-1">{group.keywords?.length || 0} 个关键词</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleEditKeywordGroup(group)} className="px-2 py-1 text-xs text-[#4DBBD5] hover:bg-blue-50 rounded">编辑</button>
+                            <button onClick={() => handleDeleteKeywordGroup(group.id)} className="px-2 py-1 text-xs text-red-400 hover:bg-red-50 rounded">删除</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* 标签管理 */}
                 <div className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -1329,6 +1401,58 @@ function Manage({ defaultTab = 'tracking' }) {
               <div className="flex gap-2">
                 <button onClick={() => { setShowTagEditModal(false); setEditingTag(null) }} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
                 <button onClick={handleSaveTag} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 期刊合集弹窗 */}
+      {showJournalGroupModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">{editingJournalGroup ? '编辑期刊合集' : '新建期刊合集'}</h3>
+              <button onClick={resetJgForm} className="text-2xl">&times;</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">名称</label>
+                <input type="text" value={jgName} onChange={(e) => setJgName(e.target.value)} placeholder="合集名称" className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">期刊列表（每行一个）</label>
+                <textarea value={jgItems} onChange={(e) => setJgItems(e.target.value)} placeholder={"Nature\nScience\nAdvanced Materials"} className="w-full px-3 py-2 border rounded min-h-[150px]" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={resetJgForm} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleCreateJournalGroup} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 关键词合集弹窗 */}
+      {showKeywordGroupModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">{editingKeywordGroup ? '编辑关键词合集' : '新建关键词合集'}</h3>
+              <button onClick={resetKgForm} className="text-2xl">&times;</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">名称</label>
+                <input type="text" value={kgName} onChange={(e) => setKgName(e.target.value)} placeholder="合集名称" className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">关键词列表（每行一个）</label>
+                <textarea value={kgItems} onChange={(e) => setKgItems(e.target.value)} placeholder={"perovskite\nsolar cell\nstability"} className="w-full px-3 py-2 border rounded min-h-[150px]" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={resetKgForm} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleCreateKeywordGroup} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
               </div>
             </div>
           </div>
