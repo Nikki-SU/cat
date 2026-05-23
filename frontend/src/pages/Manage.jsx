@@ -591,7 +591,15 @@ function Manage({ defaultTab = 'tracking' }) {
             {/* 追踪管理 */}
             {activeTab === 'tracking' && (
               <div className="space-y-4">
-                <h2 className="text-lg font-medium text-[#3C5488]">追踪记录 ({trackingRecords.length})</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-medium text-[#3C5488]">追踪记录 ({trackingRecords.length})</h2>
+                  <button
+                    onClick={() => { setEditingTracking(null); setTrackingFormData({ date: '', journal: '', title_cn: '', title_en: '', action: '' }); setShowTrackingEditModal(true) }}
+                    className="px-3 py-1 bg-[#4DBBD5] text-white rounded text-sm hover:bg-[#3a9ab5]"
+                  >
+                    + 添加
+                  </button>
+                </div>
                 {trackingRecords.length === 0 ? (
                   <p className="text-gray-400 text-center py-8">暂无追踪记录</p>
                 ) : (
@@ -1267,7 +1275,7 @@ function Manage({ defaultTab = 'tracking' }) {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold">编辑追踪记录</h3>
+              <h3 className="font-semibold">{editingTracking ? '编辑追踪记录' : '添加追踪记录'}</h3>
               <button onClick={() => { setShowTrackingEditModal(false); setEditingTracking(null) }} className="text-2xl">×</button>
             </div>
             <div className="space-y-3">
