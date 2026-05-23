@@ -122,13 +122,12 @@ function Tracking() {
     }
 
     let doi = doiDirectInput.trim()
+    // 先清理URL前缀，再校验
+    doi = doi.replace(/^https?:\/\/doi\.org\//, '')
     if (!doi.startsWith('10.')) {
-      alert('请输入有效的DOI（以10.开头）')
+      alert('请输入有效的DOI（以10.开头）或DOI链接')
       return
     }
-
-    // 清理DOI
-    doi = doi.replace(/^https?:\/\/doi\.org\//, '')
 
     setIsAddingByDoi(true)
     try {
@@ -589,7 +588,7 @@ function Tracking() {
             type="text"
             value={doiDirectInput}
             onChange={(e) => setDoiDirectInput(e.target.value)}
-            placeholder="输入DOI，例如：10.1038/nature12373"
+            placeholder="输入DOI或DOI链接，例如：10.1038/nature12373"
             className="input flex-1"
           />
           <button
@@ -601,7 +600,7 @@ function Tracking() {
           </button>
         </div>
         <p className="text-xs text-text-secondary mt-2">
-          输入DOI可直接从CrossRef获取文献信息并添加到文献库
+          输入DOI或DOI链接可直接从CrossRef获取文献信息并添加到文献库
         </p>
       </div>
 
