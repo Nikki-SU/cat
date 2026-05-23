@@ -802,7 +802,7 @@ function Settings() {
               <br />
               无Token使用Agent轻量API（免费，限制10MB/20页）
               <a 
-                href="https://mineru.net" 
+                href="https://mineru.net/apiManage/token" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-blue-500 hover:underline ml-1"
