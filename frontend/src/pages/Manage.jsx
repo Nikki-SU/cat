@@ -131,6 +131,9 @@ function Manage({ defaultTab = 'tracking' }) {
   const [showTagEditModal, setShowTagEditModal] = useState(false)
   const [editingTag, setEditingTag] = useState(null)
   const [tagEditName, setTagEditName] = useState('')
+  const [showTrackingEditModal, setShowTrackingEditModal] = useState(false)
+  const [editingTracking, setEditingTracking] = useState(null)
+  const [trackingFormData, setTrackingFormData] = useState({ date: '', journal: '', title_cn: '', title_en: '', action: '' })
 
   useEffect(() => {
     fetchData()
@@ -456,6 +459,20 @@ function Manage({ defaultTab = 'tracking' }) {
       alert(editingNote ? '笔记更新成功' : '笔记添加成功')
     } catch (error) {
       alert('操作失败: ' + error.message)
+    }
+  }
+
+  // === 追踪记录：编辑 ===
+  const handleSaveTracking = async () => {
+    if (!editingTracking) return
+    try {
+      await trackingAPI.updateRecord(editingTracking.id, trackingFormData)
+      setTrackingRecords(prev => prev.map(r => r.id === editingTracking.id ? { ...r, ...trackingFormData } : r))
+      setShowTrackingEditModal(false)
+      setEditingTracking(null)
+      alert('追踪记录更新成功')
+    } catch (error) {
+      alert('更新失败: ' + error.message)
     }
   }
 
@@ -1133,6 +1150,48 @@ function Manage({ defaultTab = 'tracking' }) {
                     </div>
                   </div>
                 )}
+
+      {/* 追踪记录编辑弹窗 */}
+      {showTrackingEditModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">编辑追踪记录</h3>
+              <button onClick={() => { setShowTrackingEditModal(false); setEditingTracking(null) }} className="text-2xl">×</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">日期</label>
+                <input type="text" value={trackingFormData.date} onChange={(e) => setTrackingFormData({...trackingFormData, date: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">期刊</label>
+                <input type="text" value={trackingFormData.journal} onChange={(e) => setTrackingFormData({...trackingFormData, journal: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">中文标题</label>
+                <input type="text" value={trackingFormData.title_cn} onChange={(e) => setTrackingFormData({...trackingFormData, title_cn: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">英文标题</label>
+                <input type="text" value={trackingFormData.title_en} onChange={(e) => setTrackingFormData({...trackingFormData, title_en: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">状态</label>
+                <select value={trackingFormData.action} onChange={(e) => setTrackingFormData({...trackingFormData, action: e.target.value})} className="w-full px-3 py-2 border rounded">
+                  <option value="added">已添加</option>
+                  <option value="removed">已移除</option>
+                  <option value="pending">待处理</option>
+                </select>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => { setShowTrackingEditModal(false); setEditingTracking(null) }} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleSaveTracking} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 添加DOI弹窗 */}
       {showAddDoiModal && (
