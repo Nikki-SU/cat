@@ -1110,6 +1110,7 @@ function Manage({ defaultTab = 'tracking' }) {
                             </div>
                           </div>
                           <p className="text-sm text-[#8491B4] mt-1">{collection.description || '无描述'}</p>
+                        </div>
                       ))}
                       {collections.length === 0 && (
                         <p className="text-gray-400 col-span-full text-center py-8">暂无合集</p>
