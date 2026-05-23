@@ -1090,7 +1090,7 @@ function Manage({ defaultTab = 'tracking' }) {
                           className="p-3 border rounded cursor-pointer hover:bg-gray-50"
                           onClick={() => handleSelectCollection(collection)}
                         >
-                          <div className="flex justify-between items-start">
+                          <div className="flex justify-between items-center">
                             <h4 className="font-medium text-[#3C5488]">{collection.name}</h4>
                             <div className="flex gap-1">
                               <button
@@ -1106,10 +1106,10 @@ function Manage({ defaultTab = 'tracking' }) {
                                 title="删除"
                               >
                                 ×
-                            </button>
+                              </button>
+                            </div>
                           </div>
                           <p className="text-sm text-[#8491B4] mt-1">{collection.description || '无描述'}</p>
-                        </div>
                       ))}
                       {collections.length === 0 && (
                         <p className="text-gray-400 col-span-full text-center py-8">暂无合集</p>
