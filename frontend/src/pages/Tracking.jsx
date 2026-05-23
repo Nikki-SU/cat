@@ -248,7 +248,7 @@ function Tracking() {
   // 删除合集
   const handleDeleteGroup = async (type, id) => {
     const typeName = type === 'journal' ? '期刊合集' : '关键词合集'
-    if (!confirm(\`确定删除该\${typeName}？\`)) return
+    if (!confirm(`确定删除该${typeName}？`)) return
     try {
       if (type === 'journal') {
         await organizationAPI.deleteJournalGroup(id)
