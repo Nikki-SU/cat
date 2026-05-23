@@ -349,7 +349,40 @@ async def add_by_doi(
             print(f"翻译失败: {e}")
             title_cn = None
     
-    # 3. 创建追踪记录
+    # 3. 创建或更新文献表记录
+    existing_entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+    if not existing_entry:
+        # 提取作者信息
+        authors = paper_info.get("authors", "")
+        first_author = ""
+        if authors:
+            author_list = [a.strip() for a in authors.split(",")]
+            if author_list:
+                first_author = author_list[0]
+        
+        pub_date = paper_info.get("published_date", "")
+        
+        table_entry = LiteratureTableEntry(
+            doi=doi,
+            title_cn=title_cn,
+            title_en=title_en,
+            journal=journal,
+            pubdate=pub_date,
+            first_author=first_author,
+            has_attachment=False,
+            has_structured=False,
+            has_card=False,
+            has_notes=False,
+        )
+        db.add(table_entry)
+    else:
+        # 更新已有记录的翻译
+        if title_cn:
+            existing_entry.title_cn = title_cn
+        if title_en:
+            existing_entry.title_en = title_en
+    
+    # 4. 创建追踪记录
     record = TrackingRecord(
         date=tracking_date,
         journal=journal,
