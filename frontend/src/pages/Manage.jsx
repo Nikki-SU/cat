@@ -134,6 +134,7 @@ function Manage({ defaultTab = 'tracking' }) {
   const [newTagDoi, setNewTagDoi] = useState('')
   const [editingTag, setEditingTag] = useState(null)
   const [tagEditName, setTagEditName] = useState('')
+  const [showTrackingAddModal, setShowTrackingAddModal] = useState(false)
   const [showTrackingEditModal, setShowTrackingEditModal] = useState(false)
   const [editingTracking, setEditingTracking] = useState(null)
   const [trackingFormData, setTrackingFormData] = useState({ date: '', journal: '', title_cn: '', title_en: '', action: '' })
