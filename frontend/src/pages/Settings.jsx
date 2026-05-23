@@ -393,60 +393,7 @@ function Settings() {
     }
   }
 
-  const handleCreateKeywordGroup = async () => {
-    if (!newKeywordName.trim()) {
-      alert('请输入合集名称')
-      return
-    }
-    
-    const keywords = newKeywordList.split('\n').map(k => {
-      const trimmed = k.trim()
-      const parts = trimmed.split(':')
-      return { word: parts[0], logic: parts[1] || 'and' }
-    }).filter(k => k.word)
-    
-    if (keywords.length === 0) {
-      alert('请至少输入一个关键词')
-      return
-    }
-    
-    try {
-      if (editingKeyword) {
-        await organizationAPI.updateKeywordGroup(editingKeyword.id, { name: newKeywordName, keywords })
-      } else {
-        await organizationAPI.createKeywordGroup({ name: newKeywordName, keywords })
-      }
-      fetchKeywordGroups()
-      resetKeywordForm()
-      alert(editingKeyword ? '更新成功' : '创建成功')
-    } catch (error) {
-      alert('保存失败: ' + error.message)
-    }
-  }
-
-  const handleDeleteKeywordGroup = async (id) => {
-    if (!confirm('确定删除该关键词合集？')) return
-    try {
-      await organizationAPI.deleteKeywordGroup(id)
-      fetchKeywordGroups()
-    } catch (error) {
-      console.error('Failed to delete:', error)
-    }
-  }
-
-  const handleEditKeywordGroup = (group) => {
-    setEditingKeyword(group)
-    setNewKeywordName(group.name)
-    setNewKeywordList(group.keywords.map(k => `${k.word}:${k.logic}`).join('\n'))
-    setShowKeywordModal(true)
-  }
-
-  const resetKeywordForm = () => {
-    setShowKeywordModal(false)
-    setNewKeywordName('')
-    setNewKeywordList('')
-    setEditingKeyword(null)
-  }
+  // 期刊/关键词合集管理已移至追踪页和管理页
 
   // 备份功能
   const fetchBackups = async () => {
@@ -1259,6 +1206,8 @@ function Settings() {
 
       <div className="h-8" />
 
-      {/* 期刊合集弹窗 */}
+    </div>
+  )
+}
 
 export default Settings
