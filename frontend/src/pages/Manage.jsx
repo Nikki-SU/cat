@@ -129,6 +129,9 @@ function Manage({ defaultTab = 'tracking' }) {
   const [editingNote, setEditingNote] = useState(null)
   const [noteFormData, setNoteFormData] = useState({ title: '', content: '', doi: '' })
   const [showTagEditModal, setShowTagEditModal] = useState(false)
+  const [showNewTagModal, setShowNewTagModal] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [newTagDoi, setNewTagDoi] = useState('')
   const [editingTag, setEditingTag] = useState(null)
   const [tagEditName, setTagEditName] = useState('')
   const [showTrackingEditModal, setShowTrackingEditModal] = useState(false)
@@ -482,6 +485,23 @@ function Manage({ defaultTab = 'tracking' }) {
       alert('追踪记录更新成功')
     } catch (error) {
       alert('更新失败: ' + error.message)
+    }
+  }
+
+  // === 标签：独立添加 ===
+  const handleCreateNewTag = async () => {
+    if (!newTagName.trim()) { alert('请输入标签名'); return }
+    try {
+      const data = { name: newTagName.trim() }
+      if (newTagDoi.trim()) data.doi = newTagDoi.trim()
+      const newTag = await organizationAPI.createTag(data)
+      setTags(prev => [...prev, newTag])
+      setShowNewTagModal(false)
+      setNewTagName('')
+      setNewTagDoi('')
+      alert('标签添加成功')
+    } catch (error) {
+      alert('添加标签失败: ' + error.message)
     }
   }
 
@@ -963,14 +983,22 @@ function Manage({ defaultTab = 'tracking' }) {
                 {/* 标签管理 */}
                 <div className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-[#3C5488]">标签管理</h3>
-                    <input
-                      type="text"
-                      value={tagSearchQuery}
-                      onChange={(e) => setTagSearchQuery(e.target.value)}
-                      placeholder="搜索标签..."
-                      className="px-3 py-1 text-sm border rounded w-48"
-                    />
+                    <h3 className="font-medium text-[#3C5488]">标签管理 ({tags.length})</h3>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={tagSearchQuery}
+                        onChange={(e) => setTagSearchQuery(e.target.value)}
+                        placeholder="搜索标签..."
+                        className="px-3 py-1 text-sm border rounded w-36"
+                      />
+                      <button
+                        onClick={() => { setNewTagName(''); setNewTagDoi(''); setShowNewTagModal(true) }}
+                        className="px-3 py-1 bg-[#4DBBD5] text-white rounded text-sm hover:bg-[#3a9ab5]"
+                      >
+                        + 添加标签
+                      </button>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2 max-h-[200px] overflow-auto p-2 bg-gray-50 rounded">
                     {filteredTags.length === 0 ? (
@@ -979,7 +1007,8 @@ function Manage({ defaultTab = 'tracking' }) {
                       filteredTags.map(tag => (
                         <span key={tag.id} className={`px-2 py-1 text-sm rounded cursor-pointer ${getTagColor(tag.name)} hover:opacity-80`}>
                           {tag.name}
-                          <button onClick={() => handleRemoveTag(tag.id)} className="ml-1 hover:text-red-600">×</button>
+                          <button onClick={() => { setEditingTag(tag); setTagEditName(tag.name); setShowTagEditModal(true) }} className="ml-1 hover:text-blue-600" title="编辑">&#9998;</button>
+                          <button onClick={() => handleRemoveTag(tag.id)} className="ml-1 hover:text-red-600" title="删除">&#215;</button>
                         </span>
                       ))
                     )}
@@ -1054,11 +1083,20 @@ function Manage({ defaultTab = 'tracking' }) {
                         >
                           <div className="flex justify-between items-start">
                             <h4 className="font-medium text-[#3C5488]">{collection.name}</h4>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDelete('collection', collection.id) }}
-                              className="text-red-400 hover:text-red-600"
-                            >
-                              ×
+                            <div className="flex gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingCollection(collection); setShowCollectionModal(true) }}
+                                className="text-[#4DBBD5] hover:text-[#3a9ab5] text-sm"
+                                title="编辑"
+                              >
+                                &#9998;
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete('collection', collection.id) }}
+                                className="text-red-400 hover:text-red-600"
+                                title="删除"
+                              >
+                                ×
                             </button>
                           </div>
                           <p className="text-sm text-[#8491B4] mt-1">{collection.description || '无描述'}</p>
@@ -1382,6 +1420,32 @@ function Manage({ defaultTab = 'tracking' }) {
               <div className="flex gap-2 pt-2">
                 <button onClick={() => { setShowNoteModal(false); setEditingNote(null) }} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
                 <button onClick={handleSaveNote} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 添加标签弹窗 */}
+      {showNewTagModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">添加标签</h3>
+              <button onClick={() => setShowNewTagModal(false)} className="text-2xl">&times;</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">标签名 *</label>
+                <input type="text" value={newTagName} onChange={(e) => setNewTagName(e.target.value)} placeholder="输入标签名" className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">关联DOI（可选）</label>
+                <input type="text" value={newTagDoi} onChange={(e) => setNewTagDoi(e.target.value)} placeholder="留空则为独立标签" className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowNewTagModal(false)} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleCreateNewTag} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">添加</button>
               </div>
             </div>
           </div>
