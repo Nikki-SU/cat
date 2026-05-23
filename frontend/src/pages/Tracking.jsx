@@ -40,6 +40,11 @@ function Tracking() {
   const [tempJournals, setTempJournals] = useState([])
   const [tempKeywords, setTempKeywords] = useState([])
   const [isTempModified, setIsTempModified] = useState(false)
+  const [showGroupEditModal, setShowGroupEditModal] = useState(false)
+  const [editingGroupType, setEditingGroupType] = useState(null) // 'journal' | 'keyword'
+  const [editingGroupData, setEditingGroupData] = useState(null)
+  const [groupEditName, setGroupEditName] = useState('')
+  const [groupEditItems, setGroupEditItems] = useState('')
 
   // 追踪执行相关状态
   const [isTracking, setIsTracking] = useState(false)
@@ -196,6 +201,67 @@ function Tracking() {
       }
     } catch (error) {
       alert('保存失败: ' + error.message)
+    }
+  }
+
+  // 编辑合集
+  const handleEditGroup = (type, group) => {
+    setEditingGroupType(type)
+    setEditingGroupData(group)
+    setGroupEditName(group.name)
+    if (type === 'journal') {
+      setGroupEditItems(group.journals?.join('\n') || '')
+    } else {
+      setGroupEditItems(group.keywords?.map(k => k.word).join('\n') || '')
+    }
+    setShowGroupEditModal(true)
+  }
+
+  // 保存编辑的合集
+  const handleSaveEditGroup = async () => {
+    if (!groupEditName.trim()) {
+      alert('请输入合集名称')
+      return
+    }
+    try {
+      if (editingGroupType === 'journal') {
+        const journals = groupEditItems.split('\n').map(j => j.trim()).filter(j => j)
+        if (journals.length === 0) { alert('请至少输入一个期刊'); return }
+        await organizationAPI.updateJournalGroup(editingGroupData.id, { name: groupEditName, journals })
+        fetchJournalGroups()
+      } else {
+        const keywords = groupEditItems.split('\n').map(k => k.trim()).filter(k => k)
+        if (keywords.length === 0) { alert('请至少输入一个关键词'); return }
+        await organizationAPI.updateKeywordGroup(editingGroupData.id, { 
+          name: groupEditName, 
+          keywords: keywords.map(w => ({ word: w, logic: 'or' }))
+        })
+        fetchKeywordGroups()
+      }
+      setShowGroupEditModal(false)
+      alert('更新成功')
+    } catch (error) {
+      alert('更新失败: ' + error.message)
+    }
+  }
+
+  // 删除合集
+  const handleDeleteGroup = async (type, id) => {
+    const typeName = type === 'journal' ? '期刊合集' : '关键词合集'
+    if (!confirm(\`确定删除该\${typeName}？\`)) return
+    try {
+      if (type === 'journal') {
+        await organizationAPI.deleteJournalGroup(id)
+        if (selectedJournalGroup?.id === id) setSelectedJournalGroup(null)
+        fetchJournalGroups()
+      } else {
+        await organizationAPI.deleteKeywordGroup(id)
+        if (selectedKeywordGroup?.id === id) setSelectedKeywordGroup(null)
+        fetchKeywordGroups()
+      }
+      alert('删除成功')
+    } catch (error) {
+      alert('删除失败: ' + error.message)
     }
   }
 
@@ -663,12 +729,15 @@ function Tracking() {
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold">📰 期刊合集</h2>
-                <button
-                  onClick={() => handleSaveAsNewGroup('journal')}
-                  className="text-sm text-primary-blue hover:underline"
-                >
-                  保存当前配置
-                </button>
+                <div className="flex gap-2">
+                  {selectedJournalGroup && (
+                    <>
+                      <button onClick={() => handleEditGroup('journal', selectedJournalGroup)} className="text-sm text-primary-blue hover:underline">编辑</button>
+                      <button onClick={() => handleDeleteGroup('journal', selectedJournalGroup.id)} className="text-sm text-red-500 hover:underline">删除</button>
+                    </>
+                  )}
+                  <button onClick={() => handleSaveAsNewGroup('journal')} className="text-sm text-primary-blue hover:underline">+ 新建</button>
+                </div>
               </div>
               
               {/* 合集选择 */}
@@ -710,12 +779,15 @@ function Tracking() {
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold">🔑 关键词合集</h2>
-                <button
-                  onClick={() => handleSaveAsNewGroup('keyword')}
-                  className="text-sm text-primary-blue hover:underline"
-                >
-                  保存当前配置
-                </button>
+                <div className="flex gap-2">
+                  {selectedKeywordGroup && (
+                    <>
+                      <button onClick={() => handleEditGroup('keyword', selectedKeywordGroup)} className="text-sm text-primary-blue hover:underline">编辑</button>
+                      <button onClick={() => handleDeleteGroup('keyword', selectedKeywordGroup.id)} className="text-sm text-red-500 hover:underline">删除</button>
+                    </>
+                  )}
+                  <button onClick={() => handleSaveAsNewGroup('keyword')} className="text-sm text-primary-blue hover:underline">+ 新建</button>
+                </div>
               </div>
               
               {/* 合集选择 */}
@@ -928,5 +1000,32 @@ function Tracking() {
     </div>
   )
 }
+
+
+      {/* 合集编辑弹窗 */}
+      {showGroupEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">编辑{editingGroupType === 'journal' ? '期刊' : '关键词'}合集</h3>
+              <button onClick={() => setShowGroupEditModal(false)} className="text-2xl">&times;</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">名称</label>
+                <input type="text" value={groupEditName} onChange={(e) => setGroupEditName(e.target.value)} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">{editingGroupType === 'journal' ? '期刊列表（每行一个）' : '关键词列表（每行一个）'}</label>
+                <textarea value={groupEditItems} onChange={(e) => setGroupEditItems(e.target.value)} className="w-full px-3 py-2 border rounded min-h-[150px]" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowGroupEditModal(false)} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleSaveEditGroup} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 export default Tracking
