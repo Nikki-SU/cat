@@ -877,8 +877,8 @@ function Settings() {
               className="w-full px-3 py-2 border rounded"
             >
               {TRACKING_INTERVALS.map(hours => (
-                <option key={hours} value={hours}>
-                  {hours >= 24 ? `${hours / 24} 天` : `${hours} 小时`}
+                <option key={hours.key} value={hours.key}>
+                  {hours.name}
                 </option>
               ))}
             </select>
@@ -889,15 +889,15 @@ function Settings() {
             <div className="flex gap-3">
               {DISPLAY_LANGUAGES.map(lang => (
                 <button
-                  key={lang.id}
-                  onClick={() => updateSettings({ displayLanguage: lang.id })}
+                  key={lang.key}
+                  onClick={() => updateSettings({ displayLanguage: lang.key })}
                   className={`flex-1 py-2 px-4 rounded-lg border-2 ${
-                    settings.displayLanguage === lang.id
+                    settings.displayLanguage === lang.key
                       ? 'border-blue-500 bg-blue-50 text-blue-500'
                       : 'border-gray-200 text-gray-600'
                   }`}
                 >
-                  {lang.label}
+                  {lang.name}
                 </button>
               ))}
             </div>
@@ -911,7 +911,7 @@ function Settings() {
               className="w-full px-3 py-2 border rounded"
             >
               {JUMP_MODES.map(mode => (
-                <option key={mode.id} value={mode.id}>{mode.label}</option>
+                <option key={mode.key} value={mode.key}>{mode.name}</option>
               ))}
             </select>
           </div>
@@ -931,7 +931,7 @@ function Settings() {
               className="w-full px-3 py-2 border rounded"
             >
               {WORD_QUEUE_LENGTHS.map(len => (
-                <option key={len} value={len}>{len} 个</option>
+                <option key={len.key} value={len.key}>{len.name}</option>
               ))}
             </select>
           </div>
@@ -973,7 +973,7 @@ function Settings() {
               className="w-full px-3 py-2 border rounded"
             >
               {Object.values(SENTENCE_COLOR_SCHEMES).map(scheme => (
-                <option key={scheme.id} value={scheme.id}>{scheme.name}</option>
+                <option key={scheme.key} value={scheme.key}>{scheme.name}</option>
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
@@ -1355,11 +1355,11 @@ function Settings() {
           <div className="flex flex-wrap gap-2">
             {Object.values(EXPORT_FORMATS).map(format => (
               <button
-                key={format}
-                onClick={() => handleExportData(format)}
+                key={format.key}
+                onClick={() => handleExportData(format.key)}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
               >
-                导出 {format.toUpperCase()}
+                {format.icon} 导出 {format.name}
               </button>
             ))}
           </div>
