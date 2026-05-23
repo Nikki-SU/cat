@@ -217,7 +217,6 @@ class CrossRefService:
         
         params = {
             "query": journal_name,
-            "type": "journal",
             "rows": 5
         }
         
@@ -242,17 +241,11 @@ class CrossRefService:
     
     async def validate_journal(self, journal_name: str) -> Dict[str, Any]:
         """验证期刊名称是否有效"""
-        from datetime import datetime, timedelta
-        
-        one_year_ago = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
-        
         await self._rate_limit()
         
         params = {
             "query": journal_name,
-            "type": "journal",
-            "rows": 10,
-            "from-pub-date": one_year_ago
+            "rows": 10
         }
         
         try:
