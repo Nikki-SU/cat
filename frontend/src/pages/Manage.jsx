@@ -115,6 +115,23 @@ function Manage({ defaultTab = 'tracking' }) {
   const [showCollectionModal, setShowCollectionModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState(null)
 
+  // CRUD弹窗状态
+  const [showAddDoiModal, setShowAddDoiModal] = useState(false)
+  const [addDoiInput, setAddDoiInput] = useState('')
+  const [addDoiLoading, setAddDoiLoading] = useState(false)
+  const [showWordModal, setShowWordModal] = useState(false)
+  const [editingWord, setEditingWord] = useState(null)
+  const [wordFormData, setWordFormData] = useState({ word_en: '', word_cn: '', def_cn: '', def_en: '', ex: '' })
+  const [showSentenceModal, setShowSentenceModal] = useState(false)
+  const [editingSentence, setEditingSentence] = useState(null)
+  const [sentenceFormData, setSentenceFormData] = useState({ sentence_en: '', sentence_cn: '' })
+  const [showNoteModal, setShowNoteModal] = useState(false)
+  const [editingNote, setEditingNote] = useState(null)
+  const [noteFormData, setNoteFormData] = useState({ title: '', content: '', doi: '' })
+  const [showTagEditModal, setShowTagEditModal] = useState(false)
+  const [editingTag, setEditingTag] = useState(null)
+  const [tagEditName, setTagEditName] = useState('')
+
   useEffect(() => {
     fetchData()
     fetchAllTagNames()
@@ -358,6 +375,105 @@ function Manage({ defaultTab = 'tracking' }) {
     }
   }
 
+  // === 文献表：通过DOI添加 ===
+  const handleAddByDoi = async () => {
+    if (!addDoiInput.trim()) { alert('请输入DOI'); return }
+    let doi = addDoiInput.trim()
+    doi = doi.replace(/^https?:\/\/doi\.org\//, '')
+    if (!doi.startsWith('10.')) { alert('请输入有效的DOI（以10.开头）或DOI链接'); return }
+    setAddDoiLoading(true)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const result = await trackingAPI.addByDoi(doi, true, false, today)
+      setShowAddDoiModal(false)
+      setAddDoiInput('')
+      fetchData()
+      alert('文献添加成功！')
+    } catch (error) {
+      alert('添加失败: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setAddDoiLoading(false)
+    }
+  }
+
+  // === 文献表：编辑 ===
+  const handleEditLiterature = (item) => {
+    setEditFormData(item)
+    setEditingLiterature(item.doi)
+  }
+
+  // === 单词：添加/编辑 ===
+  const handleSaveWord = async () => {
+    if (!wordFormData.word_en.trim()) { alert('请输入英文单词'); return }
+    try {
+      if (editingWord) {
+        await learningAPI.updateWord(editingWord.id, wordFormData)
+      } else {
+        await learningAPI.createWord(wordFormData)
+      }
+      setShowWordModal(false)
+      setEditingWord(null)
+      setWordFormData({ word_en: '', word_cn: '', def_cn: '', def_en: '', ex: '' })
+      fetchData()
+      alert(editingWord ? '单词更新成功' : '单词添加成功')
+    } catch (error) {
+      alert('操作失败: ' + error.message)
+    }
+  }
+
+  // === 长难句：添加/编辑 ===
+  const handleSaveSentence = async () => {
+    if (!sentenceFormData.sentence_en.trim()) { alert('请输入英文句子'); return }
+    try {
+      if (editingSentence) {
+        await learningAPI.updateSentence(editingSentence.id, sentenceFormData)
+      } else {
+        await learningAPI.createSentence(sentenceFormData)
+      }
+      setShowSentenceModal(false)
+      setEditingSentence(null)
+      setSentenceFormData({ sentence_en: '', sentence_cn: '' })
+      fetchData()
+      alert(editingSentence ? '长难句更新成功' : '长难句添加成功')
+    } catch (error) {
+      alert('操作失败: ' + error.message)
+    }
+  }
+
+  // === 笔记：添加/编辑 ===
+  const handleSaveNote = async () => {
+    if (!noteFormData.title.trim() && !noteFormData.content.trim()) { alert('请输入标题或内容'); return }
+    try {
+      if (editingNote) {
+        await noteAPI.updateGeneralNote(editingNote.id, noteFormData)
+      } else {
+        await noteAPI.createGeneralNote(noteFormData)
+      }
+      setShowNoteModal(false)
+      setEditingNote(null)
+      setNoteFormData({ title: '', content: '', doi: '' })
+      fetchData()
+      alert(editingNote ? '笔记更新成功' : '笔记添加成功')
+    } catch (error) {
+      alert('操作失败: ' + error.message)
+    }
+  }
+
+  // === 标签：编辑 ===
+  const handleSaveTag = async () => {
+    if (!tagEditName.trim()) { alert('请输入标签名'); return }
+    try {
+      await organizationAPI.updateTag(editingTag.id, { name: tagEditName.trim(), doi: editingTag.doi })
+      setTags(prev => prev.map(t => t.id === editingTag.id ? { ...t, name: tagEditName.trim() } : t))
+      setShowTagEditModal(false)
+      setEditingTag(null)
+      setTagEditName('')
+      alert('标签更新成功')
+    } catch (error) {
+      alert('更新失败: ' + error.message)
+    }
+  }
+
   // 选择合集
   const handleSelectCollection = async (collection) => {
     setSelectedCollection(collection)
@@ -478,12 +594,20 @@ function Manage({ defaultTab = 'tracking' }) {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-medium text-[#3C5488]">文献表 ({filteredLiterature.length})</h2>
-                  <button
-                    onClick={() => setShowExportModal(true)}
-                    className="px-4 py-2 bg-[#00A087] text-white rounded hover:bg-[#00876d] text-sm"
-                  >
-                    导出
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setAddDoiInput(''); setShowAddDoiModal(true) }}
+                      className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] text-sm"
+                    >
+                      + 添加DOI
+                    </button>
+                    <button
+                      onClick={() => setShowExportModal(true)}
+                      className="px-4 py-2 bg-[#00A087] text-white rounded hover:bg-[#00876d] text-sm"
+                    >
+                      导出
+                    </button>
+                  </div>
                 </div>
                 
                 {/* 搜索和排序 */}
@@ -570,6 +694,12 @@ function Manage({ defaultTab = 'tracking' }) {
                             <td className="px-4 py-3">
                               <div className="flex gap-2">
                                 <button
+                                  onClick={() => handleEditLiterature(item)}
+                                  className="text-[#4DBBD5] hover:text-[#3a9ab5] text-sm"
+                                >
+                                  编辑
+                                </button>
+                                <button
                                   onClick={() => handleDelete('literature', item.doi, false)}
                                   className="text-red-400 hover:text-red-600 text-sm"
                                 >
@@ -598,7 +728,15 @@ function Manage({ defaultTab = 'tracking' }) {
               <div className="space-y-6">
                 {/* 单词 */}
                 <div className="bg-white rounded-lg shadow p-4">
-                  <h3 className="font-medium text-[#3C5488] mb-3">单词 ({words.length})</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-[#3C5488]">单词 ({words.length})</h3>
+                    <button
+                      onClick={() => { setEditingWord(null); setWordFormData({ word_en: '', word_cn: '', def_cn: '', def_en: '', ex: '' }); setShowWordModal(true) }}
+                      className="px-3 py-1 bg-[#4DBBD5] text-white rounded text-sm hover:bg-[#3a9ab5]"
+                    >
+                      + 添加
+                    </button>
+                  </div>
                   {words.length === 0 ? (
                     <p className="text-gray-400 text-center py-4">暂无单词</p>
                   ) : (
@@ -616,12 +754,20 @@ function Manage({ defaultTab = 'tracking' }) {
                               {word.status === 'mastered' ? '已掌握' : word.status === 'learning' ? '学习中' : '新词'}
                             </span>
                           </div>
-                          <button
-                            onClick={() => handleDelete('word', word.id)}
-                            className="text-red-400 hover:text-red-600"
-                          >
-                            ×
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setEditingWord(word); setWordFormData({ word_en: word.word_en || '', word_cn: word.word_cn || '', def_cn: word.def_cn || '', def_en: word.def_en || '', ex: word.ex || '' }); setShowWordModal(true) }}
+                              className="text-[#4DBBD5] hover:text-[#3a9ab5] text-sm"
+                            >
+                              编辑
+                            </button>
+                            <button
+                              onClick={() => handleDelete('word', word.id)}
+                              className="text-red-400 hover:text-red-600"
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                       ))}
                       {words.length > 100 && (
@@ -633,7 +779,15 @@ function Manage({ defaultTab = 'tracking' }) {
                 
                 {/* 长难句 */}
                 <div className="bg-white rounded-lg shadow p-4">
-                  <h3 className="font-medium text-[#3C5488] mb-3">长难句 ({sentences.length})</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-[#3C5488]">长难句 ({sentences.length})</h3>
+                    <button
+                      onClick={() => { setEditingSentence(null); setSentenceFormData({ sentence_en: '', sentence_cn: '' }); setShowSentenceModal(true) }}
+                      className="px-3 py-1 bg-[#4DBBD5] text-white rounded text-sm hover:bg-[#3a9ab5]"
+                    >
+                      + 添加
+                    </button>
+                  </div>
                   {sentences.length === 0 ? (
                     <p className="text-gray-400 text-center py-4">暂无长难句</p>
                   ) : (
@@ -650,12 +804,20 @@ function Manage({ defaultTab = 'tracking' }) {
                               {sentence.status === 'mastered' ? '已掌握' : sentence.status === 'learning' ? '学习中' : '新句'}
                             </span>
                           </div>
-                          <button
-                            onClick={() => handleDelete('sentence', sentence.id)}
-                            className="text-red-400 hover:text-red-600 ml-2"
-                          >
-                            ×
-                          </button>
+                          <div className="flex gap-2 ml-2">
+                            <button
+                              onClick={() => { setEditingSentence(sentence); setSentenceFormData({ sentence_en: sentence.sentence_en || '', sentence_cn: sentence.sentence_cn || '' }); setShowSentenceModal(true) }}
+                              className="text-[#4DBBD5] hover:text-[#3a9ab5] text-sm"
+                            >
+                              编辑
+                            </button>
+                            <button
+                              onClick={() => handleDelete('sentence', sentence.id)}
+                              className="text-red-400 hover:text-red-600"
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                       ))}
                       {sentences.length > 50 && (
@@ -670,7 +832,15 @@ function Manage({ defaultTab = 'tracking' }) {
             {/* 笔记管理 */}
             {activeTab === 'notes' && (
               <div className="bg-white rounded-lg shadow p-4">
-                <h3 className="font-medium text-[#3C5488] mb-3">笔记 ({notes.length})</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium text-[#3C5488]">笔记 ({notes.length})</h3>
+                  <button
+                    onClick={() => { setEditingNote(null); setNoteFormData({ title: '', content: '', doi: '' }); setShowNoteModal(true) }}
+                    className="px-3 py-1 bg-[#4DBBD5] text-white rounded text-sm hover:bg-[#3a9ab5]"
+                  >
+                    + 添加
+                  </button>
+                </div>
                 {notes.length === 0 ? (
                   <p className="text-gray-400 text-center py-8">暂无笔记</p>
                 ) : (
@@ -679,7 +849,15 @@ function Manage({ defaultTab = 'tracking' }) {
                       <div key={note.id} className="p-3 bg-gray-50 rounded">
                         <div className="flex justify-between items-start">
                           <h4 className="font-medium text-[#3C5488]">{note.title || '无标题'}</h4>
-                          <button onClick={() => handleDelete('note', note.id)} className="text-red-400 hover:text-red-600">×</button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setEditingNote(note); setNoteFormData({ title: note.title || '', content: note.content || '', doi: note.doi || '' }); setShowNoteModal(true) }}
+                              className="text-[#4DBBD5] hover:text-[#3a9ab5] text-sm"
+                            >
+                              编辑
+                            </button>
+                            <button onClick={() => handleDelete('note', note.id)} className="text-red-400 hover:text-red-600">×</button>
+                          </div>
                         </div>
                         <p className="text-sm text-[#8491B4] mt-1 line-clamp-2">{note.content?.slice(0, 100)}...</p>
                         {note.doi && <span className="text-xs text-[#4DBBD5] mt-1">关联: {note.doi}</span>}
@@ -955,6 +1133,148 @@ function Manage({ defaultTab = 'tracking' }) {
                     </div>
                   </div>
                 )}
+
+      {/* 添加DOI弹窗 */}
+      {showAddDoiModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">通过DOI添加文献</h3>
+              <button onClick={() => setShowAddDoiModal(false)} className="text-2xl">×</button>
+            </div>
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={addDoiInput}
+                onChange={(e) => setAddDoiInput(e.target.value)}
+                placeholder="输入DOI或DOI链接，例如：10.1038/nature12373"
+                className="w-full px-3 py-2 border rounded"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddByDoi()}
+              />
+              <p className="text-xs text-gray-500">将从CrossRef获取文献信息并自动翻译标题</p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowAddDoiModal(false)} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleAddByDoi} disabled={addDoiLoading} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] disabled:opacity-50">
+                  {addDoiLoading ? '添加中...' : '添加'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 单词添加/编辑弹窗 */}
+      {showWordModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">{editingWord ? '编辑单词' : '添加单词'}</h3>
+              <button onClick={() => { setShowWordModal(false); setEditingWord(null) }} className="text-2xl">×</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">英文 *</label>
+                <input type="text" value={wordFormData.word_en} onChange={(e) => setWordFormData({...wordFormData, word_en: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">中文</label>
+                <input type="text" value={wordFormData.word_cn} onChange={(e) => setWordFormData({...wordFormData, word_cn: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">中文释义</label>
+                <input type="text" value={wordFormData.def_cn} onChange={(e) => setWordFormData({...wordFormData, def_cn: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">英文释义</label>
+                <input type="text" value={wordFormData.def_en} onChange={(e) => setWordFormData({...wordFormData, def_en: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">例句</label>
+                <input type="text" value={wordFormData.ex} onChange={(e) => setWordFormData({...wordFormData, ex: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => { setShowWordModal(false); setEditingWord(null) }} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleSaveWord} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 长难句添加/编辑弹窗 */}
+      {showSentenceModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">{editingSentence ? '编辑长难句' : '添加长难句'}</h3>
+              <button onClick={() => { setShowSentenceModal(false); setEditingSentence(null) }} className="text-2xl">×</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">英文句子 *</label>
+                <textarea value={sentenceFormData.sentence_en} onChange={(e) => setSentenceFormData({...sentenceFormData, sentence_en: e.target.value})} className="w-full px-3 py-2 border rounded min-h-[100px]" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">中文翻译</label>
+                <textarea value={sentenceFormData.sentence_cn} onChange={(e) => setSentenceFormData({...sentenceFormData, sentence_cn: e.target.value})} className="w-full px-3 py-2 border rounded min-h-[80px]" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => { setShowSentenceModal(false); setEditingSentence(null) }} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleSaveSentence} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 笔记添加/编辑弹窗 */}
+      {showNoteModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">{editingNote ? '编辑笔记' : '添加笔记'}</h3>
+              <button onClick={() => { setShowNoteModal(false); setEditingNote(null) }} className="text-2xl">×</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">标题</label>
+                <input type="text" value={noteFormData.title} onChange={(e) => setNoteFormData({...noteFormData, title: e.target.value})} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">内容</label>
+                <textarea value={noteFormData.content} onChange={(e) => setNoteFormData({...noteFormData, content: e.target.value})} className="w-full px-3 py-2 border rounded min-h-[150px]" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">关联DOI</label>
+                <input type="text" value={noteFormData.doi} onChange={(e) => setNoteFormData({...noteFormData, doi: e.target.value})} placeholder="可选" className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => { setShowNoteModal(false); setEditingNote(null) }} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleSaveNote} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 标签编辑弹窗 */}
+      {showTagEditModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">编辑标签</h3>
+              <button onClick={() => { setShowTagEditModal(false); setEditingTag(null) }} className="text-2xl">×</button>
+            </div>
+            <div className="space-y-3">
+              <input type="text" value={tagEditName} onChange={(e) => setTagEditName(e.target.value)} className="w-full px-3 py-2 border rounded" />
+              <div className="flex gap-2">
+                <button onClick={() => { setShowTagEditModal(false); setEditingTag(null) }} className="flex-1 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                <button onClick={handleSaveTag} className="flex-1 px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5]">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 合集创建弹窗 */}
       {showCollectionModal && (
