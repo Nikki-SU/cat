@@ -59,15 +59,7 @@ function Settings() {
   const [aiTestResult, setAiTestResult] = useState(null)
   const [aiTesting, setAiTesting] = useState(false)
   
-  // 合集管理
-  const [showJournalModal, setShowJournalModal] = useState(false)
-  const [showKeywordModal, setShowKeywordModal] = useState(false)
-  const [newJournalName, setNewJournalName] = useState('')
-  const [newJournalList, setNewJournalList] = useState('')
-  const [newKeywordName, setNewKeywordName] = useState('')
-  const [newKeywordList, setNewKeywordList] = useState('')
-  const [editingJournal, setEditingJournal] = useState(null)
-  const [editingKeyword, setEditingKeyword] = useState(null)
+  // 合集管理已移至追踪页和管理页
   
   // 备份同步
   const [backups, setBackups] = useState([])
@@ -110,8 +102,7 @@ function Settings() {
   }
 
   useEffect(() => {
-    fetchJournalGroups()
-    fetchKeywordGroups()
+    // 期刊/关键词合集管理已移至追踪页和管理页
     fetchBackups()
     fetchSyncV2Status()
     fetchRelayStatus()
@@ -402,68 +393,6 @@ function Settings() {
     }
   }
 
-  // 期刊合集验证
-  const handleValidateJournalGroup = async (id) => {
-    try {
-      const result = await organizationAPI.validateJournalGroup(id)
-      alert(`验证完成: ${result.valid_count} 个有效, ${result.invalid_count} 个无效`)
-    } catch (error) {
-      alert('验证失败: ' + error.message)
-    }
-  }
-
-  // 期刊合集管理
-  const handleCreateJournalGroup = async () => {
-    if (!newJournalName.trim()) {
-      alert('请输入合集名称')
-      return
-    }
-    
-    const journals = newJournalList.split('\n').map(j => j.trim()).filter(j => j)
-    if (journals.length === 0) {
-      alert('请至少输入一个期刊名')
-      return
-    }
-    
-    try {
-      if (editingJournal) {
-        await organizationAPI.updateJournalGroup(editingJournal.id, { name: newJournalName, journals })
-      } else {
-        await organizationAPI.createJournalGroup({ name: newJournalName, journals })
-      }
-      fetchJournalGroups()
-      resetJournalForm()
-      alert(editingJournal ? '更新成功' : '创建成功')
-    } catch (error) {
-      alert('保存失败: ' + error.message)
-    }
-  }
-
-  const handleDeleteJournalGroup = async (id) => {
-    if (!confirm('确定删除该期刊合集？')) return
-    try {
-      await organizationAPI.deleteJournalGroup(id)
-      fetchJournalGroups()
-    } catch (error) {
-      console.error('Failed to delete:', error)
-    }
-  }
-
-  const handleEditJournalGroup = (group) => {
-    setEditingJournal(group)
-    setNewJournalName(group.name)
-    setNewJournalList(group.journals.join('\n'))
-    setShowJournalModal(true)
-  }
-
-  const resetJournalForm = () => {
-    setShowJournalModal(false)
-    setNewJournalName('')
-    setNewJournalList('')
-    setEditingJournal(null)
-  }
-
-  // 关键词合集管理
   const handleCreateKeywordGroup = async () => {
     if (!newKeywordName.trim()) {
       alert('请输入合集名称')
@@ -983,66 +912,6 @@ function Settings() {
         </div>
       </section>
 
-      {/* 期刊合集管理 */}
-      <section className="bg-white rounded-xl p-4 shadow">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">📰 期刊合集</h2>
-          <button onClick={() => setShowJournalModal(true)} className="px-3 py-1 bg-blue-500 text-white rounded text-sm">
-            + 新建
-          </button>
-        </div>
-        
-        {journalGroups.length === 0 ? (
-          <p className="text-center py-4 text-gray-500">暂无期刊合集</p>
-        ) : (
-          <div className="space-y-2">
-            {journalGroups.map(group => (
-              <div key={group.id} className="p-3 border rounded-lg flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="font-medium">{group.name}</p>
-                  <p className="text-xs text-gray-500 mt-1">{group.journals?.length || 0} 个期刊</p>
-                </div>
-                <div className="flex gap-2 ml-2">
-                  <button onClick={() => handleValidateJournalGroup(group.id)} className="p-1 text-green-500 hover:bg-green-50" title="验证">✓</button>
-                  <button onClick={() => handleEditJournalGroup(group)} className="p-1 text-gray-500 hover:bg-gray-100">✏️</button>
-                  <button onClick={() => handleDeleteJournalGroup(group.id)} className="p-1 text-red-500 hover:bg-red-50">🗑️</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* 关键词合集管理 */}
-      <section className="bg-white rounded-xl p-4 shadow">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">🔑 关键词合集</h2>
-          <button onClick={() => setShowKeywordModal(true)} className="px-3 py-1 bg-blue-500 text-white rounded text-sm">
-            + 新建
-          </button>
-        </div>
-        
-        {keywordGroups.length === 0 ? (
-          <p className="text-center py-4 text-gray-500">暂无关键词合集</p>
-        ) : (
-          <div className="space-y-2">
-            {keywordGroups.map(group => (
-              <div key={group.id} className="p-3 border rounded-lg flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="font-medium">{group.name}</p>
-                  <p className="text-xs text-gray-500 mt-1">{group.keywords?.length || 0} 个关键词</p>
-                </div>
-                <div className="flex gap-2 ml-2">
-                  <button onClick={() => handleEditKeywordGroup(group)} className="p-1 text-gray-500 hover:bg-gray-100">✏️</button>
-                  <button onClick={() => handleDeleteKeywordGroup(group.id)} className="p-1 text-red-500 hover:bg-red-50">🗑️</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-
       {/* 搜索引擎管理 */}
       <section className="bg-white rounded-xl p-4 shadow">
         <div className="flex justify-between items-center mb-4">
@@ -1391,73 +1260,5 @@ function Settings() {
       <div className="h-8" />
 
       {/* 期刊合集弹窗 */}
-      {showJournalModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4">{editingJournal ? '编辑期刊合集' : '新建期刊合集'}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">合集名称</label>
-                <input type="text" value={newJournalName} onChange={(e) => setNewJournalName(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="例如：物理" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">期刊列表（每行一个）</label>
-                <textarea value={newJournalList} onChange={(e) => setNewJournalList(e.target.value)} className="w-full px-3 py-2 border rounded min-h-[150px]" placeholder="Nature&#10;Science&#10;Cell" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button onClick={resetJournalForm} className="px-4 py-2 bg-gray-100 text-gray-700 rounded">取消</button>
-              <button onClick={handleCreateJournalGroup} className="px-4 py-2 bg-blue-500 text-white rounded">保存</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 关键词合集弹窗 */}
-      {showKeywordModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4">{editingKeyword ? '编辑关键词合集' : '新建关键词合集'}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">合集名称</label>
-                <input type="text" value={newKeywordName} onChange={(e) => setNewKeywordName(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="例如：机器学习" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">关键词列表（格式: word 或 word:and/or/not）</label>
-                <textarea value={newKeywordList} onChange={(e) => setNewKeywordList(e.target.value)} className="w-full px-3 py-2 border rounded min-h-[150px]" placeholder="machine learning&#10;deep learning:or&#10;neural network:not" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button onClick={resetKeywordForm} className="px-4 py-2 bg-gray-100 text-gray-700 rounded">取消</button>
-              <button onClick={handleCreateKeywordGroup} className="px-4 py-2 bg-blue-500 text-white rounded">保存</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Phase 2: 配对弹窗 */}
-      {showPairingModal && (
-        <PairingModal
-          mode={pairingMode}
-          onClose={closePairingModal}
-          onPaired={() => {
-            closePairingModal()
-            fetchSyncV2Status()
-          }}
-        />
-      )}
-
-      {/* Phase 3: 冲突解决弹窗 */}
-      {showConflictModal && (
-        <ConflictModal
-          conflicts={conflicts}
-          onResolve={handleResolveConflict}
-          onResolveAll={handleResolveAllConflicts}
-          onClose={() => setShowConflictModal(false)}
-        />
-      )}
-    </div>
-  )
-}
 
 export default Settings
