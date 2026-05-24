@@ -7,6 +7,9 @@ class GeneralNoteBase(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     doi: Optional[str] = None
+    file_type: Optional[str] = "markdown"
+    file_data: Optional[List[Dict[str, Any]]] = None
+    file_path: Optional[str] = None
     attachments: Optional[List[Dict[str, Any]]] = None
     template_id: Optional[int] = None
 
@@ -16,6 +19,9 @@ class GeneralNoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     doi: Optional[str] = None
+    file_type: Optional[str] = None
+    file_data: Optional[List[Dict[str, Any]]] = None
+    file_path: Optional[str] = None
     attachments: Optional[List[Dict[str, Any]]] = None
     template_id: Optional[int] = None
 
