@@ -192,6 +192,10 @@ export const settingsAPI = {
   addSearchEngine: (engine) => apiClient.post('/settings/search-engines', engine),
   updateSearchEngine: (id, engine) => apiClient.put(`/settings/search-engines/${id}`, engine),
   deleteSearchEngine: (id) => apiClient.delete(`/settings/search-engines/${id}`),
+  // OCR配置
+  getOcrConfig: () => apiClient.get('/settings/ocr-config'),
+  updateOcrConfig: (config) => apiClient.post('/settings/ocr-config', config),
+  
   resetSearchEngines: () => apiClient.post('/settings/search-engines/reset'),
 }
 
@@ -311,6 +315,17 @@ export const noteAPI = {
     const formData = new FormData()
     formData.append('file', file)
     const response = await apiClient.post('/notes/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response
+  },
+
+  // 公式OCR识别
+  ocrFormula: async (file, model = "turbo") => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('model', model)
+    const response = await apiClient.post('/notes/ocr', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return response
