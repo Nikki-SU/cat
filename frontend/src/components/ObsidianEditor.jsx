@@ -17,6 +17,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import mermaid from 'mermaid'
@@ -68,6 +71,7 @@ const EditorToolbar = ({ onInsert, readOnly }) => {
     { icon: '🧠', label: '导图', action: () => onInsert('mermaid') },
     { icon: '[[]]', label: '双链', action: () => onInsert('wikilink') },
     { icon: '#', label: '标签', action: () => onInsert('tag') },
+    { icon: '∑', label: '公式', action: () => onInsert('math') },
   ]
   
   return (
@@ -542,6 +546,9 @@ const ObsidianEditor = ({
       case 'tag':
         insertAtCursor('#标签 ')
         break
+      case 'math':
+        insertAtCursor('$$\n\n$$')
+        break
       default:
         break
     }
@@ -674,7 +681,7 @@ const ObsidianEditor = ({
     return (
       <div className={`prose prose-sm max-w-none ${className}`}>
         <ReactMarkdown 
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
           components={MarkdownComponents}
         >
           {content}
@@ -710,7 +717,7 @@ const ObsidianEditor = ({
         {showPreview ? (
           <div className="p-4 prose prose-sm max-w-none min-h-[150px]">
             <ReactMarkdown 
-              remarkPlugins={[remarkGfm]}
+              remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
               components={MarkdownComponents}
             >
               {content}
