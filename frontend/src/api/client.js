@@ -315,6 +315,14 @@ export const noteAPI = {
     })
     return response
   },
+
+  // 文件导入创建笔记
+  uploadFile: async (formData) => {
+    const response = await apiClient.post('/notes/upload-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response
+  },
 }
 
 // ==================== 组织 API ====================
