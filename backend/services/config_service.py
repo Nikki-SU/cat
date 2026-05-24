@@ -39,6 +39,10 @@ DEFAULT_CONFIG = {
         "translation_mode": "flash",
         "review_mode": "interval"
     },
+    "ocr": {
+        "simpletex_app_id": None,
+        "simpletex_app_secret": None
+    },
     "search_engines": {
         "engines": [
             {"id": "doi", "name": "DOI直达", "icon": "🔗", "url_template": "https://doi.org/{query}", "enabled": True},
