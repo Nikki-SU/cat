@@ -204,6 +204,42 @@ def reset_search_engines():
     return {"success": True}
 
 
+
+# ========== OCR 配置 ==========
+
+class OcrConfig(BaseModel):
+    app_id: Optional[str] = None
+    app_secret: Optional[str] = None
+
+class OcrConfigResponse(BaseModel):
+    has_config: bool
+    app_id_set: bool
+    app_id_preview: str
+    app_secret_set: bool
+    app_secret_preview: str
+
+@router.get("/ocr-config", response_model=OcrConfigResponse)
+def get_ocr_config():
+    cs = get_config_service()
+    app_id = cs.get("ocr", "simpletex_app_id", "")
+    app_secret = cs.get("ocr", "simpletex_app_secret", "")
+    return OcrConfigResponse(
+        has_config=bool(app_id and app_secret),
+        app_id_set=bool(app_id),
+        app_id_preview=f"***{app_id[-4:]}" if len(app_id) > 4 else ("已设置" if app_id else "未设置"),
+        app_secret_set=bool(app_secret),
+        app_secret_preview=f"***{app_secret[-4:]}" if len(app_secret) > 4 else ("已设置" if app_secret else "未设置")
+    )
+
+@router.post("/ocr-config")
+def update_ocr_config(config: OcrConfig):
+    cs = get_config_service()
+    if config.app_id is not None:
+        cs.set("ocr", "simpletex_app_id", config.app_id)
+    if config.app_secret is not None:
+        cs.set("ocr", "simpletex_app_secret", config.app_secret)
+    return {"success": True, "message": "OCR配置已更新"}
+
 # ========== 全部配置 ==========
 
 @router.get("/all")
@@ -216,6 +252,8 @@ def get_all_config():
         all_config["ai"]["api_key"] = "***" + all_config["ai"]["api_key"][-4:]
     if all_config.get("mineru", {}).get("api_token"):
         all_config["mineru"]["api_token"] = "***" + all_config["mineru"]["api_token"][-4:]
+    if all_config.get("ocr", {}).get("simpletex_app_secret"):
+        all_config["ocr"]["simpletex_app_secret"] = "***" + all_config["ocr"]["simpletex_app_secret"][-4:]
     return all_config
 
 @router.post("/reset")
