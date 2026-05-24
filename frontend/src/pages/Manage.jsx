@@ -2,6 +2,7 @@
  * 文献管理独立页面
  */
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { literatureAPI, trackingAPI, learningAPI, noteAPI, organizationAPI, attachmentAPI } from '../api/client'
 
 const tabs = [
@@ -753,6 +754,20 @@ function Manage({ defaultTab = 'tracking' }) {
                                   className="text-[#4DBBD5] hover:text-[#3a9ab5] text-sm"
                                 >
                                   编辑
+                                </button>
+                                <button
+                                  onClick={() => navigate(`/notes?doi=${item.doi}`)}
+                                  className="text-yellow-600 hover:text-yellow-800 text-sm"
+                                  title={item.has_note ? '查看笔记' : '添加笔记'}
+                                >
+                                  📝笔记
+                                </button>
+                                <button
+                                  onClick={() => handleAttachmentClick(item)}
+                                  className="text-green-600 hover:text-green-800 text-sm"
+                                  title={item.has_attachment ? '查看附件' : '上传附件'}
+                                >
+                                  📎附件
                                 </button>
                                 <button
                                   onClick={() => handleDelete('literature', item.doi, false)}
