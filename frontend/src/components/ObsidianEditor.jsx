@@ -72,6 +72,7 @@ const EditorToolbar = ({ onInsert, readOnly }) => {
     { icon: '[[]]', label: '双链', action: () => onInsert('wikilink') },
     { icon: '#', label: '标签', action: () => onInsert('tag') },
     { icon: '∑', label: '公式', action: () => onInsert('math') },
+    { icon: '📷', label: '识别公式', action: () => onInsert('ocr') },
   ]
   
   return (
@@ -451,6 +452,197 @@ const MermaidDialog = ({ onInsert, onClose }) => {
   )
 }
 
+// ==================== 公式OCR识别对话框 ====================
+
+const OcrDialog = ({ onInsert, onClose }) => {
+  const [latex, setLatex] = useState('')
+  const [recognizing, setRecognizing] = useState(false)
+  const [error, setError] = useState('')
+  const [model, setModel] = useState('turbo')
+  const [previewImage, setPreviewImage] = useState(null)
+  const [imageFile, setImageFile] = useState(null)
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef(null)
+  
+  const handleDrag = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }
+  
+  const loadImage = (file) => {
+    if (!file.type.startsWith('image/')) {
+      setError('请选择图片文件')
+      return
+    }
+    setImageFile(file)
+    setError('')
+    const reader = new FileReader()
+    reader.onload = (e) => setPreviewImage(e.target.result)
+    reader.readAsDataURL(file)
+  }
+  
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      loadImage(e.dataTransfer.files[0])
+    }
+  }
+  
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items
+    if (items) {
+      for (let item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) loadImage(file)
+          return
+        }
+      }
+    }
+  }
+  
+  const handleRecognize = async () => {
+    if (!imageFile) {
+      setError('请先选择或粘贴图片')
+      return
+    }
+    setRecognizing(true)
+    setError('')
+    try {
+      const result = await noteAPI.ocrFormula(imageFile, model)
+      if (result.success) {
+        setLatex(result.latex || '')
+      } else {
+        setError(result.error || '识别失败，请重试')
+      }
+    } catch (err) {
+      setError(err?.response?.data?.detail || err?.message || '识别失败')
+    } finally {
+      setRecognizing(false)
+    }
+  }
+  
+  const handleInsert = () => {
+    if (latex.trim()) {
+      onInsert(`$$\n${latex}\n$$`)
+      onClose()
+    }
+  }
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onPaste={handlePaste}
+    >
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-4">📷 公式OCR识别</h3>
+        
+        {/* 模型选择 */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setModel('turbo')}
+            className={`px-3 py-1 rounded text-sm ${model === 'turbo' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+          >
+            轻量模型（更快）
+          </button>
+          <button
+            onClick={() => setModel('standard')}
+            className={`px-3 py-1 rounded text-sm ${model === 'standard' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+          >
+            标准模型（更精确）
+          </button>
+        </div>
+        
+        {/* 图片区域 */}
+        <div
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          className={`border-2 border-dashed rounded-lg p-4 text-center mb-4 ${
+            dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+          }`}
+        >
+          {previewImage ? (
+            <div className="relative">
+              <img src={previewImage} alt="预览" className="max-h-48 mx-auto" />
+              <button
+                onClick={() => { setPreviewImage(null); setImageFile(null) }}
+                className="absolute top-2 right-2 px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+              >
+                清除
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-gray-500 mb-2">拖拽图片到此处，或</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                选择图片
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={e => e.target.files?.[0] && loadImage(e.target.files[0])}
+                className="hidden"
+              />
+              <p className="text-xs text-gray-400 mt-2">支持 Ctrl+V 粘贴截图</p>
+            </>
+          )}
+        </div>
+        
+        {/* 识别按钮 */}
+        <div className="mb-4">
+          <button
+            onClick={handleRecognize}
+            disabled={!imageFile || recognizing}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+          >
+            {recognizing ? '⏳ 识别中...' : '🔍 识别公式'}
+          </button>
+        </div>
+        
+        {/* 识别结果 */}
+        {error && (
+          <p className="text-sm text-red-500 mb-2">{error}</p>
+        )}
+        
+        <div className="mb-4">
+          <label className="block text-sm text-gray-600 mb-1">LaTeX代码（可编辑修改）</label>
+          <textarea
+            value={latex}
+            onChange={e => setLatex(e.target.value)}
+            placeholder="识别结果将显示在这里，也可以直接输入LaTeX..."
+            className="w-full h-32 px-3 py-2 border rounded font-mono text-sm"
+          />
+        </div>
+        
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+            取消
+          </button>
+          <button 
+            onClick={handleInsert}
+            disabled={!latex.trim()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            插入公式
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ==================== 主编辑器组件 ====================
 
 const ObsidianEditor = ({ 
@@ -548,6 +740,9 @@ const ObsidianEditor = ({
         break
       case 'math':
         insertAtCursor('$$\n\n$$')
+        break
+      case 'ocr':
+        setDialog('ocr')
         break
       default:
         break
@@ -763,6 +958,13 @@ const ObsidianEditor = ({
       
       {dialog === 'mermaid' && (
         <MermaidDialog
+          onInsert={handleLinkInsert}
+          onClose={() => setDialog(null)}
+        />
+      )}
+
+      {dialog === 'ocr' && (
+        <OcrDialog
           onInsert={handleLinkInsert}
           onClose={() => setDialog(null)}
         />
