@@ -10,6 +10,7 @@ const tabs = [
   { path: '/browse', icon: '📑', label: '略读' },
   { path: '/deep-read', icon: '📖', label: '精读' },
   { path: '/manage', icon: '📁', label: '管理' },
+  { path: '/notes', icon: '📝', label: '笔记' },
   { path: '/learn', icon: '📚', label: '学习' },
   { path: '/settings', icon: '⚙️', label: '设置' },
 ]
