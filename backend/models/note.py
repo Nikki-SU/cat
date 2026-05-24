@@ -14,6 +14,9 @@ class GeneralNote(Base):
     title = Column(String(255), nullable=True)
     content = Column(Text, nullable=True)
     doi = Column(String(255), nullable=True, index=True)
+    file_type = Column(String(50), nullable=True, default="markdown")  # markdown/word/excel/pdf/other
+    file_data = Column(JSON, nullable=True)  # Excel等结构化数据
+    file_path = Column(String(500), nullable=True)  # 导入文件的存储路径
     attachments = Column(JSON, nullable=True)
     template_id = Column(Integer, ForeignKey("note_templates.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
