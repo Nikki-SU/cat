@@ -16,7 +16,7 @@ from config import settings
 from routers import (
     literature, tracking, card, attachment, structured, 
     learning, note, organization, translation, ai_proxy, backup,
-    settings as settings_router, note_image, sync_v2, pairing
+    settings as settings_router, note_image, note_ocr, sync_v2, pairing
 )
 from services.hub_manager import get_hub_manager
 from services.discovery import start_broadcaster, stop_broadcaster, start_scanner, stop_scanner
@@ -107,6 +107,7 @@ app.include_router(ai_proxy.router, prefix=settings.API_PREFIX)
 app.include_router(backup.router, prefix=settings.API_PREFIX)
 app.include_router(settings_router.router, prefix=settings.API_PREFIX)
 app.include_router(note_image.router, prefix=settings.API_PREFIX)
+app.include_router(note_ocr.router, prefix=settings.API_PREFIX)
 
 # 新的同步v2路由
 app.include_router(sync_v2.router, prefix=settings.API_PREFIX)
