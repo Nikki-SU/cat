@@ -56,6 +56,13 @@ function Settings() {
   const [showMineruToken, setShowMineruToken] = useState(false)
   const [mineruTestResult, setMineruTestResult] = useState(null)
   const [mineruTesting, setMineruTesting] = useState(false)
+  
+  // OCR配置
+  const [ocrAppId, setOcrAppId] = useState(localStorage.getItem('ocrAppId') || '')
+  const [ocrAppSecret, setOcrAppSecret] = useState(localStorage.getItem('ocrAppSecret') || '')
+  const [showOcrSecret, setShowOcrSecret] = useState(false)
+  const [ocrTestResult, setOcrTestResult] = useState(null)
+  const [ocrTesting, setOcrTesting] = useState(false)
   const [aiTestResult, setAiTestResult] = useState(null)
   const [aiTesting, setAiTesting] = useState(false)
   
@@ -370,6 +377,39 @@ function Settings() {
     }
   }
 
+
+  // OCR配置保存
+  const saveOcrConfig = async () => {
+    localStorage.setItem('ocrAppId', ocrAppId)
+    localStorage.setItem('ocrAppSecret', ocrAppSecret)
+    try {
+      await settingsAPI.updateOcrConfig({
+        app_id: ocrAppId,
+        app_secret: ocrAppSecret
+      })
+      alert('OCR配置已保存')
+    } catch (error) {
+      console.error('Failed to save OCR config:', error)
+      alert('OCR配置已保存到本地')
+    }
+  }
+
+  // 测试OCR配置
+  const testOcrConfig = async () => {
+    setOcrTesting(true)
+    setOcrTestResult(null)
+    try {
+      const config = await settingsAPI.getOcrConfig()
+      setOcrTestResult({
+        success: config.has_config,
+        message: config.has_config ? 'OCR配置有效' : '未配置SimpleTex凭证，将使用免费额度'
+      })
+    } catch (error) {
+      setOcrTestResult({ success: false, message: '检查配置失败' })
+    } finally {
+      setOcrTesting(false)
+    }
+  }
   // 测试MinerU Token
   const handleTestMineru = async () => {
     setMineruTesting(true)
@@ -737,6 +777,73 @@ function Settings() {
               </span>
             )}
           </div>
+        </div>
+      </section>
+
+
+      {/* 公式OCR设置 */}
+      <section className="bg-white rounded-xl p-4 shadow">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">📷 公式OCR设置</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          配置 <a href="https://simpletex.cn" target="_blank" rel="noopener" className="text-blue-500 hover:underline">SimpleTex</a> 
+          公式识别API，支持手写/印刷体公式自动转为LaTeX。免费额度：轻量模型1000次/月，标准模型500次/月。
+        </p>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">APP ID（可选）</label>
+            <input
+              type="text"
+              value={ocrAppId}
+              onChange={(e) => setOcrAppId(e.target.value)}
+              placeholder="SimpleTex APP ID（不填则使用免费额度）"
+              className="w-full px-3 py-2 border rounded"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm text-gray-600 mb-2">APP SECRET（可选）</label>
+            <div className="flex gap-2">
+              <input
+                type={showOcrSecret ? 'text' : 'password'}
+                value={ocrAppSecret}
+                onChange={(e) => setOcrAppSecret(e.target.value)}
+                placeholder="SimpleTex APP SECRET"
+                className="flex-1 px-3 py-2 border rounded"
+              />
+              <button
+                onClick={() => setShowOcrSecret(!showOcrSecret)}
+                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                {showOcrSecret ? '隐藏' : '显示'}
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={saveOcrConfig}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              保存OCR配置
+            </button>
+            <button
+              onClick={testOcrConfig}
+              disabled={ocrTesting}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+            >
+              {ocrTesting ? '检查中...' : '检查配置'}
+            </button>
+            {ocrTestResult && (
+              <span className={ocrTestResult.success ? 'text-green-500' : 'text-yellow-500'}>
+                {ocrTestResult.message}
+              </span>
+            )}
+          </div>
+          
+          <p className="text-xs text-gray-400">
+            💡 不填写凭证也可使用，但仅限免费额度。注册SimpleTex账号可获得更多调用次数。
+          </p>
         </div>
       </section>
 
