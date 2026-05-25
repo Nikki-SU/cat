@@ -264,6 +264,22 @@ function Browse() {
         </div>
       )}
 
+      {/* AI提示词模板管理 */}
+      <div className="bg-white rounded-xl p-4 card-shadow">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-[#3C5488]">🤖 AI提示词模板</h2>
+          <PromptTemplateManager />
+        </div>
+      </div>
+
+      {/* 卡片模板管理 */}
+      <div className="bg-white rounded-xl p-4 card-shadow">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-[#3C5488]">📐 卡片模板</h2>
+          <CardTemplateManager />
+        </div>
+      </div>
+
       {/* 编辑卡片弹窗 */}
       {editingCard && (
         <EditCardModal
@@ -450,6 +466,198 @@ function CreateCardModal({ onClose, onCreated }) {
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+
+// AI提示词模板管理组件
+function PromptTemplateManager() {
+  const [templates, setTemplates] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [formData, setFormData] = useState({ name: '', content: '', category: '' })
+
+  const fetchTemplates = async () => {
+    setLoading(true)
+    try { setTemplates(await cardAPI.listPromptTemplates()) }
+    catch { setTemplates([]) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { fetchTemplates() }, [])
+
+  const handleSave = async () => {
+    try {
+      if (editing) {
+        await cardAPI.updatePromptTemplate(editing.id, formData)
+      } else {
+        await cardAPI.createPromptTemplate(formData)
+      }
+      setShowModal(false); setEditing(null); setFormData({ name: '', content: '', category: '' })
+      fetchTemplates()
+    } catch (err) { alert('保存失败: ' + err.message) }
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('确定删除此模板？')) return
+    try { await cardAPI.deletePromptTemplate(id); fetchTemplates() }
+    catch (err) { alert('删除失败') }
+  }
+
+  const startEdit = (t) => {
+    setEditing(t); setFormData({ name: t.name, content: t.content, category: t.category || '' })
+    setShowModal(true)
+  }
+
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button onClick={() => { setEditing(null); setFormData({ name: '', content: '', category: '' }); setShowModal(true) }}
+          className="px-3 py-1.5 bg-[#4DBBD5] text-white rounded-lg text-xs hover:bg-[#3a9ab5]">+ 新建模板</button>
+      </div>
+      {loading ? <div className="text-center py-4 text-[#8491B4] text-sm">加载中...</div> :
+       templates.length === 0 ? <div className="text-center py-4 text-[#8491B4] text-sm">暂无提示词模板</div> :
+       <div className="space-y-2">
+        {templates.map(t => (
+          <div key={t.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-[#3C5488]">{t.name}</span>
+              {t.category && <span className="ml-2 text-xs text-[#8491B4]">{t.category}</span>}
+              <p className="text-xs text-[#8491B4] truncate mt-0.5">{t.content?.slice(0, 80)}</p>
+            </div>
+            <div className="flex gap-1 shrink-0 ml-2">
+              <button onClick={() => startEdit(t)} className="p-1 text-[#8491B4] hover:text-[#00A087] text-xs">编辑</button>
+              <button onClick={() => handleDelete(t.id)} className="p-1 text-[#8491B4] hover:text-[#E64B35] text-xs">删除</button>
+            </div>
+          </div>
+        ))}
+       </div>
+      }
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">{editing ? '编辑提示词' : '新建提示词'}</h3>
+              <button onClick={() => setShowModal(false)} className="text-2xl text-gray-400 hover:text-gray-600">×</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-[#8491B4] mb-1">名称</label>
+                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="input" />
+              </div>
+              <div>
+                <label className="block text-sm text-[#8491B4] mb-1">分类</label>
+                <input type="text" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="input" placeholder="可选" />
+              </div>
+              <div>
+                <label className="block text-sm text-[#8491B4] mb-1">提示词内容</label>
+                <textarea value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="input" rows={5} />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowModal(false)} className="btn btn-secondary flex-1">取消</button>
+                <button onClick={handleSave} className="btn btn-primary flex-1">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 卡片模板管理组件
+function CardTemplateManager() {
+  const [templates, setTemplates] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [formData, setFormData] = useState({ name: '', description: '', fields: '' })
+
+  const fetchTemplates = async () => {
+    setLoading(true)
+    try { setTemplates(await cardAPI.listTemplates()) }
+    catch { setTemplates([]) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { fetchTemplates() }, [])
+
+  const handleSave = async () => {
+    try {
+      if (editing) {
+        await cardAPI.updateTemplate(editing.id, formData)
+      } else {
+        await cardAPI.createTemplate(formData)
+      }
+      setShowModal(false); setEditing(null); setFormData({ name: '', description: '', fields: '' })
+      fetchTemplates()
+    } catch (err) { alert('保存失败: ' + err.message) }
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('确定删除此模板？')) return
+    try { await cardAPI.deleteTemplate(id); fetchTemplates() }
+    catch (err) { alert('删除失败') }
+  }
+
+  const startEdit = (t) => {
+    setEditing(t); setFormData({ name: t.name, description: t.description || '', fields: t.fields || '' })
+    setShowModal(true)
+  }
+
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button onClick={() => { setEditing(null); setFormData({ name: '', description: '', fields: '' }); setShowModal(true) }}
+          className="px-3 py-1.5 bg-[#4DBBD5] text-white rounded-lg text-xs hover:bg-[#3a9ab5]">+ 新建模板</button>
+      </div>
+      {loading ? <div className="text-center py-4 text-[#8491B4] text-sm">加载中...</div> :
+       templates.length === 0 ? <div className="text-center py-4 text-[#8491B4] text-sm">暂无卡片模板</div> :
+       <div className="space-y-2">
+        {templates.map(t => (
+          <div key={t.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-[#3C5488]">{t.name}</span>
+              {t.description && <p className="text-xs text-[#8491B4] truncate mt-0.5">{t.description}</p>}
+            </div>
+            <div className="flex gap-1 shrink-0 ml-2">
+              <button onClick={() => startEdit(t)} className="p-1 text-[#8491B4] hover:text-[#00A087] text-xs">编辑</button>
+              <button onClick={() => handleDelete(t.id)} className="p-1 text-[#8491B4] hover:text-[#E64B35] text-xs">删除</button>
+            </div>
+          </div>
+        ))}
+       </div>
+      }
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold">{editing ? '编辑卡片模板' : '新建卡片模板'}</h3>
+              <button onClick={() => setShowModal(false)} className="text-2xl text-gray-400 hover:text-gray-600">×</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-[#8491B4] mb-1">名称</label>
+                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="input" />
+              </div>
+              <div>
+                <label className="block text-sm text-[#8491B4] mb-1">描述</label>
+                <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="input" />
+              </div>
+              <div>
+                <label className="block text-sm text-[#8491B4] mb-1">字段定义</label>
+                <textarea value={formData.fields} onChange={e => setFormData({...formData, fields: e.target.value})} className="input" rows={4} placeholder="JSON格式字段定义" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowModal(false)} className="btn btn-secondary flex-1">取消</button>
+                <button onClick={handleSave} className="btn btn-primary flex-1">保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
