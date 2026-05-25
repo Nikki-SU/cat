@@ -1,5 +1,5 @@
 /**
- * 笔记页面 - 创建和编辑Markdown/Word/Excel笔记
+ * 写作页面 - 创建和编辑Markdown/Word/Excel笔记
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -180,7 +180,7 @@ function ImportModal({ onClose, onImport }) {
   )
 }
 
-// ==================== 新建笔记弹窗 ====================
+// ==================== 新建写作弹窗 ====================
 function NewNoteModal({ onClose, onCreate }) {
   const [title, setTitle] = useState('')
   const [fileType, setFileType] = useState('markdown')
@@ -189,11 +189,11 @@ function NewNoteModal({ onClose, onCreate }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <h3 className="font-medium mb-4 text-[#3C5488]">新建笔记</h3>
+        <h3 className="font-medium mb-4 text-[#3C5488]">新建写作</h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-[#8491B4] mb-1">标题</label>
-            <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="笔记标题" className="w-full px-3 py-2 border rounded text-sm" autoFocus />
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="写作标题" className="w-full px-3 py-2 border rounded text-sm" autoFocus />
           </div>
           <div>
             <label className="block text-sm text-[#8491B4] mb-2">类型</label>
@@ -319,7 +319,7 @@ function Notes() {
         file_data = [['', '', '', ''], ['', '', '', ''], ['', '', '', '']]
       }
       const data = await noteAPI.createGeneralNote({
-        title: title || '未命名笔记',
+        title: title || '未命名写作',
         content,
         file_type,
         file_data,
@@ -422,7 +422,7 @@ function Notes() {
   }
 
   const handleDelete = async (note) => {
-    if (!confirm(`确定删除笔记「${note.title || '未命名'}」？`)) return
+    if (!confirm(`确定删除写作「${note.title || '未命名'}」？`)) return
     try {
       await noteAPI.deleteGeneralNote(note.id)
       if (selectedNote?.id === note.id) {
@@ -474,8 +474,8 @@ function Notes() {
     <div className="space-y-4">
       {/* 页面标题 */}
       <div className="text-center py-2">
-        <h1 className="text-2xl font-bold text-[#3C5488]">📝 笔记</h1>
-        <p className="text-[#8491B4] text-sm mt-1">创建和管理你的笔记</p>
+        <h1 className="text-2xl font-bold text-[#3C5488]">✍️ 写作</h1>
+        <p className="text-[#8491B4] text-sm mt-1">创建和管理你的写作</p>
       </div>
 
       {/* 操作栏 */}
@@ -484,7 +484,7 @@ function Notes() {
           onClick={() => setShowNewModal(true)}
           className="px-4 py-2 bg-[#4DBBD5] text-white rounded hover:bg-[#3a9ab5] text-sm"
         >
-          + 新建笔记
+          + 新建写作
         </button>
         <button
           onClick={() => setShowImportModal(true)}
@@ -567,7 +567,7 @@ function Notes() {
                     value={selectedNote.title || ''}
                     onChange={e => setSelectedNote(prev => ({ ...prev, title: e.target.value, _dirty: true }))}
                     className="flex-1 text-sm font-medium text-[#3C5488] outline-none bg-transparent"
-                    placeholder="笔记标题"
+                    placeholder="写作标题"
                   />
                 </div>
                 <div className="flex items-center gap-2">
