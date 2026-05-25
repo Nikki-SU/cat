@@ -1,16 +1,22 @@
 /**
- * 略读页面 - 文献卡片展示
+ * 文献卡片页面 - 简详切换 + 展开/折叠/编辑/删除
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import useAppStore from '../stores/useAppStore'
 import { cardAPI, literatureAPI } from '../api/client'
 
+// 简要模式显示的字段
+const BRIEF_FIELDS = ['title_cn', 'title_en', 'journal', 'keyword_cn', 'keyword_en', 'author', 'pubdate']
+// 详细模式显示全部字段
+
 function Browse() {
   const { fetchLiteratureCards, literatureCards, isLoading, settings } = useAppStore()
-  const [viewMode, setViewMode] = useState('grid') // grid | list
-  const [selectedCard, setSelectedCard] = useState(null)
+  const [detailMode, setDetailMode] = useState(false) // false=简要, true=详细
+  const [expandedCards, setExpandedCards] = useState({}) // doi -> boolean
+  const [editingCard, setEditingCard] = useState(null) // 编辑中的卡片
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(null) // doi to delete
 
   useEffect(() => {
     fetchLiteratureCards()
@@ -22,198 +28,345 @@ function Browse() {
       card.title_cn?.toLowerCase().includes(query) ||
       card.title_en?.toLowerCase().includes(query) ||
       card.keyword_cn?.toLowerCase().includes(query) ||
-      card.keyword_en?.toLowerCase().includes(query)
+      card.keyword_en?.toLowerCase().includes(query) ||
+      card.doi?.toLowerCase().includes(query)
     )
   })
 
-  return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="text-center py-4">
-        <h1 className="text-2xl font-bold text-primary-blue mb-2">📑 文献略读</h1>
-        <p className="text-text-secondary">快速浏览文献卡片，筛选重要文献</p>
-      </div>
+  // 展开/折叠切换
+  const toggleExpand = useCallback((doi) => {
+    setExpandedCards(prev => ({ ...prev, [doi]: !prev[doi] }))
+  }, [])
 
-      {/* 搜索和视图切换 */}
+  // 判断卡片是否展开
+  const isCardExpanded = useCallback((doi) => {
+    if (expandedCards[doi] !== undefined) return expandedCards[doi]
+    return detailMode // 默认：简要=折叠，详细=展开
+  }, [expandedCards, detailMode])
+
+  // 切换简详模式时重置展开状态
+  const handleDetailToggle = useCallback(() => {
+    setDetailMode(prev => !prev)
+    setExpandedCards({})
+  }, [])
+
+  // 删除卡片
+  const handleDelete = useCallback(async (doi) => {
+    try {
+      await cardAPI.deleteCard(doi)
+      fetchLiteratureCards()
+      setDeleteConfirm(null)
+    } catch (err) {
+      alert('删除失败: ' + err.message)
+    }
+  }, [fetchLiteratureCards])
+
+  return (
+    <div className="space-y-4">
+      {/* 顶部工具栏 */}
       <div className="bg-white rounded-xl p-4 card-shadow">
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* 简详切换 */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={handleDetailToggle}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                !detailMode ? 'bg-white shadow text-[#4DBBD5]' : 'text-gray-500'
+              }`}
+            >
+              简要
+            </button>
+            <button
+              onClick={handleDetailToggle}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                detailMode ? 'bg-white shadow text-[#4DBBD5]' : 'text-gray-500'
+              }`}
+            >
+              详细
+            </button>
+          </div>
+
+          {/* 搜索 */}
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索标题、关键词..."
-            className="input flex-1"
+            placeholder="搜索标题、关键词、DOI..."
+            className="input flex-1 min-w-[160px]"
           />
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-1 rounded text-sm ${viewMode === 'grid' ? 'bg-white shadow' : ''}`}
-            >
-              ▦
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1 rounded text-sm ${viewMode === 'list' ? 'bg-white shadow' : ''}`}
-            >
-              ☰
-            </button>
-          </div>
-        </div>
-      </div>
 
-      {/* 文献卡片列表 */}
-      <div className="bg-white rounded-xl p-4 card-shadow">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="font-semibold text-text-main">
-            文献卡片 ({filteredCards.length})
-          </h2>
+          {/* 新建 */}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary text-sm"
+            className="px-3 py-1.5 bg-[#4DBBD5] text-white rounded-lg text-sm hover:bg-[#3a9ab5] transition-colors whitespace-nowrap"
           >
             + 新建卡片
           </button>
         </div>
-
-        {isLoading ? (
-          <div className="text-center py-12 text-text-secondary">加载中...</div>
-        ) : filteredCards.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-text-secondary mb-4">暂无文献卡片</p>
-            <p className="text-sm text-text-secondary">
-              从追踪页面添加文献，或点击上方按钮新建卡片
-            </p>
-          </div>
-        ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCards.map((card) => (
-              <div
-                key={card.doi}
-                onClick={() => setSelectedCard(card)}
-                className="p-4 border border-gray-200 rounded-xl cursor-pointer hover:border-primary-blue hover:shadow-md transition-all"
-              >
-                <h3 className="font-medium text-sm line-clamp-2 mb-2">
-                  {settings.displayLanguage === 'cn' ? card.title_cn : card.title_en}
-                </h3>
-                <p className="text-xs text-text-secondary mb-2">{card.journal}</p>
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {(settings.displayLanguage === 'cn' ? card.keyword_cn : card.keyword_en || '')
-                    .split(/[,，]/)
-                    .slice(0, 3)
-                    .map((kw, i) => (
-                      <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-primary-blue rounded text-xs">
-                        {kw.trim()}
-                      </span>
-                    ))}
-                </div>
-                <p className="text-xs text-text-secondary">
-                  {card.author?.split(',')[0] || ''} · {card.pubdate}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredCards.map((card) => (
-              <div
-                key={card.doi}
-                onClick={() => setSelectedCard(card)}
-                className="p-3 border border-gray-100 rounded-lg cursor-pointer hover:border-primary-blue hover:bg-blue-50/30 transition-all"
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-sm">
-                      {settings.displayLanguage === 'cn' ? card.title_cn : card.title_en}
-                    </h3>
-                    <p className="text-xs text-text-secondary mt-1">
-                      {card.journal} · {card.author?.split(',')[0]} · {card.pubdate}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* 文献卡片详情弹窗 */}
-      {selectedCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="font-semibold">文献卡片详情</h2>
-              <button onClick={() => setSelectedCard(null)} className="text-2xl">×</button>
-            </div>
-            <div className="flex-1 overflow-auto p-4 space-y-4">
-              <div>
-                <label className="text-xs text-text-secondary">中文标题</label>
-                <p className="font-medium">{selectedCard.title_cn}</p>
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary">英文标题</label>
-                <p>{selectedCard.title_en}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-text-secondary">期刊</label>
-                  <p>{selectedCard.journal}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-text-secondary">出版日期</label>
-                  <p>{selectedCard.pubdate}</p>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary">作者</label>
-                <p>{selectedCard.author}</p>
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary">中文摘要</label>
-                <p className="text-sm">{selectedCard.abstract_cn}</p>
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary">英文摘要</label>
-                <p className="text-sm">{selectedCard.abstract_en}</p>
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary">关键词</label>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {selectedCard.keyword_cn?.split(/[,，]/).map((kw, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-blue-50 text-primary-blue rounded text-xs">
-                      {kw.trim()}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary">DOI</label>
-                <p className="text-sm font-mono">{selectedCard.doi}</p>
-              </div>
-            </div>
-            <div className="p-4 border-t border-gray-200 flex gap-2">
-              <button
-                onClick={() => window.open(`https://doi.org/${selectedCard.doi}`, '_blank')}
-                className="btn btn-primary flex-1"
-              >
-                查看原文
-              </button>
-              <button className="btn btn-secondary flex-1">
-                编辑
-              </button>
-            </div>
-          </div>
+      {/* 卡片数量 */}
+      <div className="text-sm text-[#8491B4] px-1">
+        共 {filteredCards.length} 张卡片
+      </div>
+
+      {/* 卡片列表 */}
+      {isLoading ? (
+        <div className="text-center py-12 text-[#8491B4]">
+          <div className="animate-spin w-8 h-8 border-4 border-[#4DBBD5] border-t-transparent rounded-full mx-auto mb-3" />
+          加载中...
         </div>
+      ) : filteredCards.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="text-4xl mb-3">📑</div>
+          <p className="text-[#8491B4] mb-2">暂无文献卡片</p>
+          <p className="text-sm text-[#8491B4]">从追踪页面添加文献，或点击上方按钮新建卡片</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredCards.map((card) => {
+            const expanded = isCardExpanded(card.doi)
+            return (
+              <div
+                key={card.doi}
+                className="bg-white rounded-xl card-shadow overflow-hidden transition-all"
+              >
+                {/* 卡片头部：操作按钮 + 基本信息 */}
+                <div className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    {/* 左侧：标题和基本信息 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm text-[#3C5488] line-clamp-2">
+                        {settings.displayLanguage === 'cn' ? card.title_cn : card.title_en}
+                      </h3>
+                      {!detailMode && !expanded && (
+                        <p className="text-xs text-[#8491B4] mt-1">
+                          {card.journal} · {card.author?.split(',')[0]} · {card.pubdate}
+                        </p>
+                      )}
+                      {/* 关键词 */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {(settings.displayLanguage === 'cn' ? card.keyword_cn : card.keyword_en || '')
+                          .split(/[,，]/)
+                          .filter(Boolean)
+                          .slice(0, detailMode || expanded ? undefined : 3)
+                          .map((kw, i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-[#4DBBD5]/10 text-[#4DBBD5] rounded text-xs">
+                              {kw.trim()}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* 右侧：操作按钮 */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleExpand(card.doi) }}
+                        className="p-1.5 text-[#8491B4] hover:text-[#4DBBD5] hover:bg-[#4DBBD5]/10 rounded transition-colors"
+                        title={expanded ? '折叠' : '展开'}
+                      >
+                        <svg className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingCard(card) }}
+                        className="p-1.5 text-[#8491B4] hover:text-[#00A087] hover:bg-[#00A087]/10 rounded transition-colors"
+                        title="编辑"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(card.doi) }}
+                        className="p-1.5 text-[#8491B4] hover:text-[#E64B35] hover:bg-[#E64B35]/10 rounded transition-colors"
+                        title="删除"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 展开区域：详细信息 */}
+                <div className={`transition-all duration-200 ease-in-out overflow-hidden ${
+                  expanded || detailMode ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-3">
+                    {/* 期刊+日期 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-[#8491B4]">期刊</label>
+                        <p className="text-sm">{card.journal}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-[#8491B4]">出版日期</label>
+                        <p className="text-sm">{card.pubdate}</p>
+                      </div>
+                    </div>
+                    {/* 作者 */}
+                    <div>
+                      <label className="text-xs text-[#8491B4]">作者</label>
+                      <p className="text-sm">{card.author}</p>
+                    </div>
+                    {/* 中文摘要 */}
+                    {card.abstract_cn && (
+                      <div>
+                        <label className="text-xs text-[#8491B4]">中文摘要</label>
+                        <p className="text-sm leading-relaxed">{card.abstract_cn}</p>
+                      </div>
+                    )}
+                    {/* 英文摘要 */}
+                    {card.abstract_en && (
+                      <div>
+                        <label className="text-xs text-[#8491B4]">英文摘要</label>
+                        <p className="text-sm leading-relaxed">{card.abstract_en}</p>
+                      </div>
+                    )}
+                    {/* DOI */}
+                    <div>
+                      <label className="text-xs text-[#8491B4]">DOI</label>
+                      <a
+                        href={`https://doi.org/${card.doi}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-[#4DBBD5] hover:underline font-mono"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {card.doi}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 删除确认条 */}
+                {deleteConfirm === card.doi && (
+                  <div className="px-4 py-2 bg-[#E64B35]/5 border-t border-[#E64B35]/20 flex items-center justify-between">
+                    <span className="text-sm text-[#E64B35]">确认删除此卡片？</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDeleteConfirm(null)}
+                        className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                      >取消</button>
+                      <button
+                        onClick={() => handleDelete(card.doi)}
+                        className="px-3 py-1 text-sm bg-[#E64B35] text-white rounded hover:bg-[#d43d2c]"
+                      >删除</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 编辑卡片弹窗 */}
+      {editingCard && (
+        <EditCardModal
+          card={editingCard}
+          onClose={() => setEditingCard(null)}
+          onSaved={() => { fetchLiteratureCards(); setEditingCard(null) }}
+        />
       )}
 
       {/* 新建卡片弹窗 */}
       {showCreateModal && (
-        <CreateCardModal onClose={() => setShowCreateModal(false)} />
+        <CreateCardModal onClose={() => setShowCreateModal(false)} onCreated={() => { fetchLiteratureCards(); setShowCreateModal(false) }} />
       )}
     </div>
   )
 }
 
-function CreateCardModal({ onClose }) {
+// 编辑卡片弹窗
+function EditCardModal({ card, onClose, onSaved }) {
+  const [formData, setFormData] = useState({
+    title_cn: card.title_cn || '',
+    title_en: card.title_en || '',
+    journal: card.journal || '',
+    author: card.author || '',
+    pubdate: card.pubdate || '',
+    abstract_cn: card.abstract_cn || '',
+    abstract_en: card.abstract_en || '',
+    keyword_cn: card.keyword_cn || '',
+    keyword_en: card.keyword_en || '',
+  })
+  const [saving, setSaving] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await cardAPI.updateCard(card.doi, formData)
+      onSaved()
+    } catch (err) {
+      alert('保存失败: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+          <h2 className="font-semibold">编辑文献卡片</h2>
+          <button onClick={onClose} className="text-2xl text-gray-400 hover:text-gray-600">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-auto p-4 space-y-3">
+          <div>
+            <label className="block text-sm text-[#8491B4] mb-1">中文标题</label>
+            <input type="text" value={formData.title_cn} onChange={(e) => setFormData({ ...formData, title_cn: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="block text-sm text-[#8491B4] mb-1">英文标题</label>
+            <input type="text" value={formData.title_en} onChange={(e) => setFormData({ ...formData, title_en: e.target.value })} className="input" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-[#8491B4] mb-1">期刊</label>
+              <input type="text" value={formData.journal} onChange={(e) => setFormData({ ...formData, journal: e.target.value })} className="input" />
+            </div>
+            <div>
+              <label className="block text-sm text-[#8491B4] mb-1">出版日期</label>
+              <input type="text" value={formData.pubdate} onChange={(e) => setFormData({ ...formData, pubdate: e.target.value })} className="input" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-[#8491B4] mb-1">作者</label>
+            <input type="text" value={formData.author} onChange={(e) => setFormData({ ...formData, author: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="block text-sm text-[#8491B4] mb-1">中文摘要</label>
+            <textarea value={formData.abstract_cn} onChange={(e) => setFormData({ ...formData, abstract_cn: e.target.value })} className="input" rows={3} />
+          </div>
+          <div>
+            <label className="block text-sm text-[#8491B4] mb-1">英文摘要</label>
+            <textarea value={formData.abstract_en} onChange={(e) => setFormData({ ...formData, abstract_en: e.target.value })} className="input" rows={3} />
+          </div>
+          <div>
+            <label className="block text-sm text-[#8491B4] mb-1">中文关键词</label>
+            <input type="text" value={formData.keyword_cn} onChange={(e) => setFormData({ ...formData, keyword_cn: e.target.value })} className="input" placeholder="用逗号分隔" />
+          </div>
+          <div>
+            <label className="block text-sm text-[#8491B4] mb-1">英文关键词</label>
+            <input type="text" value={formData.keyword_en} onChange={(e) => setFormData({ ...formData, keyword_en: e.target.value })} className="input" placeholder="用逗号分隔" />
+          </div>
+          <div className="flex gap-2 pt-4">
+            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">取消</button>
+            <button type="submit" disabled={saving} className="btn btn-primary flex-1">{saving ? '保存中...' : '保存'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// 新建卡片弹窗
+function CreateCardModal({ onClose, onCreated }) {
   const [formData, setFormData] = useState({
     doi: '',
     title_cn: '',
@@ -226,15 +379,18 @@ function CreateCardModal({ onClose }) {
     keyword_cn: '',
     keyword_en: '',
   })
+  const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setSaving(true)
     try {
       await cardAPI.createCard(formData)
-      alert('创建成功')
-      onClose()
-    } catch (error) {
-      alert('创建失败: ' + error.message)
+      onCreated()
+    } catch (err) {
+      alert('创建失败: ' + err.message)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -243,120 +399,54 @@ function CreateCardModal({ onClose }) {
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="font-semibold">新建文献卡片</h2>
-          <button onClick={onClose} className="text-2xl">×</button>
+          <button onClick={onClose} className="text-2xl text-gray-400 hover:text-gray-600">×</button>
         </div>
         <form onSubmit={handleSubmit} className="flex-1 overflow-auto p-4 space-y-3">
           <div>
-            <label className="block text-sm text-text-secondary mb-1">DOI *</label>
-            <input
-              type="text"
-              value={formData.doi}
-              onChange={(e) => setFormData({ ...formData, doi: e.target.value })}
-              className="input"
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">DOI *</label>
+            <input type="text" value={formData.doi} onChange={(e) => setFormData({ ...formData, doi: e.target.value })} className="input" required />
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">中文标题 *</label>
-            <input
-              type="text"
-              value={formData.title_cn}
-              onChange={(e) => setFormData({ ...formData, title_cn: e.target.value })}
-              className="input"
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">中文标题 *</label>
+            <input type="text" value={formData.title_cn} onChange={(e) => setFormData({ ...formData, title_cn: e.target.value })} className="input" required />
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">英文标题 *</label>
-            <input
-              type="text"
-              value={formData.title_en}
-              onChange={(e) => setFormData({ ...formData, title_en: e.target.value })}
-              className="input"
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">英文标题 *</label>
+            <input type="text" value={formData.title_en} onChange={(e) => setFormData({ ...formData, title_en: e.target.value })} className="input" required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-text-secondary mb-1">期刊 *</label>
-              <input
-                type="text"
-                value={formData.journal}
-                onChange={(e) => setFormData({ ...formData, journal: e.target.value })}
-                className="input"
-                required
-              />
+              <label className="block text-sm text-[#8491B4] mb-1">期刊 *</label>
+              <input type="text" value={formData.journal} onChange={(e) => setFormData({ ...formData, journal: e.target.value })} className="input" required />
             </div>
             <div>
-              <label className="block text-sm text-text-secondary mb-1">出版日期 *</label>
-              <input
-                type="text"
-                value={formData.pubdate}
-                onChange={(e) => setFormData({ ...formData, pubdate: e.target.value })}
-                className="input"
-                required
-              />
+              <label className="block text-sm text-[#8491B4] mb-1">出版日期 *</label>
+              <input type="text" value={formData.pubdate} onChange={(e) => setFormData({ ...formData, pubdate: e.target.value })} className="input" required />
             </div>
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">作者 *</label>
-            <input
-              type="text"
-              value={formData.author}
-              onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-              className="input"
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">作者 *</label>
+            <input type="text" value={formData.author} onChange={(e) => setFormData({ ...formData, author: e.target.value })} className="input" required />
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">中文摘要 *</label>
-            <textarea
-              value={formData.abstract_cn}
-              onChange={(e) => setFormData({ ...formData, abstract_cn: e.target.value })}
-              className="input"
-              rows={3}
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">中文摘要</label>
+            <textarea value={formData.abstract_cn} onChange={(e) => setFormData({ ...formData, abstract_cn: e.target.value })} className="input" rows={3} />
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">英文摘要 *</label>
-            <textarea
-              value={formData.abstract_en}
-              onChange={(e) => setFormData({ ...formData, abstract_en: e.target.value })}
-              className="input"
-              rows={3}
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">英文摘要</label>
+            <textarea value={formData.abstract_en} onChange={(e) => setFormData({ ...formData, abstract_en: e.target.value })} className="input" rows={3} />
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">中文关键词 *</label>
-            <input
-              type="text"
-              value={formData.keyword_cn}
-              onChange={(e) => setFormData({ ...formData, keyword_cn: e.target.value })}
-              className="input"
-              placeholder="用逗号分隔"
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">中文关键词</label>
+            <input type="text" value={formData.keyword_cn} onChange={(e) => setFormData({ ...formData, keyword_cn: e.target.value })} className="input" placeholder="用逗号分隔" />
           </div>
           <div>
-            <label className="block text-sm text-text-secondary mb-1">英文关键词 *</label>
-            <input
-              type="text"
-              value={formData.keyword_en}
-              onChange={(e) => setFormData({ ...formData, keyword_en: e.target.value })}
-              className="input"
-              placeholder="用逗号分隔"
-              required
-            />
+            <label className="block text-sm text-[#8491B4] mb-1">英文关键词</label>
+            <input type="text" value={formData.keyword_en} onChange={(e) => setFormData({ ...formData, keyword_en: e.target.value })} className="input" placeholder="用逗号分隔" />
           </div>
           <div className="flex gap-2 pt-4">
-            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
-              取消
-            </button>
-            <button type="submit" className="btn btn-primary flex-1">
-              创建
-            </button>
+            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">取消</button>
+            <button type="submit" disabled={saving} className="btn btn-primary flex-1">{saving ? '创建中...' : '创建'}</button>
           </div>
         </form>
       </div>
