@@ -467,12 +467,12 @@ function DeepRead() {
     readMode,
     isProtected,
     selectedColor,
-    sentenceColorScheme,  // 新增
+    sentenceColorScheme,
     loadLiterature,
     setLayoutMode,
     setReadMode,
     toggleEditMode,
-    setSentenceColorScheme,  // 新增
+    setSentenceColorScheme,
     addNote,
     deleteNote,
     updateNote,
@@ -488,15 +488,22 @@ function DeepRead() {
   
   // 本地状态
   const [editingNote, setEditingNote] = useState(null)
-  const [selectedParagraph, setSelectedParagraph] = useState(null)
   const [editContent, setEditContent] = useState('')
   const contentRef = useRef(null)
-  
-  // 划词选择状态
   const [selectionPopup, setSelectionPopup] = useState(null)
   const [fullText, setFullText] = useState('')
+  
+  // 布局状态
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
+  
+  // AI面板状态
+  const [aiInput, setAiInput] = useState('')
+  const [aiMessages, setAiMessages] = useState([])
+  const [aiLoading, setAiLoading] = useState(false)
 
-  // 获取完整文本（用于AI解读上下文）
+  // 获取完整文本
   useEffect(() => {
     if (paragraphs && paragraphs.length > 0) {
       const text = paragraphs.map(p => p.plainText || p.raw || '').join('\n\n')
@@ -508,99 +515,94 @@ function DeepRead() {
   const handleTextSelect = (e, paragraphId) => {
     const selection = window.getSelection()
     const text = selection.toString().trim()
-    
     if (text && text.length > 0) {
       const range = selection.getRangeAt(0)
       const rect = range.getBoundingClientRect()
-      
       setSelectionPopup({
         text,
-        position: { 
-          x: rect.left + rect.width / 2, 
-          y: rect.bottom + window.scrollY 
-        },
+        position: { x: rect.left + rect.width / 2, y: rect.bottom + window.scrollY },
         paragraphId
       })
     }
   }
 
-  // 关闭划词弹窗
-  const closeSelectionPopup = () => {
-    setSelectionPopup(null)
-  }
+  const closeSelectionPopup = () => setSelectionPopup(null)
 
-  // 翻译功能（兼容Ollama本地模型和在线API）
+  // 翻译
   const handleTranslate = async (text) => {
     try {
-      // 优先使用Ollama本地模型
       const ollamaConfig = await settingsAPI.getOllamaConfig()
-      
       if (ollamaConfig.is_available) {
-        // 使用Ollama翻译
         const response = await fetch('/api/v1/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [
-              { role: 'system', content: '你是一个专业的学术翻译助手，擅长将英语学术文献翻译成准确、流畅的中文。' },
+              { role: 'system', content: '你是专业的学术翻译助手，擅长将英语学术文献翻译成准确、流畅的中文。' },
               { role: 'user', content: `请将以下学术文本翻译成中文，保持学术严谨性：\n\n${text}` }
             ],
-            temperature: 0.3,
-            max_tokens: 2048
+            temperature: 0.3, max_tokens: 2048
           })
         })
-        
         const data = await response.json()
         return data.response || data.content || text
       } else {
-        // 使用在线API翻译
         const response = await aiAPI.translate(text, 'zh')
         return response.translation || '翻译失败'
       }
     } catch (error) {
-      console.error('翻译失败:', error)
       return '翻译服务暂不可用'
     }
   }
 
-  // AI解读功能（基于全文，兼容Ollama本地模型）
+  // AI解读
   const handleAIExplain = async (selectedText, context) => {
     try {
-      // 构建提示词
-      const prompt = `请基于以下全文内容，解读这段选中的文本：
-
-【全文内容】
-${context.substring(0, 3000)}...
-
-【选中文本】
-${selectedText}
-
-请用中文回答：
-1. 这句话在全文中的作用和意义
-2. 关键概念解释  
-3. 与上下文的联系
-4. 学术价值分析`
-
-      // 调用后端AI接口（自动使用Ollama或在线API）
+      const prompt = `请基于以下全文内容，解读这段选中的文本：\n\n【全文内容】\n${context.substring(0, 3000)}...\n\n【选中文本】\n${selectedText}\n\n请用中文回答：\n1. 这句话在全文中的作用和意义\n2. 关键概念解释\n3. 与上下文的联系\n4. 学术价值分析`
       const response = await fetch('/api/v1/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [
-            { role: 'system', content: '你是一位资深的学术文献解读专家，擅长分析学术论文的结构、方法和贡献。' },
+            { role: 'system', content: '你是资深的学术文献解读专家，擅长分析学术论文的结构、方法和贡献。' },
             { role: 'user', content: prompt }
           ],
-          temperature: 0.7,
-          max_tokens: 2048
+          temperature: 0.7, max_tokens: 2048
         })
       })
-      
       const data = await response.json()
       return data.response || data.content || data.message || 'AI解读完成'
-
     } catch (error) {
-      console.error('AI解读失败:', error)
-      return 'AI解读服务暂不可用，请检查Ollama配置或网络连接'
+      return 'AI解读服务暂不可用'
+    }
+  }
+
+  // AI面板对话
+  const handleAiChat = async () => {
+    if (!aiInput.trim()) return
+    const userMsg = aiInput.trim()
+    setAiInput('')
+    setAiMessages(prev => [...prev, { role: 'user', content: userMsg }])
+    setAiLoading(true)
+    try {
+      const response = await fetch('/api/v1/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: `你是学术文献解读助手。当前正在阅读的文献标题：${selectedLiterature?.title_cn || selectedLiterature?.title_en || '未知'}\n\n全文摘要：${fullText.substring(0, 2000)}...` },
+            { role: 'user', content: userMsg }
+          ],
+          temperature: 0.7, max_tokens: 2048
+        })
+      })
+      const data = await response.json()
+      const reply = data.response || data.content || data.message || '无法回复'
+      setAiMessages(prev => [...prev, { role: 'assistant', content: reply }])
+    } catch {
+      setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务暂不可用' }])
+    } finally {
+      setAiLoading(false)
     }
   }
   
@@ -609,355 +611,469 @@ ${selectedText}
     if (!item) return
     await loadLiterature(item)
     setEditContent(item.content || '')
+    setAiMessages([])
   }
   
-  // 添加笔记
   const handleAddNote = async (paragraphId, content) => {
     if (!content.trim()) return
-    
     try {
-      await addNote({
-        anchor_id: paragraphId,
-        note_type: 'markdown',
-        content,
-        position: ''
-      })
+      await addNote({ anchor_id: paragraphId, note_type: 'markdown', content, position: '' })
       setEditingNote(null)
     } catch (error) {
       alert('添加笔记失败: ' + (error?.message || '未知错误'))
     }
   }
   
-  // 处理删除笔记
   const handleDeleteNote = async (id) => {
-    if (!confirm('确定要删除这条笔记吗？')) return
-    
-    try {
-      await deleteNote(id)
-    } catch (error) {
-      alert('删除失败: ' + (error?.message || '未知错误'))
-    }
+    if (!confirm('确定删除这条笔记吗？')) return
+    try { await deleteNote(id) } catch (error) { alert('删除失败') }
   }
   
-  // 处理编辑笔记
-  const handleEditNote = (note) => {
-    setEditingNote({ ...note, isEditing: true })
-  }
+  const handleEditNote = (note) => setEditingNote({ ...note, isEditing: true })
   
-  // 处理保存编辑后的笔记
   const handleUpdateNote = async (noteId, content) => {
-    try {
-      await updateNote(noteId, { content })
-      setEditingNote(null)
-    } catch (error) {
-      alert('更新失败: ' + (error?.message || '未知错误'))
-    }
+    try { await updateNote(noteId, { content }); setEditingNote(null) }
+    catch (error) { alert('更新失败') }
   }
   
-  // 保存编辑
   const handleSaveEdit = async () => {
-    try {
-      await saveContent(editContent)
-      alert('保存成功')
-    } catch (error) {
-      alert('保存失败: ' + (error?.message || '未知错误'))
-    }
+    try { await saveContent(editContent); alert('保存成功') }
+    catch (error) { alert('保存失败') }
   }
   
-  // 处理颜色点击 - 滚动到对应段落
   const handleColorClick = (color) => {
     const content = getContentByColor(color.id)
     if (content.length > 0) {
-      const firstParagraph = content[0]
-      document.getElementById(firstParagraph.id)?.scrollIntoView({ behavior: 'smooth' })
+      document.getElementById(content[0].id)?.scrollIntoView({ behavior: 'smooth' })
     }
   }
   
-  // 处理长难句点击
   const handleSentenceClick = (sentence) => {
-    const paragraph = paragraphs.find(p => 
-      p.plainText?.includes(sentence.sentence_en?.substring(0, 30) || '')
-    )
-    if (paragraph) {
-      document.getElementById(paragraph.id)?.scrollIntoView({ behavior: 'smooth' })
-    }
+    const paragraph = paragraphs.find(p => p.plainText?.includes(sentence.sentence_en?.substring(0, 30) || ''))
+    if (paragraph) document.getElementById(paragraph.id)?.scrollIntoView({ behavior: 'smooth' })
   }
   
-  // 处理单词点击
   const handleWordClick = (word) => {
-    const paragraph = paragraphs.find(p => 
-      p.plainText?.toLowerCase().includes(word.word_en?.toLowerCase() || '')
-    )
-    if (paragraph) {
-      document.getElementById(paragraph.id)?.scrollIntoView({ behavior: 'smooth' })
-    }
+    const paragraph = paragraphs.find(p => p.plainText?.toLowerCase().includes(word.word_en?.toLowerCase() || ''))
+    if (paragraph) document.getElementById(paragraph.id)?.scrollIntoView({ behavior: 'smooth' })
   }
   
-  // 当前布局配置
-  const currentLayout = LAYOUT_MODES[layoutMode] || LAYOUT_MODES.scholar
-  const isInlineMode = currentLayout.notePosition === 'inline'
+  const currentLayout = LAYOUT_MODES[layoutMode] || LAYOUT_MODES.dual
+  const isTripleMode = currentLayout.hasAIPanel
   
+  // 全屏切换
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    }
+  }
+
+  // 监听全屏状态变化
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  // 动态grid类
+  const getGridClass = () => {
+    if (leftCollapsed && (rightCollapsed || !isTripleMode)) {
+      return 'grid-cols-[0px_1fr]'
+    } else if (leftCollapsed && isTripleMode && !rightCollapsed) {
+      return 'grid-cols-[0px_1fr_300px]'
+    } else if (!leftCollapsed && isTripleMode && rightCollapsed) {
+      return 'grid-cols-[280px_1fr_0px]'
+    } else if (!leftCollapsed && isTripleMode && !rightCollapsed) {
+      return 'grid-cols-[280px_1fr_300px]'
+    } else if (!leftCollapsed && !isTripleMode) {
+      return 'grid-cols-[280px_1fr]'
+    } else {
+      return 'grid-cols-[0px_1fr]'
+    }
+  }
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* 顶部工具栏 */}
-      <header className="bg-white border-b px-4 py-2 flex items-center gap-4">
-        {/* 文献选择 */}
-        <select 
-          className="border rounded px-3 py-1 min-w-[200px]"
-          onChange={e => {
-            const item = literatureTable?.find(l => l.doi === e.target.value)
-            handleSelectLiterature(item)
-          }}
-          value={selectedLiterature?.doi || ''}
-        >
-          <option value="">选择文献...</option>
-          {literatureTable?.map(l => (
-            <option key={l.doi} value={l.doi}>{l.title_cn || l.title_en || l.doi}</option>
-          ))}
-        </select>
-        
-        {/* 布局切换 */}
-        <div className="flex border rounded">
-          {Object.values(LAYOUT_MODES).map(mode => (
+      <header className="bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0 z-20">
+        {selectedLiterature ? (
+          <>
+            {/* 文献标题（紧凑） */}
+            <div className="flex items-center gap-2 min-w-0 max-w-[240px]">
+              <span className="text-lg">📖</span>
+              <span className="text-sm font-medium truncate text-[#3C5488]">
+                {selectedLiterature.title_cn || selectedLiterature.title_en || '无标题'}
+              </span>
+            </div>
+
+            <div className="h-5 w-px bg-gray-200" />
+
+            {/* 布局切换 */}
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              {Object.values(LAYOUT_MODES).map(mode => (
+                <button
+                  key={mode.id}
+                  onClick={() => { setLayoutMode(mode.id); setRightCollapsed(false) }}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    layoutMode === mode.id ? 'bg-white shadow text-[#4DBBD5]' : 'text-gray-500 hover:text-[#4DBBD5]'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-5 w-px bg-gray-200" />
+
+            {/* 编辑/阅读切换 */}
             <button
-              key={mode.id}
-              onClick={() => setLayoutMode(mode.id)}
-              className={`px-3 py-1 text-sm ${layoutMode === mode.id ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+              onClick={toggleEditMode}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                readMode === 'edit' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+              }`}
             >
-              {mode.label}
+              {readMode === 'edit' ? '✏️ 编辑中' : '📖 阅读'}
             </button>
-          ))}
-        </div>
-        
-        {/* 编辑模式开关 */}
-        <button
-          onClick={toggleEditMode}
-          className={`px-3 py-1 rounded text-sm flex items-center gap-1 ${
-            readMode === 'edit' ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
-          }`}
-        >
-          {readMode === 'edit' ? '✏️ 编辑中' : '📖 阅读'}
-        </button>
-        
-        {readMode === 'edit' && (
-          <button
-            onClick={handleSaveEdit}
-            className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
-          >
-            💾 保存
-          </button>
+            
+            {readMode === 'edit' && (
+              <button onClick={handleSaveEdit} className="px-3 py-1 bg-[#4DBBD5] text-white rounded-lg text-xs font-medium hover:bg-[#3a9ab5]">
+                💾 保存
+              </button>
+            )}
+
+            <div className="h-5 w-px bg-gray-200" />
+
+            {/* 句子着色 */}
+            <select
+              value={sentenceColorScheme}
+              onChange={(e) => setSentenceColorScheme(e.target.value)}
+              className="text-xs border rounded px-2 py-1 bg-white"
+              title="句子着色方案"
+            >
+              {Object.values(SENTENCE_COLOR_SCHEMES).map(scheme => (
+                <option key={scheme.id} value={scheme.id}>{scheme.name}</option>
+              ))}
+            </select>
+
+            {/* 全屏按钮 */}
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 text-[#8491B4] hover:text-[#4DBBD5] hover:bg-[#4DBBD5]/10 rounded-lg transition-colors ml-auto"
+              title={isFullscreen ? '退出全屏' : '全屏'}
+            >
+              {isFullscreen ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                </svg>
+              )}
+            </button>
+
+            {/* 换文献按钮 */}
+            <button
+              onClick={() => useDeepReadStore.getState().loadLiterature(null).catch(() => useDeepReadStore.setState({ selectedLiterature: null }))}
+              className="p-1.5 text-[#8491B4] hover:text-[#E64B35] hover:bg-[#E64B35]/10 rounded-lg transition-colors"
+              title="关闭文献"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-lg">📖</span>
+            <span className="text-sm font-medium text-[#3C5488]">读文献</span>
+            <div className="h-5 w-px bg-gray-200" />
+            <select 
+              className="border rounded-lg px-3 py-1.5 min-w-[240px] text-sm bg-white focus:ring-2 focus:ring-[#4DBBD5]"
+              onChange={e => {
+                const item = literatureTable?.find(l => l.doi === e.target.value)
+                if (item) handleSelectLiterature(item)
+              }}
+              value=""
+            >
+              <option value="">选择文献开始阅读...</option>
+              {literatureTable?.map(l => (
+                <option key={l.doi} value={l.doi}>{l.title_cn || l.title_en || l.doi}</option>
+              ))}
+            </select>
+          </>
         )}
-        
-        {/* 句子着色切换 */}
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-sm text-gray-600">句子着色:</span>
-          <select
-            value={sentenceColorScheme}
-            onChange={(e) => setSentenceColorScheme(e.target.value)}
-            className="text-sm border rounded px-2 py-1"
-            title="选择句子交替着色方案，帮助区分不同句子"
-          >
-            {Object.values(SENTENCE_COLOR_SCHEMES).map(scheme => (
-              <option key={scheme.id} value={scheme.id}>
-                {scheme.name}
-              </option>
-            ))}
-          </select>
-        </div>
       </header>
       
       {/* 主内容区 */}
       {selectedLiterature ? (
-        <div className={`flex-1 overflow-hidden grid ${currentLayout.grid}`}>
-          
-          {/* ========== 左栏：颜色结构 + 长难句 + 单词 ========== */}
-          <aside className="bg-white border-r overflow-y-auto p-4">
-            <ColorStructurePanel 
-              paragraphs={paragraphs}
-              onColorClick={handleColorClick}
-            />
-            <SentenceList 
-              sentences={sentences}
-              paragraphs={paragraphs}
-              onSentenceClick={handleSentenceClick}
-            />
-            <WordList 
-              words={words}
-              paragraphs={paragraphs}
-              onWordClick={handleWordClick}
-            />
+        <div className={`flex-1 overflow-hidden grid transition-all duration-200 ${getGridClass()}`}>
+          {/* ========== 左栏：词汇结构（可折叠） ========== */}
+          <aside className={`bg-white border-r overflow-y-auto transition-all duration-200 ${leftCollapsed ? 'w-0 overflow-hidden' : ''}`}>
+            {/* 左栏折叠按钮 */}
+            <button
+              onClick={() => setLeftCollapsed(true)}
+              className="sticky top-0 left-0 z-10 p-1 m-1 text-[#8491B4] hover:text-[#4DBBD5] hover:bg-[#4DBBD5]/10 rounded text-xs"
+              title="折叠左栏"
+            >
+              ◀
+            </button>
+            <div className="p-4 pt-0">
+              <ColorStructurePanel paragraphs={paragraphs} onColorClick={handleColorClick} />
+              <SentenceList sentences={sentences} paragraphs={paragraphs} onSentenceClick={handleSentenceClick} />
+              <WordList words={words} paragraphs={paragraphs} onWordClick={handleWordClick} />
+            </div>
           </aside>
           
-          {/* ========== 学者模式：右栏(文献+行间笔记) ========== */}
-          {isInlineMode && (
-            <main className="overflow-y-auto p-6" ref={contentRef}>
-              <div className="max-w-3xl mx-auto">
-                <h1 className="text-2xl font-bold mb-6">
-                  {selectedLiterature?.title_cn || selectedLiterature?.title_en || '无标题'}
-                </h1>
-                
-                {readMode === 'edit' ? (
-                  // 编辑模式
-                  <textarea
-                    value={editContent}
-                    onChange={e => setEditContent(e.target.value)}
-                    className="w-full min-h-[600px] p-4 border rounded font-mono text-sm"
-                  />
-                ) : (
-                  // 阅读模式
-                  <div className="prose prose-lg max-w-none space-y-4">
-                    {paragraphs.map(p => (
-                      <ParagraphRenderer
-                        key={p.id}
-                        paragraph={p}
-                        words={getWordsForParagraph(p.id)}
-                        sentences={getSentencesForParagraph(p.id)}
-                        notes={getNotesForParagraph(p.id)}
-                        isInlineMode={true}
-                        onAddNote={(id) => setEditingNote({ paragraphId: id, content: '' })}
-                        onTextSelect={handleTextSelect}
-                        readMode={readMode}
-                        colorScheme={sentenceColorScheme}
-                      />
-                    ))}
-                    
-                    {/* 新建笔记编辑器 */}
-                    {editingNote && (
-                      <div className="mt-4">
-                        <NoteEditor
-                          onSave={(content) => handleAddNote(editingNote.paragraphId, content)}
-                          onCancel={() => setEditingNote(null)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </main>
-          )}
-          
-          {/* ========== 双栏模式：中栏(纯文献) + 右栏(边栏笔记) ========== */}
-          {!isInlineMode && (
-            <>
-              {/* 中栏：纯文献 */}
-              <main className="overflow-y-auto p-6" ref={contentRef}>
-                <div className="max-w-3xl mx-auto">
-                  <h1 className="text-2xl font-bold mb-6">
-                    {selectedLiterature?.title_cn || selectedLiterature?.title_en || '无标题'}
-                  </h1>
-                  
-                  {readMode === 'edit' ? (
-                    <textarea
-                      value={editContent}
-                      onChange={e => setEditContent(e.target.value)}
-                      className="w-full min-h-[600px] p-4 border rounded font-mono text-sm"
-                    />
-                  ) : (
-                    <div className="prose prose-lg max-w-none space-y-4">
-                      {paragraphs.map(p => (
-                        <ParagraphRenderer
-                          key={p.id}
-                          paragraph={p}
-                          words={getWordsForParagraph(p.id)}
-                          sentences={getSentencesForParagraph(p.id)}
-                          notes={[]} // 双栏模式不显示行间笔记
-                          isInlineMode={false}
-                          onTextSelect={handleTextSelect}
-                          readMode={readMode}
-                          colorScheme={sentenceColorScheme}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </main>
+          {/* ========== 中栏：文献 + 行间批注 ========== */}
+          <main className="overflow-y-auto p-6 relative" ref={contentRef}>
+            {/* 左栏展开按钮（当折叠时显示） */}
+            {leftCollapsed && (
+              <button
+                onClick={() => setLeftCollapsed(false)}
+                className="fixed left-0 top-1/2 -translate-y-1/2 z-30 bg-white border rounded-r-lg px-1 py-3 text-[#8491B4] hover:text-[#4DBBD5] shadow"
+                title="展开左栏"
+              >
+                ▶
+              </button>
+            )}
+
+            <div className="max-w-3xl mx-auto">
+              <h1 className="text-2xl font-bold mb-6 text-[#3C5488]">
+                {selectedLiterature?.title_cn || selectedLiterature?.title_en || '无标题'}
+              </h1>
               
-              {/* 右栏：边栏笔记 */}
-              <aside className="bg-gray-50 border-l overflow-y-auto p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold">📝 笔记</h3>
-                  <button 
-                    onClick={() => {
-                      if (paragraphs.length > 0) {
-                        setEditingNote({ paragraphId: paragraphs[0].id, content: '' })
-                      }
-                    }}
-                    disabled={paragraphs.length === 0}
-                    className="text-sm px-2 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
-                  >
-                    + 添加
-                  </button>
-                </div>
-                
-                <div className="space-y-3">
-                  {notes.map(note => {
-                    const paragraph = paragraphs.find(p => p.id === note.anchor_id)
-                    return (
-                      <SidebarNote
-                        key={note.id}
-                        note={note}
-                        paragraph={paragraph}
-                        onEdit={handleEditNote}
-                        onDelete={handleDeleteNote}
-                      />
-                    )
-                  })}
-                </div>
-                
-                {/* 编辑器 */}
-                {editingNote && (
-                  <div className="mt-4">
-                    {editingNote.isEditing ? (
+              {readMode === 'edit' ? (
+                <textarea
+                  value={editContent}
+                  onChange={e => setEditContent(e.target.value)}
+                  className="w-full min-h-[600px] p-4 border rounded-lg font-mono text-sm"
+                />
+              ) : (
+                <div className="prose prose-lg max-w-none space-y-4">
+                  {paragraphs.map(p => (
+                    <ParagraphRenderer
+                      key={p.id}
+                      paragraph={p}
+                      words={getWordsForParagraph(p.id)}
+                      sentences={getSentencesForParagraph(p.id)}
+                      notes={getNotesForParagraph(p.id)}
+                      isInlineMode={true}
+                      onAddNote={(id) => setEditingNote({ paragraphId: id, content: '' })}
+                      onTextSelect={handleTextSelect}
+                      readMode={readMode}
+                      colorScheme={sentenceColorScheme}
+                    />
+                  ))}
+                  
+                  {/* 新建笔记编辑器 */}
+                  {editingNote && (
+                    <div className="mt-4">
                       <NoteEditor
-                        initialContent={editingNote.content}
-                        onSave={(content) => handleUpdateNote(editingNote.id, content)}
-                        onCancel={() => setEditingNote(null)}
-                      />
-                    ) : (
-                      <NoteEditor
-                        initialContent={editingNote.content}
                         onSave={(content) => handleAddNote(editingNote.paragraphId, content)}
                         onCancel={() => setEditingNote(null)}
                       />
-                    )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </main>
+          
+          {/* ========== 右栏：AI工具面板（三栏模式，可折叠） ========== */}
+          {isTripleMode && (
+            <aside className={`bg-gray-50 border-l overflow-y-auto flex flex-col transition-all duration-200 ${rightCollapsed ? 'w-0 overflow-hidden' : ''}`}>
+              {/* 右栏折叠按钮 */}
+              <div className="flex items-center justify-between p-3 border-b shrink-0">
+                <h3 className="font-semibold text-sm text-[#3C5488]">🤖 AI助手</h3>
+                <button
+                  onClick={() => setRightCollapsed(true)}
+                  className="text-[#8491B4] hover:text-[#4DBBD5] text-xs"
+                  title="折叠右栏"
+                >
+                  ▶
+                </button>
+              </div>
+
+              {/* 快捷操作 */}
+              <div className="p-3 border-b shrink-0">
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={async () => {
+                      if (!fullText) return
+                      setAiMessages(prev => [...prev, { role: 'user', content: '请总结这篇文献的核心内容' }])
+                      setAiLoading(true)
+                      try {
+                        const response = await fetch('/api/v1/ai/chat', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            messages: [
+                              { role: 'system', content: '你是学术文献解读助手。' },
+                              { role: 'user', content: `请总结以下文献的核心内容、创新点和不足：\n\n${fullText.substring(0, 4000)}` }
+                            ],
+                            temperature: 0.5, max_tokens: 2048
+                          })
+                        })
+                        const data = await response.json()
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || '无法总结' }])
+                      } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
+                      finally { setAiLoading(false) }
+                    }}
+                    disabled={aiLoading}
+                    className="px-2 py-1 text-xs bg-[#4DBBD5]/10 text-[#4DBBD5] rounded hover:bg-[#4DBBD5]/20 disabled:opacity-50"
+                  >📋 总结</button>
+                  <button
+                    onClick={async () => {
+                      if (!fullText) return
+                      setAiMessages(prev => [...prev, { role: 'user', content: '请分析这篇文献的研究方法' }])
+                      setAiLoading(true)
+                      try {
+                        const response = await fetch('/api/v1/ai/chat', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            messages: [
+                              { role: 'system', content: '你是学术文献解读助手。' },
+                              { role: 'user', content: `请详细分析以下文献的研究方法、实验设计和数据分析方式：\n\n${fullText.substring(0, 4000)}` }
+                            ],
+                            temperature: 0.5, max_tokens: 2048
+                          })
+                        })
+                        const data = await response.json()
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || '无法分析' }])
+                      } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
+                      finally { setAiLoading(false) }
+                    }}
+                    disabled={aiLoading}
+                    className="px-2 py-1 text-xs bg-[#00A087]/10 text-[#00A087] rounded hover:bg-[#00A087]/20 disabled:opacity-50"
+                  >🔬 方法</button>
+                  <button
+                    onClick={async () => {
+                      if (!fullText) return
+                      setAiMessages(prev => [...prev, { role: 'user', content: '请分析这篇文献的创新点和贡献' }])
+                      setAiLoading(true)
+                      try {
+                        const response = await fetch('/api/v1/ai/chat', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            messages: [
+                              { role: 'system', content: '你是学术文献解读助手。' },
+                              { role: 'user', content: `请分析以下文献的创新点、学术贡献和潜在影响：\n\n${fullText.substring(0, 4000)}` }
+                            ],
+                            temperature: 0.5, max_tokens: 2048
+                          })
+                        })
+                        const data = await response.json()
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || '无法分析' }])
+                      } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
+                      finally { setAiLoading(false) }
+                    }}
+                    disabled={aiLoading}
+                    className="px-2 py-1 text-xs bg-[#3C5488]/10 text-[#3C5488] rounded hover:bg-[#3C5488]/20 disabled:opacity-50"
+                  >💡 创新</button>
+                </div>
+              </div>
+              
+              {/* 对话历史 */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                {aiMessages.length === 0 && (
+                  <div className="text-center text-[#8491B4] text-sm py-8">
+                    <div className="text-2xl mb-2">🤖</div>
+                    <p>向AI助手提问关于这篇文献的问题</p>
                   </div>
                 )}
-              </aside>
-            </>
+                {aiMessages.map((msg, idx) => (
+                  <div key={idx} className={`text-sm ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                    <div className={`inline-block max-w-[90%] p-2 rounded-lg ${
+                      msg.role === 'user' ? 'bg-[#4DBBD5] text-white' : 'bg-white border text-[#3C5488]'
+                    }`}>
+                      {msg.content.split('\n').map((line, i) => (
+                        <span key={i}>{line}<br/></span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {aiLoading && (
+                  <div className="text-left">
+                    <div className="inline-block p-2 bg-white border rounded-lg text-sm text-[#8491B4]">
+                      <div className="flex items-center gap-1">
+                        <div className="animate-spin w-3 h-3 border-2 border-[#4DBBD5] border-t-transparent rounded-full" />
+                        思考中...
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* 输入框 */}
+              <div className="p-3 border-t shrink-0">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={aiInput}
+                    onChange={e => setAiInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAiChat()}
+                    placeholder="提问关于这篇文献..."
+                    className="flex-1 px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-[#4DBBD5]"
+                    disabled={aiLoading}
+                  />
+                  <button
+                    onClick={handleAiChat}
+                    disabled={aiLoading || !aiInput.trim()}
+                    className="px-3 py-1.5 bg-[#4DBBD5] text-white rounded-lg text-sm disabled:opacity-50 hover:bg-[#3a9ab5]"
+                  >
+                    发送
+                  </button>
+                </div>
+              </div>
+            </aside>
           )}
-          
+
+          {/* 右栏展开按钮（三栏模式且折叠时显示） */}
+          {isTripleMode && rightCollapsed && (
+            <button
+              onClick={() => setRightCollapsed(false)}
+              className="fixed right-0 top-1/2 -translate-y-1/2 z-30 bg-white border rounded-l-lg px-1 py-3 text-[#8491B4] hover:text-[#4DBBD5] shadow"
+              title="展开AI面板"
+            >
+              ◀
+            </button>
+          )}
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-gray-400">
-          <p>请选择一篇文献开始阅读</p>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-6xl mb-4">📖</div>
+            <p className="text-[#8491B4] text-lg mb-2">选择一篇文献开始深度阅读</p>
+            <p className="text-sm text-[#8491B4]/70">支持双栏/三栏模式、行间批注、AI辅助</p>
+          </div>
         </div>
       )}
       
+      {/* 划词弹窗 */}
+      {selectionPopup && (
+        <SelectionPopup
+          text={selectionPopup.text}
+          position={selectionPopup.position}
+          onTranslate={handleTranslate}
+          onAIExplain={(text) => handleAIExplain(text, fullText)}
+          onClose={closeSelectionPopup}
+        />
+      )}
+
       {/* 全局样式 */}
       <style>{`
-        .word-new {
-          color: #DC2626;
-          font-weight: bold;
-          border-bottom: 2px solid #DC2626;
-        }
-        .word-learning {
-          color: #D97706;
-          font-weight: bold;
-          border-bottom: 2px solid #F59E0B;
-        }
-        .word-mastered {
-          color: inherit;
-        }
-        .sentence-highlight {
-          color: #DC2626;
-          background: rgba(254, 226, 226, 0.3);
-          border-radius: 2px;
-          padding: 1px 2px;
-        }
-        .paragraph-block {
-          position: relative;
-          padding: 8px 0;
-        }
+        .word-new { color: #DC2626; font-weight: bold; border-bottom: 2px solid #DC2626; }
+        .word-learning { color: #D97706; font-weight: bold; border-bottom: 2px solid #F59E0B; }
+        .word-mastered { color: inherit; }
+        .sentence-highlight { color: #DC2626; background: rgba(254, 226, 226, 0.3); border-radius: 2px; padding: 1px 2px; }
+        .paragraph-block { position: relative; padding: 8px 0; }
       `}</style>
     </div>
   )
