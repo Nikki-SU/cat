@@ -5,12 +5,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { literatureAPI, trackingAPI, learningAPI, noteAPI, organizationAPI, attachmentAPI } from '../api/client'
 
-const tabs = [
-  { id: 'tracking', label: '追踪管理' },
-  { id: 'literature', label: '文献表' },
-  { id: 'learning', label: '学习管理' },
-  { id: 'notes', label: '笔记管理' },
-  { id: 'organization', label: '合集管理' },
+const sidebarItems = [
+  { id: 'literature', icon: '📋', label: '文献表' },
+  { id: 'tracking', icon: '📡', label: '追踪记录' },
+  { id: 'cards', icon: '📑', label: '文献卡片' },
+  { id: 'learning', icon: '📖', label: '单词难句' },
+  { id: 'notes', icon: '📝', label: '笔记' },
+  { id: 'organization', icon: '🏷️', label: '标签合集' },
 ]
 
 // 标签颜色
@@ -556,33 +557,32 @@ function Manage({ defaultTab = 'tracking' }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* 顶部标题栏 */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-semibold text-[#4DBBD5] mb-4">📁 文献管理</h1>
-          
-          {/* Tab切换 */}
-          <div className="flex gap-1 overflow-x-auto">
-            {tabs.map(tab => (
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* 左侧导航列表 */}
+      <div className="w-36 shrink-0 bg-white border-r border-gray-200 sticky top-0 h-screen overflow-y-auto">
+        <div className="px-3 py-4">
+          <h1 className="text-base font-semibold text-[#4DBBD5] mb-4 px-2">📁 管理</h1>
+          <div className="space-y-1">
+            {sidebarItems.map(item => (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-[#4DBBD5] text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full text-left px-3 py-2.5 text-sm rounded-lg transition-colors flex items-center gap-2 ${
+                  activeTab === item.id
+                    ? 'bg-[#4DBBD5]/10 text-[#4DBBD5] font-medium'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-[#4DBBD5]'
                 }`}
               >
-                {tab.label}
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* 内容区 */}
-      <div className="max-w-6xl mx-auto px-4 py-4">
+      {/* 右侧内容区 */}
+      <div className="flex-1 min-w-0 p-4">
         {loading ? (
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin w-8 h-8 border-4 border-[#4DBBD5] border-t-transparent rounded-full"></div>
@@ -900,6 +900,20 @@ function Manage({ defaultTab = 'tracking' }) {
             )}
 
             {/* 笔记管理 */}
+            {/* 文献卡片管理 */}
+            {activeTab === 'cards' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-medium text-[#3C5488]">文献卡片管理</h2>
+                </div>
+                <div className="bg-white rounded-lg p-8 text-center text-gray-400">
+                  <div className="text-4xl mb-3">📑</div>
+                  <p>卡片模板与提示词管理</p>
+                  <p className="text-sm mt-1">此功能将在卡片页改造完成后同步更新</p>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'notes' && (
               <div className="bg-white rounded-lg shadow p-4">
                 <div className="flex items-center justify-between mb-3">
