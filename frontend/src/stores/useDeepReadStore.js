@@ -2,12 +2,12 @@
  * DeepRead专用状态管理 - 修正版
  * 
  * 布局说明：
- * - 学者模式 (30%:70%): 左=颜色结构栏, 右=文献+行间笔记
- * - 双栏模式 (30%:50%:20%): 左=颜色结构栏, 中=纯文献, 右=边栏笔记
+ * - 双栏模式: 左=词汇结构栏(可折叠) + 右=文献+行间批注
+ * - 三栏模式: 左=词汇结构栏 + 中=文献+行间批注 + 右=AI工具面板(可折叠)
+ * - 全屏模式: 窗口占满, 左右栏可独立折叠
  * 
  * 笔记位置：
- * - 学者模式：笔记在文献对应段落旁边（行间）
- * - 双栏模式：笔记集中在右栏（边栏），但仍锚定到文献位置
+ * 笔记位置：所有模式均为行间批注（笔记在原文对应段落内，像课本上写笔记）
  */
 import { create } from 'zustand'
 import { structuredAPI, learningAPI } from '../api/client'
@@ -15,25 +15,27 @@ import { structuredAPI, learningAPI } from '../api/client'
 // ==================== 常量 ====================
 
 export const LAYOUT_MODES = {
-  scholar: { 
-    id: 'scholar', 
-    label: '学者模式', 
-    // 左30%: 颜色结构+长难句+单词, 右70%: 文献+行间笔记
-    grid: 'grid-cols-[300px_1fr]',
-    leftWidth: 'w-[300px]',
-    centerWidth: 'flex-1',
-    rightWidth: null, // 无独立右栏，笔记在文献内
-    notePosition: 'inline' // 行间笔记
-  },
   dual: { 
     id: 'dual', 
-    label: '双栏模式', 
-    // 左30%: 颜色结构+长难句+单词, 中50%: 纯文献, 右20%: 边栏笔记
-    grid: 'grid-cols-[280px_1fr_280px]',
+    label: '双栏', 
+    // 左: 颜色结构+长难句+单词(可折叠) + 右: 文献+行间批注
+    grid: 'grid-cols-[280px_1fr]',
     leftWidth: 'w-[280px]',
     centerWidth: 'flex-1',
-    rightWidth: 'w-[280px]',
-    notePosition: 'sidebar' // 边栏笔记
+    rightWidth: null,
+    notePosition: 'inline',
+    hasAIPanel: false
+  },
+  triple: { 
+    id: 'triple', 
+    label: '三栏', 
+    // 左: 词汇结构 + 中: 文献+行间批注 + 右: AI工具面板(可折叠)
+    grid: 'grid-cols-[280px_1fr_300px]',
+    leftWidth: 'w-[280px]',
+    centerWidth: 'flex-1',
+    rightWidth: 'w-[300px]',
+    notePosition: 'inline',
+    hasAIPanel: true
   }
 }
 
@@ -133,7 +135,7 @@ const useDeepReadStore = create((set, get) => ({
   rawContent: '',
   paragraphs: [],
   
-  layoutMode: 'scholar',
+  layoutMode: 'dual',
   readMode: 'read',
   isProtected: true,
   
