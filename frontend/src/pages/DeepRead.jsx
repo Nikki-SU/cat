@@ -2,8 +2,8 @@
  * 精读页面 - 重构版
  * 
  * 布局：
- * - 学者模式: 左栏(颜色结构+长难句+单词) + 右栏(文献+行间笔记)
- * - 双栏模式: 左栏(颜色结构+长难句+单词) + 中栏(纯文献) + 右栏(边栏笔记)
+ * - 双栏模式: 左栏(词汇结构,可折叠) + 右栏(文献+行间批注)
+ * - 三栏模式: 左栏(词汇结构,可折叠) + 中栏(文献+行间批注) + 右栏(AI面板,可折叠)
  * 
  * 特性：
  * - 阅读模式：原文只读，可高亮、批注、调整格式
@@ -29,10 +29,8 @@ const SelectionPopup = ({
   text, 
   position, 
   onClose, 
-  fullText,
   onTranslate,
   onAIExplain,
-  isLoading 
 }) => {
   const [mode, setMode] = useState(null) // null | 'translate' | 'explain'
   const [result, setResult] = useState('')
@@ -53,7 +51,7 @@ const SelectionPopup = ({
     setMode('explain')
     setLoading(true)
     try {
-      const response = await onAIExplain(text, fullText)
+      const response = await onAIExplain(text)
       setResult(response)
     } finally {
       setLoading(false)
@@ -368,7 +366,7 @@ const ParagraphRenderer = ({
         {renderContent()}
       </div>
       
-      {/* 行间笔记（学者模式） */}
+      {/* 行间批注 */}
       {isInlineMode && paragraphNotes.length > 0 && (
         <div className="mt-2 ml-4 space-y-1">
           {paragraphNotes.map(note => (
@@ -531,8 +529,8 @@ function DeepRead() {
   // 翻译
   const handleTranslate = async (text) => {
     try {
-      const ollamaConfig = await settingsAPI.getOllamaConfig()
-      if (ollamaConfig.is_available) {
+      const aiConfig = await settingsAPI.getAiConfig()
+      if (aiConfig) {
         const response = await fetch('/api/v1/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -778,7 +776,7 @@ function DeepRead() {
 
             {/* 换文献按钮 */}
             <button
-              onClick={() => useDeepReadStore.getState().loadLiterature(null).catch(() => useDeepReadStore.setState({ selectedLiterature: null }))}
+              onClick={() => useDeepReadStore.setState({ selectedLiterature: null, paragraphs: [], words: [], sentences: [], notes: [], rawContent: '' })}
               className="p-1.5 text-[#8491B4] hover:text-[#E64B35] hover:bg-[#E64B35]/10 rounded-lg transition-colors"
               title="关闭文献"
             >
@@ -1047,7 +1045,7 @@ function DeepRead() {
           )}
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center">
             <div className="text-6xl mb-4">📖</div>
             <p className="text-[#8491B4] text-lg mb-2">选择一篇文献开始深度阅读</p>
