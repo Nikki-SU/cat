@@ -176,5 +176,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # TODO: 添加 .ico 图标
+    icon=os.path.join(ROOT, 'icon.ico'),
 )
