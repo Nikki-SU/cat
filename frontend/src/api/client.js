@@ -314,6 +314,13 @@ export const noteAPI = {
   updateTemplate: (id, data) => apiClient.put(`/notes/templates/${id}`, data),
   deleteTemplate: (id) => apiClient.delete(`/notes/templates/${id}`),
 
+  // 文件上传
+  uploadFile: async (formData) => {
+    return apiClient.post('/notes/upload-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
   // 笔记图片上传
   uploadImage: async (file) => {
     const formData = new FormData()

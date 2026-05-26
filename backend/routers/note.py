@@ -119,7 +119,8 @@ async def upload_note_file(
         file_type = "other"
     
     # Save file
-    safe_name = f"{doi or 'note'}_{file.filename}"
+    safe_doi = (doi or "note").replace("/", "_").replace(":", "_")
+    safe_name = f"{safe_doi}_{file.filename}"
     file_path = os.path.join(NOTE_UPLOAD_DIR, safe_name)
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -147,6 +148,26 @@ async def upload_note_file(
     db.refresh(note)
     _sync_has_notes(doi, db)
     return note
+
+
+@router.get("/files/{note_id}")
+def download_note_file(note_id: int, db: Session = Depends(get_db)):
+    """下载笔记关联的文件"""
+    note = db.query(GeneralNote).filter(GeneralNote.id == note_id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    
+    if not note.file_path or not os.path.exists(note.file_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
+    
+    from fastapi.responses import FileResponse
+    filename = note.title or os.path.basename(note.file_path)
+    return FileResponse(
+        note.file_path,
+        filename=filename,
+        media_type="application/octet-stream"
+    )
+
 
 # Note Template CRUD
 @router.get("/templates", response_model=List[NoteTemplateResponse])
