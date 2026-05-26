@@ -69,7 +69,8 @@ function CollectionModal({ editing, onSave, onClose }) {
   )
 }
 
-function Manage({ defaultTab = 'tracking' }) {
+function Manage({ defaultTab = 'literature' }) {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState(defaultTab)
   
   // 各Tab数据
@@ -557,7 +558,7 @@ function Manage({ defaultTab = 'tracking' }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 flex" style={{ minHeight: "calc(100vh - 80px)" }}>
       {/* 左侧导航列表 */}
       <div className="w-36 shrink-0 bg-white border-r border-gray-200 sticky top-0 h-screen overflow-y-auto">
         <div className="px-3 py-4">
