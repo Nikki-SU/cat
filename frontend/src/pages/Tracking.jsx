@@ -998,10 +998,6 @@ function Tracking() {
       
       {/* 搜索引擎管理弹窗 */}
       {renderEngineModal()}
-    </div>
-  )
-}
-
 
       {/* 合集编辑弹窗 */}
       {showGroupEditModal && (
@@ -1028,5 +1024,11 @@ function Tracking() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
 
 export default Tracking
+
+
+
