@@ -3,12 +3,9 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import useAppStore from '../stores/useAppStore'
-import { cardAPI, literatureAPI } from '../api/client'
+import { cardAPI } from '../api/client'
 
 // 简要模式显示的字段
-const BRIEF_FIELDS = ['title_cn', 'title_en', 'journal', 'keyword_cn', 'keyword_en', 'author', 'pubdate']
-// 详细模式显示全部字段
-
 function Browse() {
   const { fetchLiteratureCards, literatureCards, isLoading, settings } = useAppStore()
   const [detailMode, setDetailMode] = useState(false) // false=简要, true=详细
@@ -62,7 +59,7 @@ function Browse() {
   }, [fetchLiteratureCards])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 max-w-4xl mx-auto">
       {/* 顶部工具栏 */}
       <div className="bg-white rounded-xl p-4 card-shadow">
         <div className="flex items-center gap-3 flex-wrap">
