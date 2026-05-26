@@ -41,6 +41,8 @@ class LiteratureCardResponse(LiteratureCardBase):
 
 class CardPromptTemplateBase(BaseModel):
     name: str
+    content: Optional[str] = None
+    category: Optional[str] = None
     description: Optional[str] = None
     is_default: bool = False
 
@@ -48,6 +50,8 @@ class CardPromptTemplateCreate(CardPromptTemplateBase): pass
 
 class CardPromptTemplateUpdate(BaseModel):
     name: Optional[str] = None
+    content: Optional[str] = None
+    category: Optional[str] = None
     description: Optional[str] = None
     is_default: Optional[bool] = None
 
