@@ -8,6 +8,7 @@
  */
 
 import { SENTENCE_COLOR_SCHEMES } from '../stores/useDeepReadStore'
+import React from 'react'
 
 /**
  * 按句子分割文本
