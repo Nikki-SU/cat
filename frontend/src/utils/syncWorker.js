@@ -198,11 +198,11 @@ class SyncManager {
       const localManifest = await syncV2API.getAttachmentManifest()
       
       // 2. 获取远程清单
-      const remoteManifest = await fetch('/api/attachments/manifest').then(r => r.json())
+      const remoteManifest = await syncV2API.getAttachmentManifest()
       
       // 3. 对比获取缺少的附件
-      const missingResponse = await fetch(`/api/attachments/missing?manifest=${encodeURIComponent(JSON.stringify(remoteManifest))}`)
-      const { missing } = await missingResponse.json()
+      // TODO: 后端缺少 /attachments/missing 端点，暂时跳过
+      const missing = []
       
       // 4. 下载缺少的附件
       for (const att of missing) {
@@ -217,7 +217,8 @@ class SyncManager {
   }
 
   async downloadAttachment(doi) {
-    const response = await fetch(`/api/attachments/download/${encodeURIComponent(doi)}`)
+    const downloadUrl = `${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/attachments/download/${encodeURIComponent(doi)}`
+    const response = await fetch(downloadUrl)
     if (!response.ok) throw new Error('下载附件失败')
     
     const blob = await response.blob()
