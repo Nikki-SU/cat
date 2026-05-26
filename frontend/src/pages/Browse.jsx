@@ -66,7 +66,7 @@ function Browse() {
           {/* 简详切换 */}
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
-              onClick={handleDetailToggle}
+              onClick={() => { setDetailMode(false); setExpandedCards({}) }}
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                 !detailMode ? 'bg-white shadow text-[#4DBBD5]' : 'text-gray-500'
               }`}
@@ -74,7 +74,7 @@ function Browse() {
               简要
             </button>
             <button
-              onClick={handleDetailToggle}
+              onClick={() => { setDetailMode(true); setExpandedCards({}) }}
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                 detailMode ? 'bg-white shadow text-[#4DBBD5]' : 'text-gray-500'
               }`}
