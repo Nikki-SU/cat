@@ -59,10 +59,58 @@ def get_db():
         db.close()
 
 
+
+
+def _migrate_db():
+    """数据库迁移：为已有表添加缺失的列（SQLite兼容）"""
+    import sqlite3
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    if not os.path.exists(db_path):
+        return
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # 获取所有表
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = {row[0] for row in cursor.fetchall()}
+    
+    # 定义每个表可能缺失的列
+    migrations = {
+        "general_notes": [
+            ("file_data", "JSON"),
+            ("file_path", "VARCHAR(500)"),
+            ("attachments", "JSON"),
+            ("template_id", "INTEGER"),
+        ],
+        "literature_table_entries": [
+            ("has_notes", "BOOLEAN DEFAULT 0"),
+        ],
+    }
+    
+    for table_name, columns in migrations.items():
+        if table_name not in tables:
+            continue
+        # 获取已有列
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        # 添加缺失列
+        for col_name, col_type in columns:
+            if col_name not in existing_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}")
+                    print(f"[DB Migration] Added {table_name}.{col_name}")
+                except Exception as e:
+                    print(f"[DB Migration] Skip {table_name}.{col_name}: {e}")
+    
+    conn.commit()
+    conn.close()
+
 def init_db():
     """初始化数据库 - 创建所有表"""
     from models import literature, tracking, card, attachment, structured, learning, note, organization, translation, sync
     Base.metadata.create_all(bind=engine)
+    _migrate_db()
 
 
 def setup_change_tracking():

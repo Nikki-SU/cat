@@ -29,6 +29,7 @@ apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
     console.error('API Error:', error.response?.data || error.message)
+    // 保留完整错误信息，让调用方可以访问 error.response.data.detail
     return Promise.reject(error)
   }
 )

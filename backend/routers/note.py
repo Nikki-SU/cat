@@ -60,6 +60,8 @@ def create_general_note(data: GeneralNoteCreate, db: Session = Depends(get_db)):
         return note
     except Exception as e:
         db.rollback()
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"创建笔记失败: {str(e)}")
 
 @router.put("/general/{id}", response_model=GeneralNoteResponse)

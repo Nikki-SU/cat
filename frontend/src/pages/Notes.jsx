@@ -149,7 +149,7 @@ function ImportModal({ onClose, onImport }) {
       await onImport(file, doi)
       onClose()
     } catch (err) {
-      alert('导入失败: ' + err.message)
+      alert('导入失败: ' + (err.response?.data?.detail || err.message))
     } finally {
       setImporting(false)
     }
@@ -329,7 +329,7 @@ function Notes() {
       fetchNotes()
       selectNote(data)
     } catch (err) {
-      alert('创建失败: ' + err.message)
+      alert('创建失败: ' + (err.response?.data?.detail || err.message))
     }
   }
 
@@ -415,7 +415,7 @@ function Notes() {
       setSelectedNote(prev => ({ ...prev, ...updateData, _dirty: false }))
       fetchNotes()
     } catch (err) {
-      alert('保存失败: ' + err.message)
+      alert('保存失败: ' + (err.response?.data?.detail || err.message))
     } finally {
       setSaving(false)
     }
@@ -430,7 +430,7 @@ function Notes() {
       }
       fetchNotes()
     } catch (err) {
-      alert('删除失败: ' + err.message)
+      alert('删除失败: ' + (err.response?.data?.detail || err.message))
     }
   }
 
