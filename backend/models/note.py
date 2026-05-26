@@ -18,7 +18,7 @@ class GeneralNote(Base):
     file_data = Column(JSON, nullable=True)  # Excel等结构化数据
     file_path = Column(String(500), nullable=True)  # 导入文件的存储路径
     attachments = Column(JSON, nullable=True)
-    template_id = Column(Integer, ForeignKey("note_templates.id"), nullable=True)
+    template_id = Column(Integer, nullable=True)  # FK removed to avoid table dependency issues
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
