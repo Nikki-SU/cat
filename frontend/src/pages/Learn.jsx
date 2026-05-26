@@ -203,17 +203,20 @@ function Learn() {
   const startSentenceLearning = async () => {
     try {
       const dueSentences = await learningAPI.getDueSentences(10)
-      if (dueSentences.length === 0) {
+      // getDueSentences 返回的是句子列表或分页对象
+      const dueList = Array.isArray(dueSentences) ? dueSentences : (dueSentences.items || [])
+      if (dueList.length === 0) {
         // 如果没有到期的，获取所有长难句
-        const allSentences = await learningAPI.listSentences({ limit: 1 })
-        if (allSentences.length > 0) {
-          setCurrentSentence(allSentences[0])
+        const allSentences = await learningAPI.listSentences({ limit: 10 })
+        const allList = Array.isArray(allSentences) ? allSentences : (allSentences.items || [])
+        if (allList.length > 0) {
+          setCurrentSentence(allList[0])
         } else {
           alert('暂无长难句')
           return
         }
       } else {
-        setCurrentSentence(dueSentences[0])
+        setCurrentSentence(dueList[0])
       }
       setIsSentenceLearning(true)
       setSentenceTranslation('')
