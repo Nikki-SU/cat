@@ -49,12 +49,18 @@ def get_general_note(id: int, db: Session = Depends(get_db)):
 
 @router.post("/general", response_model=GeneralNoteResponse)
 def create_general_note(data: GeneralNoteCreate, db: Session = Depends(get_db)):
-    note = GeneralNote(**data.model_dump())
-    db.add(note)
-    db.commit()
-    db.refresh(note)
-    _sync_has_notes(note.doi, db)
-    return note
+    try:
+        # 排除 template_id 防止外键约束报错（如果 note_templates 表不存在）
+        note_data = data.model_dump(exclude={"template_id"})
+        note = GeneralNote(**note_data)
+        db.add(note)
+        db.commit()
+        db.refresh(note)
+        _sync_has_notes(note.doi, db)
+        return note
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"创建笔记失败: {str(e)}")
 
 @router.put("/general/{id}", response_model=GeneralNoteResponse)
 def update_general_note(id: int, data: GeneralNoteUpdate, db: Session = Depends(get_db)):
