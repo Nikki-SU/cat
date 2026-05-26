@@ -279,9 +279,7 @@ function Layout() {
 
       {/* 主内容区 */}
       <main className="flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto p-4">
-          <Outlet />
-        </div>
+        <Outlet />
       </main>
 
       {/* 全局搜索弹窗 */}
