@@ -2,7 +2,7 @@
  * Zustand 状态管理 - 包含学习模块状态
  */
 import { create } from 'zustand'
-import { literatureAPI, trackingAPI, cardAPI, learningAPI, noteAPI, organizationAPI, translationAPI, structuredAPI } from '../api/client'
+import { literatureAPI, trackingAPI, cardAPI, learningAPI, noteAPI, organizationAPI, translationAPI, settingsAPI } from '../api/client'
 
 const useAppStore = create((set, get) => ({
   // ==================== UI状态 ====================
@@ -421,7 +421,7 @@ const useAppStore = create((set, get) => ({
   },
 
   // ==================== 设置状态 ====================
-  settings: {
+  settings: JSON.parse(localStorage.getItem('appSettings')) || {
     displayLanguage: 'cn', // cn | en
     displayDetail: 'detailed', // detailed | brief
     trackingInterval: 24,
@@ -431,9 +431,39 @@ const useAppStore = create((set, get) => ({
     translationMode: 'normal', // normal | strict
   },
 
-  updateSettings: (newSettings) => set((state) => ({
-    settings: { ...state.settings, ...newSettings }
-  })),
+  fetchSettings: async () => {
+    try {
+      const [aiConfig, trackingConfig, learningConfig] = await Promise.all([
+        settingsAPI.getAiConfig().catch(() => null),
+        settingsAPI.getTrackingConfig().catch(() => null),
+        settingsAPI.getLearningConfig().catch(() => null),
+      ])
+      set((state) => {
+        const newSettings = { ...state.settings }
+        if (aiConfig) newSettings.aiConfig = aiConfig
+        if (trackingConfig) {
+          if (trackingConfig.display_language) newSettings.displayLanguage = trackingConfig.display_language
+          if (trackingConfig.display_detail) newSettings.displayDetail = trackingConfig.display_detail
+          if (trackingConfig.interval) newSettings.trackingInterval = trackingConfig.interval
+        }
+        if (learningConfig) {
+          if (learningConfig.word_queue_length) newSettings.wordQueueLength = learningConfig.word_queue_length
+          if (learningConfig.review_mode) newSettings.reviewMode = learningConfig.review_mode
+          if (learningConfig.translation_mode) newSettings.translationMode = learningConfig.translation_mode
+        }
+        localStorage.setItem('appSettings', JSON.stringify(newSettings))
+        return { settings: newSettings }
+      })
+    } catch (error) {
+      console.warn('无法从后端加载设置，使用本地默认值')
+    }
+  },
+
+  updateSettings: (newSettings) => set((state) => {
+    const updated = { ...state.settings, ...newSettings }
+    localStorage.setItem('appSettings', JSON.stringify(updated))
+    return { settings: updated }
+  }),
 }))
 
 export default useAppStore
