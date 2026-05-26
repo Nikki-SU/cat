@@ -2,7 +2,7 @@
  * Zustand 状态管理 - 包含学习模块状态
  */
 import { create } from 'zustand'
-import { literatureAPI, trackingAPI, cardAPI, learningAPI, noteAPI, organizationAPI, translationAPI } from '../api/client'
+import { literatureAPI, trackingAPI, cardAPI, learningAPI, noteAPI, organizationAPI, translationAPI, structuredAPI } from '../api/client'
 
 const useAppStore = create((set, get) => ({
   // ==================== UI状态 ====================
