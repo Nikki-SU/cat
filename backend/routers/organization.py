@@ -24,6 +24,37 @@ def list_tags(skip: int = 0, limit: int = 100, doi: str = None, name: str = None
         query = query.filter(Tag.name.like(f"%{name}%"))
     return query.offset(skip).limit(limit).all()
 
+
+# Tag 固定路径路由（必须在 /tags/{id} 之前，否则 <built-in function id> 会拦截）
+@router.get("/tags/all-names", response_model=List[str])
+def get_all_tag_names(db: Session = Depends(get_db)):
+    """获取所有不重复的标签名（用于自动补全）"""
+    tags = db.query(Tag.name).distinct().all()
+    return [t[0] for t in tags]
+
+@router.get("/tags/by-doi/{doi}", response_model=List[TagResponse])
+def get_tags_by_doi(doi: str, db: Session = Depends(get_db)):
+    """获取某DOI下的所有标签"""
+    return db.query(Tag).filter(Tag.doi == doi).all()
+
+@router.get("/tags/by-name/{name}", response_model=List[TagResponse])
+def get_tags_by_name(name: str, db: Session = Depends(get_db)):
+    """获取某标签名下的所有DOI"""
+    return db.query(Tag).filter(Tag.name == name).all()
+
+@router.post("/tags/batch", response_model=List[TagResponse])
+def batch_create_tags(tags_data: List[TagCreate], db: Session = Depends(get_db)):
+    """批量创建标签"""
+    tags = []
+    for data in tags_data:
+        tag = Tag(**data.model_dump())
+        db.add(tag)
+        tags.append(tag)
+    db.commit()
+    for tag in tags:
+        db.refresh(tag)
+    return tags
+
 @router.get("/tags/{id}", response_model=TagResponse)
 def get_tag(id: int, db: Session = Depends(get_db)):
     tag = db.query(Tag).filter(Tag.id == id).first()
@@ -60,34 +91,7 @@ def delete_tag(id: int, db: Session = Depends(get_db)):
     return {"message": "删除成功"}
 
 # Tag 增强功能
-@router.get("/tags/by-doi/{doi}", response_model=List[TagResponse])
-def get_tags_by_doi(doi: str, db: Session = Depends(get_db)):
-    """获取某DOI下的所有标签"""
-    return db.query(Tag).filter(Tag.doi == doi).all()
 
-@router.get("/tags/by-name/{name}", response_model=List[TagResponse])
-def get_tags_by_name(name: str, db: Session = Depends(get_db)):
-    """获取某标签名下的所有DOI"""
-    return db.query(Tag).filter(Tag.name == name).all()
-
-@router.get("/tags/all-names", response_model=List[str])
-def get_all_tag_names(db: Session = Depends(get_db)):
-    """获取所有不重复的标签名（用于自动补全）"""
-    tags = db.query(Tag.name).distinct().all()
-    return [t[0] for t in tags]
-
-@router.post("/tags/batch", response_model=List[TagResponse])
-def batch_create_tags(tags_data: List[TagCreate], db: Session = Depends(get_db)):
-    """批量创建标签"""
-    tags = []
-    for data in tags_data:
-        tag = Tag(**data.model_dump())
-        db.add(tag)
-        tags.append(tag)
-    db.commit()
-    for tag in tags:
-        db.refresh(tag)
-    return tags
 
 # Collection CRUD
 @router.get("/collections", response_model=List[CollectionResponse])
