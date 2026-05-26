@@ -185,8 +185,8 @@ async def extract_terms(
 
 @router.post("/generate-card")
 async def generate_card(
-    literature_data: Dict[str, Any],
-    template_prompt: str = None,
+    literature_data: Dict[str, Any] = Body(...),
+    template_prompt: Optional[str] = Body(None),
     ai: AIService = Depends(get_ai)
 ):
     """
@@ -288,8 +288,8 @@ async def generate_card_from_template(
 
 @router.post("/evaluate-translation")
 async def evaluate_translation(
-    original: str,
-    translation: str,
+    original: str = Body(...),
+    translation: str = Body(...),
     ai: AIService = Depends(get_ai)
 ):
     """
