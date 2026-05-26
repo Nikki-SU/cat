@@ -304,11 +304,16 @@ async def evaluate_translation(
 
 # ==================== 通用对话 ====================
 
+from pydantic import BaseModel
+
+class ChatRequest(BaseModel):
+    messages: List[dict]
+    temperature: float = 0.7
+    max_tokens: int = 2000
+
 @router.post("/chat")
 async def chat(
-    messages: List[dict],
-    temperature: float = Query(default=0.7, ge=0, le=2),
-    max_tokens: int = Query(default=2000, ge=100, le=4000),
+    request: ChatRequest,
     ai: AIService = Depends(get_ai)
 ):
     """
@@ -319,7 +324,7 @@ async def chat(
         temperature: 温度参数
         max_tokens: 最大token数
     """
-    result = await ai.chat(messages, temperature, max_tokens)
+    result = await ai.chat(request.messages, request.temperature, request.max_tokens)
     return result
 
 
