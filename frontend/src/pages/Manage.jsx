@@ -1,5 +1,7 @@
 /**
  * 文献管理独立页面
+ * 
+ * TODO: 状态变量过多（64个useState），建议拆分为子组件或移入 store
  */
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
