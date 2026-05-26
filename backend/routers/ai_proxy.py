@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 
 from database import get_db
 from services.ai_service import get_ai_service, update_ai_service, AIService
@@ -304,7 +305,6 @@ async def evaluate_translation(
 
 # ==================== 通用对话 ====================
 
-from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     messages: List[dict]
