@@ -7,21 +7,9 @@ from typing import Optional
 
 
 def get_data_dir():
-    """Get data directory, supporting PyInstaller bundle, desktop and Android"""
-    import sys
-    # 环境变量优先
-    if os.getenv("CAT_DATA_DIR"):
-        return os.getenv("CAT_DATA_DIR")
-    # PyInstaller 打包模式：数据放用户目录
-    if getattr(sys, "frozen", False):
-        if sys.platform == "win32":
-            return os.path.join(os.getenv("APPDATA", os.path.expanduser("~")), "Cat")
-        elif sys.platform == "darwin":
-            return os.path.expanduser("~/Library/Application Support/Cat")
-        else:
-            return os.path.join(os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "Cat")
-    # 开发模式
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    """Get data directory - delegate to database module to avoid duplication"""
+    from database import get_data_dir as _get_data_dir
+    return _get_data_dir()
 
 
 class Settings(BaseModel):
