@@ -595,7 +595,7 @@ function Settings() {
   }
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="p-4 max-w-4xl mx-auto space-y-6 pb-20">
       {/* 页面标题 */}
       <div className="text-center py-4">
         <h1 className="text-2xl font-bold text-blue-500 mb-2">⚙️ 设置</h1>
