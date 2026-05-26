@@ -22,7 +22,7 @@ import useDeepReadStore, {
 import useAppStore from '../stores/useAppStore'
 import ObsidianEditor from '../components/ObsidianEditor'
 import { splitSentences, getSentenceBackgroundColor, isSentenceColoringEnabled } from '../utils/sentenceColors.jsx'
-import { aiAPI, settingsAPI } from '../api/client'
+import { aiAPI } from '../api/client'
 
 // ==================== 划词选择弹窗 ====================
 const SelectionPopup = ({ 
@@ -529,27 +529,21 @@ function DeepRead() {
   // 翻译
   const handleTranslate = async (text) => {
     try {
-      const aiConfig = await settingsAPI.getAiConfig()
-      if (aiConfig) {
-        const response = await fetch('/api/v1/ai/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [
-              { role: 'system', content: '你是专业的学术翻译助手，擅长将英语学术文献翻译成准确、流畅的中文。' },
-              { role: 'user', content: `请将以下学术文本翻译成中文，保持学术严谨性：\n\n${text}` }
-            ],
-            temperature: 0.3, max_tokens: 2048
-          })
-        })
-        const data = await response.json()
-        return data.response || data.content || text
-      } else {
-        const response = await aiAPI.translate(text, 'zh')
-        return response.translation || '翻译失败'
-      }
+      const data = await aiAPI.chat(
+        [
+          { role: 'system', content: '你是专业的学术翻译助手，擅长将英语学术文献翻译成准确、流畅的中文。' },
+          { role: 'user', content: `请将以下学术文本翻译成中文，保持学术严谨性：\n\n${text}` }
+        ],
+        0.3, 2048
+      )
+      return data.response || data.content || data.message || text
     } catch (error) {
-      return '翻译服务暂不可用'
+      try {
+        const resp = await aiAPI.translate(text, 'zh')
+        return resp.translation || '翻译失败'
+      } catch {
+        return '翻译服务暂不可用'
+      }
     }
   }
 
@@ -557,18 +551,13 @@ function DeepRead() {
   const handleAIExplain = async (selectedText, context) => {
     try {
       const prompt = `请基于以下全文内容，解读这段选中的文本：\n\n【全文内容】\n${context.substring(0, 3000)}...\n\n【选中文本】\n${selectedText}\n\n请用中文回答：\n1. 这句话在全文中的作用和意义\n2. 关键概念解释\n3. 与上下文的联系\n4. 学术价值分析`
-      const response = await fetch('/api/v1/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: '你是资深的学术文献解读专家，擅长分析学术论文的结构、方法和贡献。' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7, max_tokens: 2048
-        })
-      })
-      const data = await response.json()
+      const data = await aiAPI.chat(
+        [
+          { role: 'system', content: '你是资深的学术文献解读专家，擅长分析学术论文的结构、方法和贡献。' },
+          { role: 'user', content: prompt }
+        ],
+        0.7, 2048
+      )
       return data.response || data.content || data.message || 'AI解读完成'
     } catch (error) {
       return 'AI解读服务暂不可用'
@@ -583,18 +572,13 @@ function DeepRead() {
     setAiMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setAiLoading(true)
     try {
-      const response = await fetch('/api/v1/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: `你是学术文献解读助手。当前正在阅读的文献标题：${selectedLiterature?.title_cn || selectedLiterature?.title_en || '未知'}\n\n全文摘要：${fullText.substring(0, 2000)}...` },
-            { role: 'user', content: userMsg }
-          ],
-          temperature: 0.7, max_tokens: 2048
-        })
-      })
-      const data = await response.json()
+      const data = await aiAPI.chat(
+        [
+          { role: 'system', content: `你是学术文献解读助手。当前正在阅读的文献标题：${selectedLiterature?.title_cn || selectedLiterature?.title_en || '未知'}\n\n全文摘要：${fullText.substring(0, 2000)}...` },
+          { role: 'user', content: userMsg }
+        ],
+        0.7, 2048
+      )
       const reply = data.response || data.content || data.message || '无法回复'
       setAiMessages(prev => [...prev, { role: 'assistant', content: reply }])
     } catch {
@@ -695,7 +679,7 @@ function DeepRead() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-[calc(100vh-56px)] flex flex-col bg-gray-50">
       {/* 顶部工具栏 */}
       <header className="bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0 z-20">
         {selectedLiterature ? (
@@ -906,19 +890,14 @@ function DeepRead() {
                       setAiMessages(prev => [...prev, { role: 'user', content: '请总结这篇文献的核心内容' }])
                       setAiLoading(true)
                       try {
-                        const response = await fetch('/api/v1/ai/chat', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            messages: [
-                              { role: 'system', content: '你是学术文献解读助手。' },
-                              { role: 'user', content: `请总结以下文献的核心内容、创新点和不足：\n\n${fullText.substring(0, 4000)}` }
-                            ],
-                            temperature: 0.5, max_tokens: 2048
-                          })
-                        })
-                        const data = await response.json()
-                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || '无法总结' }])
+                        const data = await aiAPI.chat(
+                          [
+                            { role: 'system', content: '你是学术文献解读助手。' },
+                            { role: 'user', content: `请总结以下文献的核心内容、创新点和不足：\n\n${fullText.substring(0, 4000)}` }
+                          ],
+                          0.5, 2048
+                        )
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || data.message || '无法总结' }])
                       } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
                       finally { setAiLoading(false) }
                     }}
@@ -931,19 +910,14 @@ function DeepRead() {
                       setAiMessages(prev => [...prev, { role: 'user', content: '请分析这篇文献的研究方法' }])
                       setAiLoading(true)
                       try {
-                        const response = await fetch('/api/v1/ai/chat', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            messages: [
-                              { role: 'system', content: '你是学术文献解读助手。' },
-                              { role: 'user', content: `请详细分析以下文献的研究方法、实验设计和数据分析方式：\n\n${fullText.substring(0, 4000)}` }
-                            ],
-                            temperature: 0.5, max_tokens: 2048
-                          })
-                        })
-                        const data = await response.json()
-                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || '无法分析' }])
+                        const data = await aiAPI.chat(
+                          [
+                            { role: 'system', content: '你是学术文献解读助手。' },
+                            { role: 'user', content: `请详细分析以下文献的研究方法、实验设计和数据分析方式：\n\n${fullText.substring(0, 4000)}` }
+                          ],
+                          0.5, 2048
+                        )
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || data.message || '无法分析' }])
                       } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
                       finally { setAiLoading(false) }
                     }}
@@ -956,19 +930,14 @@ function DeepRead() {
                       setAiMessages(prev => [...prev, { role: 'user', content: '请分析这篇文献的创新点和贡献' }])
                       setAiLoading(true)
                       try {
-                        const response = await fetch('/api/v1/ai/chat', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            messages: [
-                              { role: 'system', content: '你是学术文献解读助手。' },
-                              { role: 'user', content: `请分析以下文献的创新点、学术贡献和潜在影响：\n\n${fullText.substring(0, 4000)}` }
-                            ],
-                            temperature: 0.5, max_tokens: 2048
-                          })
-                        })
-                        const data = await response.json()
-                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || '无法分析' }])
+                        const data = await aiAPI.chat(
+                          [
+                            { role: 'system', content: '你是学术文献解读助手。' },
+                            { role: 'user', content: `请分析以下文献的创新点、学术贡献和潜在影响：\n\n${fullText.substring(0, 4000)}` }
+                          ],
+                          0.5, 2048
+                        )
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || data.message || '无法分析' }])
                       } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
                       finally { setAiLoading(false) }
                     }}
