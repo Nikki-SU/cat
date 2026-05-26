@@ -803,7 +803,7 @@ const ObsidianEditor = ({
   
   // 自定义渲染组件
   const MarkdownComponents = {
-    code({ node, inline, className, children, ...props }) {
+    code({ node, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '')
       const lang = match ? match[1] : ''
       
@@ -812,7 +812,11 @@ const ObsidianEditor = ({
         return <MermaidDiagram chart={String(children).replace(/\n$/, '')} />
       }
       
-      return !inline && lang ? (
+      // react-markdown v9: code blocks are wrapped in <pre>, inline code is not
+      // Check if parent is <pre> to distinguish block code from inline code
+      const isBlock = node?.position?.start?.line !== node?.position?.end?.line || lang
+      
+      return isBlock && lang ? (
         <SyntaxHighlighter
           style={oneLight}
           language={lang}
