@@ -16,7 +16,7 @@ import { TableHeader } from '@tiptap/extension-table-header'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
-import { Color } from '@tiptap/extension-text-style'
+import { TextStyle, Color } from '@tiptap/extension-text-style'
 import * as XLSX from 'xlsx'
 
 // ==================== Word编辑器工具栏 ====================
