@@ -56,7 +56,7 @@ if errorlevel 1 (
 echo.
 echo [4/6] Copy frontend dist to backend/static...
 if exist ..\\backend\\static rmdir /s /q ..\\backend\\static
-xcopy /E /Y /Q dist ..\\backend\\static
+xcopy /E /Y /Q /I dist ..\\backend\\static
 
 echo.
 echo [5/6] Ensure icon exists...
