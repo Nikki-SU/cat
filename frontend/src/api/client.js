@@ -192,11 +192,15 @@ export const settingsAPI = {
   addSearchEngine: (engine) => apiClient.post('/settings/search-engines', engine),
   updateSearchEngine: (id, engine) => apiClient.put(`/settings/search-engines/${id}`, engine),
   deleteSearchEngine: (id) => apiClient.delete(`/settings/search-engines/${id}`),
-  // OCR配置
-  getOcrConfig: () => apiClient.get('/settings/ocr-config'),
-  updateOcrConfig: (config) => apiClient.post('/settings/ocr-config', config),
-  
   resetSearchEngines: () => apiClient.post('/settings/search-engines/reset'),
+
+  // 追踪配置
+  getTrackingConfig: () => apiClient.get('/settings/tracking-config'),
+  updateTrackingConfig: (config) => apiClient.post('/settings/tracking-config', config),
+
+  // 学习配置
+  getLearningConfig: () => apiClient.get('/settings/learning-config'),
+  updateLearningConfig: (config) => apiClient.post('/settings/learning-config', config),
 }
 
 // ==================== 结构性文献 API ====================
@@ -319,25 +323,6 @@ export const noteAPI = {
     })
     return response
   },
-
-  // 公式OCR识别
-  ocrFormula: async (file, model = "turbo") => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('model', model)
-    const response = await apiClient.post('/notes/ocr', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    return response
-  },
-
-  // 文件导入创建笔记
-  uploadFile: async (formData) => {
-    const response = await apiClient.post('/notes/upload-file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    return response
-  },
 }
 
 // ==================== 组织 API ====================
@@ -419,7 +404,7 @@ export const aiAPI = {
   
   // 通用对话
   chat: (messages, temperature, maxTokens) => 
-    apiClient.post('/ai/chat', { messages, temperature, max_tokens: maxTokens }),
+    apiClient.post('/ai/chat', { messages }, { params: { temperature, max_tokens: maxTokens } }),
   
   // 笔记辅助
   summarizeContent: (content, maxLength) => 
@@ -452,88 +437,12 @@ export const syncAPI = {
 
 // ==================== 翻译练习 API（兼容旧版） ====================
 export const translationAPI = {
-  list: (params) => apiClient.get('/translations', { params }),
-  get: (id) => apiClient.get(`/translations/${id}`),
-  create: (data) => apiClient.post('/translations', data),
-  createFromDoi: (doi) => apiClient.post('/translations/from-doi', { doi }),
-  update: (id, data) => apiClient.put(`/translations/${id}`, data),
-  delete: (id) => apiClient.delete(`/translations/${id}`),
-  evaluate: (id, translation) => apiClient.post(`/translations/${id}/evaluate`, { translation }),
+  list: (params) => apiClient.get('/translation/cards', { params }),
+  get: (id) => apiClient.get(`/translation/cards/${id}`),
+  create: (data) => apiClient.post('/translation/cards', data),
+  update: (id, data) => apiClient.put(`/translation/cards/${id}`, data),
+  delete: (id) => apiClient.delete(`/translation/cards/${id}`),
+  evaluate: (id, translation) => apiClient.post(`/translation/cards/${id}/evaluate`, { translation }),
 }
 
 export default apiClient
-
-// ==================== 同步 V2 API (Phase 1 去中心化同步) ====================
-export const syncV2API = {
-  // 设备发现
-  discover: () => apiClient.get('/sync/discover'),
-  
-  // Hub信息
-  getHubInfo: () => apiClient.get('/sync/hub-info'),
-  
-  // 设备管理
-  getDevices: () => apiClient.get('/sync/devices'),
-  register: (data) => apiClient.post('/sync/register', data),
-  unregister: (deviceId) => apiClient.delete(`/sync/devices/${deviceId}`),
-  
-  // 同步操作
-  push: (deviceId, changes) => apiClient.post('/sync/push', { device_id: deviceId, changes }),
-  pull: (deviceId, sinceLogId) => apiClient.post('/sync/pull', { device_id: deviceId, since_log_id: sinceLogId }),
-  
-  // 状态
-  getStatus: () => apiClient.get('/sync/status'),
-  
-
-  // 角色切换
-  switchRole: (role) => apiClient.post('/sync/switch-role', { role }),
-
-  // ==================== Phase 3: 离线模式 + 冲突解决 ====================
-  
-  // 获取未同步变更数量
-  getUnsynced: (deviceId) => apiClient.get('/sync/unsynced', { params: { device_id: deviceId } }),
-  
-  // 获取冲突列表
-  getConflicts: () => apiClient.get('/sync/conflicts'),
-  
-  // 解决单个冲突
-  resolveConflict: (tableName, recordPk, resolution, chosenData) => 
-    apiClient.post('/sync/resolve-conflict', null, { 
-      params: { 
-        table_name: tableName, 
-        record_pk: recordPk,
-        resolution,
-        chosen_data: chosenData
-      } 
-    }),
-  
-  // 批量解决所有冲突
-  resolveAllConflicts: (resolution) => 
-    apiClient.post('/sync/resolve-all-conflicts', null, { params: { resolution } }),
-  
-  // 获取附件清单
-  getAttachmentManifest: () => apiClient.get('/attachments/manifest'),
-  
-  // 获取附件统计
-  getAttachmentStats: () => apiClient.get('/attachments/stats'),
-}
-
-// ==================== 配对码 API (Phase 2 跨网络配对) ====================
-export const pairingAPI = {
-  // Hub生成配对码
-  generateCode: () => apiClient.post('/pairing/generate'),
-  
-  // Leaf验证配对码
-  verifyCode: (code) => apiClient.post(`/pairing/verify?code=${code}`),
-  
-  // Leaf使用配对码连接Hub
-  connectWithCode: (code, leafInfo) => apiClient.post(`/pairing/connect?code=${code}`, leafInfo),
-  
-  // 配置中继服务器
-  configureRelay: (url) => apiClient.post(`/pairing/relay-configure?url=${encodeURIComponent(url)}`),
-  
-  // 获取中继状态
-  getRelayStatus: () => apiClient.get('/pairing/relay-status'),
-  
-  // 建立中继连接
-  relayConnect: () => apiClient.post('/pairing/relay-connect'),
-}
