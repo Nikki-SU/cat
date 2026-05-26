@@ -536,7 +536,7 @@ function DeepRead() {
         ],
         0.3, 2048
       )
-      return data.response || data.content || data.message || text
+      return data.content || data.response || text
     } catch (error) {
       try {
         const resp = await aiAPI.translate(text, 'zh')
@@ -558,7 +558,7 @@ function DeepRead() {
         ],
         0.7, 2048
       )
-      return data.response || data.content || data.message || 'AI解读完成'
+      return data.content || data.response || 'AI解读完成'
     } catch (error) {
       return 'AI解读服务暂不可用'
     }
@@ -579,7 +579,7 @@ function DeepRead() {
         ],
         0.7, 2048
       )
-      const reply = data.response || data.content || data.message || '无法回复'
+      const reply = data.content || data.response || '无法回复'
       setAiMessages(prev => [...prev, { role: 'assistant', content: reply }])
     } catch {
       setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务暂不可用' }])
@@ -897,7 +897,7 @@ function DeepRead() {
                           ],
                           0.5, 2048
                         )
-                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || data.message || '无法总结' }])
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.content || data.response || '无法总结' }])
                       } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
                       finally { setAiLoading(false) }
                     }}
@@ -917,7 +917,7 @@ function DeepRead() {
                           ],
                           0.5, 2048
                         )
-                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || data.message || '无法分析' }])
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.content || data.response || '无法分析' }])
                       } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
                       finally { setAiLoading(false) }
                     }}
@@ -937,7 +937,7 @@ function DeepRead() {
                           ],
                           0.5, 2048
                         )
-                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.response || data.content || data.message || '无法分析' }])
+                        setAiMessages(prev => [...prev, { role: 'assistant', content: data.content || data.response || '无法分析' }])
                       } catch { setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI服务不可用' }]) }
                       finally { setAiLoading(false) }
                     }}
