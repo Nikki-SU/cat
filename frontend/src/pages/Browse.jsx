@@ -41,11 +41,7 @@ function Browse() {
     return detailMode // 默认：简要=折叠，详细=展开
   }, [expandedCards, detailMode])
 
-  // 切换简详模式时重置展开状态
-  const handleDetailToggle = useCallback(() => {
-    setDetailMode(prev => !prev)
-    setExpandedCards({})
-  }, [])
+
 
   // 删除卡片
   const handleDelete = useCallback(async (doi) => {
