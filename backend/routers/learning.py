@@ -1,5 +1,5 @@
 """学习相关 API 路由 - 包含单词学习、长难句学习、翻译练习的完整API"""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -146,7 +146,7 @@ def list_words(
 
 
 @router.get("/words/{word_id}", response_model=WordResponse)
-def get_word(word_id: int, db: Session = Depends(get_db)):
+def get_word(word_id: int = Path(...), db: Session = Depends(get_db)):
     """获取单词详情"""
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
@@ -201,7 +201,7 @@ def create_word(data: WordCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/words/{word_id}", response_model=WordResponse)
-def update_word(word_id: int, data: WordUpdate, db: Session = Depends(get_db)):
+def update_word(word_id: int = Path(...), data: WordUpdate = Body(...), db: Session = Depends(get_db)):
     """更新单词"""
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
@@ -238,7 +238,7 @@ def update_word(word_id: int, data: WordUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/words/{word_id}")
-def delete_word(word_id: int, db: Session = Depends(get_db)):
+def delete_word(word_id: int = Path(...), db: Session = Depends(get_db)):
     """删除单词"""
     word = db.query(Word).filter(Word.id == word_id).first()
     if not word:
@@ -309,7 +309,7 @@ def submit_answer(
 
 @router.get("/words/next/{session_id}")
 def next_question(
-    session_id: int,
+    session_id: int = Path(...),
     service: StudyService = Depends(get_study_service)
 ):
     """下一题"""
@@ -321,7 +321,7 @@ def next_question(
 
 @router.post("/words/zhan/{word_id}")
 def zhan_word(
-    word_id: int,
+    word_id: int = Path(...),
     service: StudyService = Depends(get_study_service)
 ):
     """斩词"""
@@ -339,7 +339,7 @@ def zhan_word(
 
 @router.get("/words/session/{session_id}")
 def get_session(
-    session_id: int,
+    session_id: int = Path(...),
     db: Session = Depends(get_db)
 ):
     """获取学习会话状态"""
@@ -364,7 +364,7 @@ def get_session(
 
 @router.post("/words/end-session/{session_id}")
 def end_session(
-    session_id: int,
+    session_id: int = Path(...),
     db: Session = Depends(get_db)
 ):
     """结束学习会话"""
@@ -456,8 +456,8 @@ def create_long_sentence(data: LongSentenceCreate, db: Session = Depends(get_db)
 
 @router.put("/sentences/{sentence_id}", response_model=LongSentenceResponse)
 def update_long_sentence(
-    sentence_id: int, 
-    data: LongSentenceUpdate, 
+    sentence_id: int = Path(...), 
+    data: LongSentenceUpdate = Body(...), 
     db: Session = Depends(get_db)
 ):
     """更新长难句"""
@@ -501,7 +501,7 @@ def submit_sentence_translation(
 
 @router.post("/sentences/mark-mastered/{sentence_id}")
 def mark_sentence_mastered(
-    sentence_id: int,
+    sentence_id: int = Path(...),
     service: StudyService = Depends(get_study_service)
 ):
     """标记长难句为已掌握"""
@@ -517,7 +517,7 @@ def mark_sentence_mastered(
 
 
 @router.delete("/sentences/{sentence_id}")
-def delete_long_sentence(sentence_id: int, db: Session = Depends(get_db)):
+def delete_long_sentence(sentence_id: int = Path(...), db: Session = Depends(get_db)):
     """删除长难句"""
     sentence = db.query(LongSentence).filter(LongSentence.id == sentence_id).first()
     if not sentence:
@@ -625,7 +625,7 @@ def submit_translation(
 
 
 @router.delete("/translations/{card_id}")
-def delete_translation(card_id: int, db: Session = Depends(get_db)):
+def delete_translation(card_id: int = Path(...), db: Session = Depends(get_db)):
     """删除翻译练习"""
     card = db.query(TranslationCard).filter(TranslationCard.id == card_id).first()
     if not card:
@@ -652,7 +652,7 @@ def create_word_list(data: WordListCreate, db: Session = Depends(get_db)):
 
 
 @router.delete("/word-lists/{word_list_id}")
-def delete_word_list(word_list_id: int, db: Session = Depends(get_db)):
+def delete_word_list(word_list_id: int = Path(...), db: Session = Depends(get_db)):
     word_list = db.query(WordList).filter(WordList.id == word_list_id).first()
     if not word_list:
         raise HTTPException(status_code=404, detail="单词表不存在")
@@ -676,7 +676,7 @@ def create_sentence_list(data: SentenceListCreate, db: Session = Depends(get_db)
 
 
 @router.delete("/sentence-lists/{sentence_list_id}")
-def delete_sentence_list(sentence_list_id: int, db: Session = Depends(get_db)):
+def delete_sentence_list(sentence_list_id: int = Path(...), db: Session = Depends(get_db)):
     sentence_list = db.query(SentenceList).filter(SentenceList.id == sentence_list_id).first()
     if not sentence_list:
         raise HTTPException(status_code=404, detail="长难句表不存在")
