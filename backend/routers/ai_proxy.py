@@ -9,7 +9,7 @@ from database import get_db
 from services.ai_service import get_ai_service, update_ai_service, AIService
 from services.crossref_service import get_crossref_service, CrossRefService
 from models.card import CardTemplate, LiteratureCard
-from schemas.card import LiteratureCardCreate
+
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
