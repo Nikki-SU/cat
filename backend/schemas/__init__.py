@@ -40,7 +40,6 @@ from .organization import (
     JournalGroupCreate, JournalGroupUpdate, JournalGroupResponse,
     KeywordGroupCreate, KeywordGroupUpdate, KeywordGroupResponse
 )
-from .translation import TranslationCardCreate, TranslationCardUpdate, TranslationCardResponse
 
 __all__ = [
     "LiteratureEntryCreate", "LiteratureEntryUpdate", "LiteratureEntryResponse",
@@ -70,5 +69,4 @@ __all__ = [
     "CollectionItemCreate", "CollectionItemUpdate", "CollectionItemResponse",
     "JournalGroupCreate", "JournalGroupUpdate", "JournalGroupResponse",
     "KeywordGroupCreate", "KeywordGroupUpdate", "KeywordGroupResponse",
-    "TranslationCardCreate", "TranslationCardUpdate", "TranslationCardResponse",
 ]
