@@ -3,7 +3,7 @@ import os
 import uuid
 import asyncio
 import aiofiles
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Body, UploadFile, File, Form, BackgroundTasks, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -93,7 +93,7 @@ def list_attachments(
 
 
 @router.get("/by-doi/{doi}", response_model=List[AttachmentResponse])
-def get_attachments_by_doi(doi: str, db: Session = Depends(get_db)):
+def get_attachments_by_doi(doi: str = Path(...), db: Session = Depends(get_db)):
     """获取指定DOI的所有附件"""
     attachments = db.query(LiteratureAttachment).filter(
         LiteratureAttachment.doi == doi
@@ -178,7 +178,7 @@ def get_missing_attachments(manifest: str, db: Session = Depends(get_db)):
 
 
 @router.get("/parse-status/{task_id}")
-def get_parse_status(task_id: str):
+def get_parse_status(task_id: str = Path(...)):
     """
     查询解析进度
     
