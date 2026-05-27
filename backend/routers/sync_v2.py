@@ -2,7 +2,7 @@
 同步API路由 v2 - Hub/Leaf去中心化同步
 替换原有的 sync 路由
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Body, APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -350,10 +350,10 @@ def get_conflicts(db: Session = Depends(get_db)):
 
 @router.post("/resolve-conflict")
 def resolve_conflict(
-    table_name: str,
-    record_pk: str, 
-    resolution: str,  # "local" | "remote" | "merge"
-    chosen_data: Optional[dict] = None,
+    table_name: str = Body(...),
+    record_pk: str = Body(...), 
+    resolution: str = Body(...),  # "local" | "remote" | "merge"
+    chosen_data: Optional[dict] = Body(None),
     db: Session = Depends(get_db)
 ):
     """解决冲突"""
@@ -367,7 +367,7 @@ def resolve_conflict(
 
 @router.post("/resolve-all-conflicts")
 def resolve_all_conflicts(
-    resolution: str,  # "local" | "remote"
+    resolution: str = Body(...),  # "local" | "remote"
     db: Session = Depends(get_db)
 ):
     """批量解决所有冲突"""
