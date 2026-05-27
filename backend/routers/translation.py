@@ -1,5 +1,5 @@
 """翻译相关 API 路由"""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
@@ -16,7 +16,7 @@ def list_translation_cards(skip: int = 0, limit: int = 100, doi: str = None, db:
     return query.order_by(TranslationCard.created_at.desc()).offset(skip).limit(limit).all()
 
 @router.get("/cards/{id}", response_model=TranslationCardResponse)
-def get_translation_card(id: int, db: Session = Depends(get_db)):
+def get_translation_card(id: int = Path(...), db: Session = Depends(get_db)):
     card = db.query(TranslationCard).filter(TranslationCard.id == id).first()
     if not card:
         raise HTTPException(status_code=404, detail="翻译卡片不存在")
@@ -31,7 +31,7 @@ def create_translation_card(data: TranslationCardCreate, db: Session = Depends(g
     return card
 
 @router.put("/cards/{id}", response_model=TranslationCardResponse)
-def update_translation_card(id: int, data: TranslationCardUpdate, db: Session = Depends(get_db)):
+def update_translation_card(id: int = Path(...), data: TranslationCardUpdate = Body(...), db: Session = Depends(get_db)):
     card = db.query(TranslationCard).filter(TranslationCard.id == id).first()
     if not card:
         raise HTTPException(status_code=404, detail="翻译卡片不存在")
@@ -42,7 +42,7 @@ def update_translation_card(id: int, data: TranslationCardUpdate, db: Session = 
     return card
 
 @router.delete("/cards/{id}")
-def delete_translation_card(id: int, db: Session = Depends(get_db)):
+def delete_translation_card(id: int = Path(...), db: Session = Depends(get_db)):
     card = db.query(TranslationCard).filter(TranslationCard.id == id).first()
     if not card:
         raise HTTPException(status_code=404, detail="翻译卡片不存在")
