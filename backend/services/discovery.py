@@ -132,7 +132,7 @@ class HubBroadcaster:
             try:
                 self.socket.close()
             except Exception:
-                pass
+                print(f"Warning: {e}")
             self.socket = None
         if self.thread:
             self.thread.join(timeout=2)
@@ -182,9 +182,9 @@ class HubScanner:
                     logger.debug(f"Discovered hub: {hub_info.device_name} at {hub_info.host}:{hub_info.port}")
                     
         except socket.timeout:
-            pass
+            print(f"Warning: {e}")
         except json.JSONDecodeError:
-            pass
+            print(f"Warning: {e}")
         except Exception as e:
             logger.debug(f"Receive error: {e}")
     
@@ -234,7 +234,7 @@ class HubScanner:
             try:
                 self.socket.close()
             except Exception:
-                pass
+                print(f"Warning: {e}")
             self.socket = None
         if self.thread:
             self.thread.join(timeout=2)

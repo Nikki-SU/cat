@@ -17,7 +17,8 @@ from models.structured import StructuredLiterature
 from schemas.attachment import AttachmentCreate, AttachmentUpdate, AttachmentResponse
 from services.mineru_service import get_mineru_service
 from config import settings
-from routers.settings import get_mineru_config_value
+# Removed: was causing circular import risk. Use config_service instead.
+from services.config_service import get_config_service
 
 router = APIRouter(prefix="/attachments", tags=["附件"])
 
@@ -274,8 +275,8 @@ async def _parse_and_extract_task(
         
         # 1. 解析文档
         mineru = get_mineru_service(api_token)
-        model_version = get_mineru_config_value("model_version", "vlm")
-        language = get_mineru_config_value("language", "en")
+        model_version = get_config_service().get("mineru", "model_version", "vlm")
+        language = get_config_service().get("mineru", "language", "en")
         
         _task_status[task_id]["progress"] = 10
         _task_status[task_id]["message"] = "正在解析文档..."
@@ -341,8 +342,8 @@ async def _parse_and_extract_task(
                     trans_result = await ai_service.translate(sentence)
                     if trans_result.get("success"):
                         translation = trans_result.get("translation", "")
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Warning: {e}")
                 
                 sentence_entry = LongSentence(
                     doi=attachment.doi,
@@ -445,9 +446,9 @@ async def batch_parse_attachments(
         # 提交异步任务
         task_id = str(uuid.uuid4())
         
-        api_token = get_mineru_config_value("api_token")
-        model_version = get_mineru_config_value("model_version", "vlm")
-        language = get_mineru_config_value("language", "en")
+        api_token = get_config_service().get("mineru", "api_token")
+        model_version = get_config_service().get("mineru", "model_version", "vlm")
+        language = get_config_service().get("mineru", "language", "en")
         
         _task_status[task_id] = {
             "status": "pending",
@@ -529,9 +530,9 @@ async def upload_and_parse(
     # 自动调用 MinerU 解析
     task_id = None
     try:
-        api_token = get_mineru_config_value("api_token")
-        model_version = get_mineru_config_value("model_version", "vlm")
-        language = get_mineru_config_value("language", "en")
+        api_token = get_config_service().get("mineru", "api_token")
+        model_version = get_config_service().get("mineru", "model_version", "vlm")
+        language = get_config_service().get("mineru", "language", "en")
         
         mineru = get_mineru_service(api_token)
         
@@ -690,7 +691,7 @@ def delete_attachment(attachment_id: int, db: Session = Depends(get_db)):
         try:
             os.remove(attachment.file_path)
         except OSError:
-            pass
+            print(f"Warning: {e}")
     
     # 更新文献关联状态
     doi = attachment.doi
@@ -771,9 +772,9 @@ async def parse_attachment(
     task_id = str(uuid.uuid4())
     
     # 获取配置
-    api_token = get_mineru_config_value("api_token")
-    model_version = get_mineru_config_value("model_version", "vlm")
-    language = get_mineru_config_value("language", "en")
+    api_token = get_config_service().get("mineru", "api_token")
+    model_version = get_config_service().get("mineru", "model_version", "vlm")
+    language = get_config_service().get("mineru", "language", "en")
     
     # 存储任务状态
     _task_status[task_id] = {
@@ -822,7 +823,7 @@ async def parse_and_extract_attachment(
     task_id = str(uuid.uuid4())
     
     # 获取配置
-    api_token = get_mineru_config_value("api_token")
+    api_token = get_config_service().get("mineru", "api_token")
     
     # 存储任务状态
     _task_status[task_id] = {

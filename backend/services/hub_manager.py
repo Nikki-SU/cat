@@ -61,7 +61,7 @@ class HubManager:
                     if content:
                         self._device_id = content
             except Exception:
-                pass
+                print(f"Warning: {e}")
     
     def _save_device_id(self):
         """保存设备ID到文件"""
@@ -70,7 +70,7 @@ class HubManager:
             with open(device_file, 'w') as f:
                 f.write(self._device_id or "")
         except Exception:
-            pass
+            print(f"Warning: {e}")
     
     def _generate_device_id(self) -> str:
         """生成新的设备ID"""

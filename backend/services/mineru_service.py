@@ -602,8 +602,8 @@ def get_mineru_service(api_token: str = None) -> MinerUService:
                     loop.create_task(_mineru_service.close())
                 else:
                     loop.run_until_complete(_mineru_service.close())
-            except:
-                pass
+            except Exception as e:
+                print(f"Warning: {e}")
         
         _mineru_service = MinerUService(api_token=api_token)
     elif _mineru_service is None:

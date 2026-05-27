@@ -1,5 +1,5 @@
 """备份与同步相关 API 路由"""
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Path
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional

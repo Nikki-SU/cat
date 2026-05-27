@@ -130,8 +130,8 @@ class OllamaService:
             json_match = re.search(r'\{[^}]+\}', response, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())
-        except:
-            pass
+        except Exception as e:
+            print(f"Warning: {e}")
 
         # 解析失败，返回空
         return {}
@@ -217,8 +217,8 @@ class OllamaService:
             json_match = re.search(r'\[[\s\S]*\]', response)
             if json_match:
                 return json.loads(json_match.group())
-        except:
-            pass
+        except Exception as e:
+            print(f"Warning: {e}")
 
         return []
 
@@ -263,8 +263,8 @@ class OllamaService:
             json_match = re.search(r'\{[\s\S]*\}', response)
             if json_match:
                 return json.loads(json_match.group())
-        except:
-            pass
+        except Exception as e:
+            print(f"Warning: {e}")
 
         return {}
 

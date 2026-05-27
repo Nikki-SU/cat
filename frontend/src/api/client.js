@@ -101,7 +101,7 @@ export const trackingAPI = {
     }}),
   
   // 导出
-  exportRecords: (params) => apiClient.get('/tracking/export', { params }),
+  exportRecords: (params) => apiClient.get('/tracking/export/csv', { params }),
 }
 
 // ==================== 文献卡片 API ====================
@@ -170,6 +170,9 @@ export const attachmentAPI = {
   // 解析状态
   getParseStatus: (taskId) => apiClient.get(`/attachments/parse-status/${taskId}`),
   
+  // 统计
+  getStats: () => apiClient.get('/attachments/stats'),
+  
   // 批量解析
   batchParse: (ids, mode = 'auto') => apiClient.post('/attachments/batch-parse', null, {
     params: { attachment_ids: ids, mode }
@@ -203,9 +206,9 @@ export const settingsAPI = {
   getLearningConfig: () => apiClient.get('/settings/learning-config'),
   updateLearningConfig: (config) => apiClient.post('/settings/learning-config', config),
 
-  // OCR配置（实际在notes路由下）
-  getOcrConfig: () => apiClient.get('/notes/ocr-config'),
-  updateOcrConfig: (config) => apiClient.post('/notes/ocr-config', config),
+  // OCR配置
+  getOcrConfig: () => apiClient.get('/settings/ocr-config'),
+  updateOcrConfig: (config) => apiClient.post('/settings/ocr-config', config),
 }
 
 // ==================== 结构性文献 API ====================
@@ -502,13 +505,13 @@ export const syncV2API = {
     apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_pk: recordPk, resolution, chosen_data: chosenData }),
   // 批量解决冲突
   resolveAllConflicts: (resolution) => apiClient.post('/sync/resolve-all-conflicts', { resolution }),
-  // 附件清单（后端暂无此路由，预留）
-  getAttachmentManifest: () => apiClient.get('/sync/attachment-manifest'),
+  // 附件清单 - 暂未实现
 }
 
 // ==================== 笔记图片 OCR API ====================
+// noteOCRAPI 已合并到 noteAPI，请使用 noteAPI.ocrFormula / settingsAPI.getOcrConfig / settingsAPI.updateOcrConfig
 export const noteOCRAPI = {
-  // 公式OCR识别
+  // 公式OCR识别（兼容旧引用，等同 noteAPI.ocrFormula）
   recognizeFormula: (file, model = 'turbo') => {
     const formData = new FormData()
     formData.append('file', file)
@@ -517,10 +520,9 @@ export const noteOCRAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  // 获取OCR配置
-  getConfig: () => apiClient.get('/notes/ocr-config'),
-  // 更新OCR配置
-  updateConfig: (config) => apiClient.post('/notes/ocr-config', config),
+  // OCR配置已移至 settingsAPI.getOcrConfig / settingsAPI.updateOcrConfig
+  getConfig: () => apiClient.get('/settings/ocr-config'),
+  updateConfig: (config) => apiClient.post('/settings/ocr-config', config),
 }
 
 // ==================== 翻译练习 API（兼容旧版） ====================

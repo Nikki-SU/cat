@@ -95,7 +95,7 @@ function Learn() {
     try {
       const result = await learningAPI.startStudy(mode, queueLength)
       setSessionId(result.session_id)
-      setCurrentQuestion(result.question)
+      setCurrentQuestion(result.question || null)
       if (mode === 'learn') {
         setIsLearning(true)
         setIsReviewing(false)

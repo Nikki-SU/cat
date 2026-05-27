@@ -108,8 +108,8 @@ class ExportService:
                         try:
                             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
                             value = dt.strftime("%Y-%m-%d %H:%M")
-                        except:
-                            pass
+                        except Exception as e:
+                            print(f"Warning: {e}")
                 
                 # DOI添加超链接
                 if col == "doi" and value:

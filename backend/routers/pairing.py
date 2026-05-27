@@ -64,7 +64,7 @@ async def verify_pairing_code(code: str = Query(..., min_length=6, max_length=6)
                 "via_relay": True
             }
         except Exception:
-            pass
+            print(f"Warning: {e}")
     
     # 本地验证
     result = pairing_manager.verify_code(code)
@@ -100,7 +100,7 @@ async def connect_with_pairing_code(code: str = Query(..., min_length=6, max_len
                 "via_relay": True
             }
         except Exception:
-            pass
+            print(f"Warning: {e}")
     
     # 本地验证
     result = pairing_manager.consume_code(code)

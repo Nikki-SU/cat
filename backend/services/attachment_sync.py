@@ -70,8 +70,8 @@ class AttachmentSyncService:
                             "size": os.path.getsize(filepath),
                             "hash": self._hash_file(filepath)
                         }
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"Warning: {e}")
         
         missing = []
         for remote in remote_manifest:

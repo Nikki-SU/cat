@@ -90,8 +90,8 @@ def delete_general_note(id: int = Path(...), db: Session = Depends(get_db)):
     if note.file_path and os.path.exists(note.file_path):
         try:
             os.remove(note.file_path)
-        except:
-            pass
+        except Exception as e:
+            print(f"Warning: {e}")
     db.delete(note)
     db.commit()
     _sync_has_notes(doi, db)
@@ -134,8 +134,8 @@ async def upload_note_file(
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-        except:
-            pass
+        except Exception as e:
+            print(f"Warning: {e}")
     
     note = GeneralNote(
         title=title or filename,

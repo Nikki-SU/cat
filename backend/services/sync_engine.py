@@ -269,7 +269,7 @@ class SyncEngine:
             if record:
                 return self._record_to_dict(record)
         except (json.JSONDecodeError, KeyError, AttributeError):
-            pass
+            print(f"Warning: {e}")
         return None
     
     def _record_to_dict(self, record) -> dict:
@@ -513,7 +513,7 @@ class SyncEngine:
                     if local_time > remote_time:
                         return False
             except (ValueError, TypeError):
-                pass
+                print(f"Warning: {e}")
         
         # 更新记录
         try:

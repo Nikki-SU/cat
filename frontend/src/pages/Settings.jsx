@@ -3,7 +3,7 @@
  */
 import { useState, useEffect } from 'react'
 import useAppStore from '../stores/useAppStore'
-import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI, syncV2API, settingsAPI, pairingAPI } from '../api/client'
+import { organizationAPI, literatureAPI, aiAPI, backupAPI, syncAPI, syncV2API, settingsAPI, pairingAPI, attachmentAPI } from '../api/client'
 import { 
   DISPLAY_LANGUAGES, 
   DISPLAY_DETAILS, 
@@ -163,7 +163,7 @@ function Settings() {
   // Phase 3: 获取附件统计
   const fetchAttachmentStats = async () => {
     try {
-      const stats = await fetch('/api/attachments/stats').then(r => r.json())
+      const stats = await attachmentAPI.getStats()
       setAttachmentStats(stats)
     } catch (error) {
       console.error('Failed to fetch attachment stats:', error)
@@ -484,18 +484,18 @@ function Settings() {
     
     setSyncing(true)
     try {
-      const deviceId = syncStatus?.device_id || 'unknown'
-      const sinceLogId = syncStatus?.last_sync_log_id || 0
+      const deviceId = syncV2Status?.device_id || 'unknown'
+      const sinceLogId = syncV2Status?.last_sync_log_id || 0
       // 推送本地变更
       const localChanges = [] // 从变更追踪获取
-      await syncAPI.push(deviceId, localChanges)
+      await syncV2API.push(deviceId, localChanges)
       
       // 拉取远程变更
-      await syncAPI.pull(deviceId, sinceLogId)
+      await syncV2API.pull(deviceId, sinceLogId)
       
       localStorage.setItem('lastSyncTime', new Date().toISOString())
       alert('同步完成')
-      fetchSyncStatus()
+      fetchSyncV2Status()
     } catch (error) {
       alert('同步失败: ' + error.message)
     } finally {

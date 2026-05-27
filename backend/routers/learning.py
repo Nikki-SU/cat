@@ -483,16 +483,39 @@ def update_long_sentence(
 
 
 @router.post("/sentences/submit-translation")
-def submit_sentence_translation(
+async def submit_sentence_translation(
     data: SentenceTranslationSubmit,
     service: StudyService = Depends(get_study_service)
 ):
-    """提交长难句翻译"""
+    """提交长难句翻译（含AI评价）"""
     try:
+        # 获取原句
+        sentence = service.db.query(LongSentence).filter(LongSentence.id == data.sentence_id).first()
+        
+        ai_evaluation = None
+        if sentence:
+            try:
+                from services.ai_service import get_ai_service
+                ai = get_ai_service()
+                
+                prompt = f"""请评价以下学术英语长难句的翻译质量：
+
+英文原文：{sentence.sentence_en}
+中文翻译：{data.translation}
+
+请简要评价翻译的准确性、完整性和流畅度，指出主要问题。"""
+                
+                ai_evaluation = await ai.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    system="你是一个专业的学术翻译评价助手。"
+                )
+            except Exception:
+                pass  # AI评价失败不影响提交流程
+        
         result = service.submit_sentence_translation(
             data.sentence_id,
             data.translation,
-            None  # AI评价将在后续版本实现
+            ai_evaluation
         )
         return result.model_dump()
     except ValueError as e:
@@ -606,18 +629,55 @@ def create_translation(data: TranslationCardCreate, db: Session = Depends(get_db
 
 
 @router.post("/translations/submit")
-def submit_translation(
+async def submit_translation(
     data: TranslationSubmit,
     service: StudyService = Depends(get_study_service)
 ):
-    """提交翻译练习"""
+    """提交翻译练习（含AI评价）"""
     try:
+        # 先获取卡片原文
+        card = service.db.query(TranslationCard).filter(TranslationCard.id == data.card_id).first()
+        if not card:
+            raise ValueError("翻译卡片不存在")
+        
+        # 使用AI评价翻译
+        ai_score = None
+        ai_feedback = None
+        error_words = []
+        
+        try:
+            from services.ai_service import get_ai_service
+            ai = get_ai_service()
+            
+            prompt = f"""请评价以下学术文献翻译的质量，给出0-100的分数和详细反馈。
+
+原文：{card.original_text}
+翻译：{data.translation}
+
+请按以下JSON格式返回：
+{{"score": 分数, "feedback": "评价和改进建议", "error_words": ["翻译错误的关键术语1", "翻译错误的关键术语2"]}}"""
+            
+            result_text = await ai.chat(
+                messages=[{"role": "user", "content": prompt}],
+                system="你是一个专业的学术翻译评价助手。请严格评价翻译质量。"
+            )
+            
+            import json, re
+            json_match = re.search(r'\{[^}]+\}', result_text, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                ai_score = min(100, max(0, int(result.get("score", 0))))
+                ai_feedback = result.get("feedback", "")
+                error_words = result.get("error_words", [])
+        except Exception:
+            pass  # AI评价失败不影响提交流程
+        
         result = service.submit_translation(
             data.card_id,
             data.translation,
-            None,  # AI评分
-            None,  # AI反馈
-            []     # 错误词汇
+            ai_score,
+            ai_feedback,
+            error_words
         )
         return result.model_dump()
     except ValueError as e:

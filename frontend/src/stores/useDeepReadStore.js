@@ -259,7 +259,22 @@ const useDeepReadStore = create((set, get) => ({
     return note
   },
   
-  updateWordStatus: async (wordId, status) => {
+  // 删除笔记
+  deleteNote: async (noteId) => {
+    const { notes } = get()
+    await structuredAPI.deleteNote(noteId)
+    set({ notes: notes.filter(n => n.id !== noteId) })
+  },
+  
+  // 更新笔记
+  updateNote: async (noteId, data) => {
+    const { notes } = get()
+    const updated = await structuredAPI.updateNote(noteId, data)
+    set({ notes: notes.map(n => n.id === noteId ? updated : n) })
+    return updated
+  },
+  
+    updateWordStatus: async (wordId, status) => {
     await learningAPI.updateWord(wordId, { status })
     set(s => ({
       words: s.words.map(w => w.id === wordId ? { ...w, status } : w)
