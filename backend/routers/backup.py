@@ -140,7 +140,7 @@ def download_backup(filename: str):
 sync_router = APIRouter(prefix="/sync", tags=["同步"])
 
 
-@sync_router.post("/push")
+# @sync_router.post("/push")
 def push_changes(changes: dict, db: Session = Depends(get_db)):
     """客户端推送本地变更"""
     sync_service = create_sync_service(db)
@@ -148,21 +148,21 @@ def push_changes(changes: dict, db: Session = Depends(get_db)):
     return result
 
 
-@sync_router.post("/pull")
+# @sync_router.post("/pull")
 def pull_changes(last_sync_time: Optional[str] = None, db: Session = Depends(get_db)):
     """客户端拉取服务端变更"""
     sync_service = create_sync_service(db)
     return sync_service.pull_changes(last_sync_time)
 
 
-@sync_router.get("/status")
+# @sync_router.get("/status")
 def get_sync_status(db: Session = Depends(get_db)):
     """获取同步状态"""
     sync_service = create_sync_service(db)
     return sync_service.get_sync_status()
 
 
-@sync_router.post("/resolve-conflict")
+# @sync_router.post("/resolve-conflict")
 def resolve_conflict(
     table_name: str,
     record_id: str,
