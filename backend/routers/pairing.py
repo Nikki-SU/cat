@@ -1,5 +1,5 @@
 """配对码相关API路由"""
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body, Query
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
