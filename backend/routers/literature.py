@@ -1,5 +1,5 @@
 """文献相关 API 路由"""
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Body, Query
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, or_, and_
@@ -47,7 +47,7 @@ def list_literature_entries(
 
 
 @router.get("/entries/{doi}", response_model=LiteratureEntryResponse)
-def get_literature_entry(doi: str, db: Session = Depends(get_db)):
+def get_literature_entry(doi: str = Path(...), db: Session = Depends(get_db)):
     """获取单个文献条目"""
     entry = db.query(LiteratureEntry).filter(LiteratureEntry.doi == doi).first()
     if not entry:
@@ -66,7 +66,7 @@ def create_literature_entry(data: LiteratureEntryCreate, db: Session = Depends(g
 
 
 @router.put("/entries/{doi}", response_model=LiteratureEntryResponse)
-def update_literature_entry(doi: str, data: LiteratureEntryUpdate, db: Session = Depends(get_db)):
+def update_literature_entry(doi: str = Path(...), data: LiteratureEntryUpdate = Body(...), db: Session = Depends(get_db)):
     """更新文献条目"""
     entry = db.query(LiteratureEntry).filter(LiteratureEntry.doi == doi).first()
     if not entry:
@@ -80,7 +80,7 @@ def update_literature_entry(doi: str, data: LiteratureEntryUpdate, db: Session =
 
 
 @router.delete("/entries/{doi}")
-def delete_literature_entry(doi: str, db: Session = Depends(get_db)):
+def delete_literature_entry(doi: str = Path(...), db: Session = Depends(get_db)):
     """删除文献条目"""
     entry = db.query(LiteratureEntry).filter(LiteratureEntry.doi == doi).first()
     if not entry:
@@ -310,7 +310,7 @@ def export_literature_table_by_tags(
 # ==================== /table/{doi} 及其相关操作 - 必须在特殊路由之后 ====================
 
 @router.get("/table/{doi}/details")
-def get_literature_table_entry_details(doi: str, db: Session = Depends(get_db)):
+def get_literature_table_entry_details(doi: str = Path(...), db: Session = Depends(get_db)):
     """获取文献详情（含关联状态）"""
     from models.attachment import LiteratureAttachment
     from models.structured import StructuredLiterature
@@ -339,7 +339,7 @@ def get_literature_table_entry_details(doi: str, db: Session = Depends(get_db)):
 
 
 @router.get("/table/{doi}", response_model=LiteratureTableEntryResponse)
-def get_literature_table_entry(doi: str, db: Session = Depends(get_db)):
+def get_literature_table_entry(doi: str = Path(...), db: Session = Depends(get_db)):
     """获取单个文献表条目"""
     entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
     if not entry:
@@ -380,7 +380,7 @@ def batch_create_literature_table_entries(
 
 
 @router.put("/table/{doi}", response_model=LiteratureTableEntryResponse)
-def update_literature_table_entry(doi: str, data: LiteratureTableEntryUpdate, db: Session = Depends(get_db)):
+def update_literature_table_entry(doi: str = Path(...), data: LiteratureTableEntryUpdate = Body(...), db: Session = Depends(get_db)):
     """更新文献表条目"""
     entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
     if not entry:
