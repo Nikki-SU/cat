@@ -19,7 +19,7 @@ def list_structured_literatures(skip: int = 0, limit: int = 100, db: Session = D
     return db.query(StructuredLiterature).offset(skip).limit(limit).all()
 
 @router.get("/literature/{doi}", response_model=StructuredLiteratureResponse)
-def get_structured_literature(doi: str, db: Session = Depends(get_db)):
+def get_structured_literature(doi: str = Path(...), db: Session = Depends(get_db)):
     item = db.query(StructuredLiterature).filter(StructuredLiterature.doi == doi).first()
     if not item:
         raise HTTPException(status_code=404, detail="结构性文献不存在")
@@ -34,7 +34,7 @@ def create_structured_literature(data: StructuredLiteratureCreate, db: Session =
     return item
 
 @router.put("/literature/{doi}", response_model=StructuredLiteratureResponse)
-def update_structured_literature(doi: str, data: StructuredLiteratureUpdate, db: Session = Depends(get_db)):
+def update_structured_literature(doi: str = Path(...), data: StructuredLiteratureUpdate = Body(...), db: Session = Depends(get_db)):
     item = db.query(StructuredLiterature).filter(StructuredLiterature.doi == doi).first()
     if not item:
         raise HTTPException(status_code=404, detail="结构性文献不存在")
@@ -45,7 +45,7 @@ def update_structured_literature(doi: str, data: StructuredLiteratureUpdate, db:
     return item
 
 @router.delete("/literature/{doi}")
-def delete_structured_literature(doi: str, db: Session = Depends(get_db)):
+def delete_structured_literature(doi: str = Path(...), db: Session = Depends(get_db)):
     item = db.query(StructuredLiterature).filter(StructuredLiterature.doi == doi).first()
     if not item:
         raise HTTPException(status_code=404, detail="结构性文献不存在")
@@ -62,7 +62,7 @@ def list_structured_notes(skip: int = 0, limit: int = 100, doi: str = None, db: 
     return query.offset(skip).limit(limit).all()
 
 @router.get("/notes/{id}", response_model=StructuredNoteResponse)
-def get_structured_note(id: int, db: Session = Depends(get_db)):
+def get_structured_note(id: int = Path(...), db: Session = Depends(get_db)):
     note = db.query(StructuredNote).filter(StructuredNote.id == id).first()
     if not note:
         raise HTTPException(status_code=404, detail="结构性笔记不存在")
@@ -101,7 +101,7 @@ def delete_structured_note(id: int = Path(...), db: Session = Depends(get_db)):
 
 @router.post("/extract-sentences/{doi}")
 async def extract_long_sentences(
-    doi: str,
+    doi: str = Path(...),
     db: Session = Depends(get_db),
     max_sentences: int = 10
 ):
@@ -202,7 +202,7 @@ async def extract_long_sentences(
 
 @router.post("/extract-keywords/{doi}")
 async def extract_keywords(
-    doi: str,
+    doi: str = Path(...),
     db: Session = Depends(get_db),
     max_keywords: int = 20
 ):
