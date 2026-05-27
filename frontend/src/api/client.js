@@ -478,6 +478,7 @@ export const pairingAPI = {
   generateCode: () => apiClient.post('/pairing/generate'),
   verifyCode: (code) => apiClient.post('/pairing/verify', null, { params: { code } }),
   connect: (code, url) => apiClient.post('/pairing/connect', null, { params: { code, url } }),
+  connectWithCode: (code, leafInfo) => apiClient.post('/pairing/connect', null, { params: { code, ...leafInfo } }),
   relayConfigure: (url) => apiClient.post('/pairing/relay-configure', null, { params: { url } }),
   relayStatus: () => apiClient.get('/pairing/relay-status'),
   relayConnect: () => apiClient.post('/pairing/relay-connect'),
