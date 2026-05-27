@@ -453,4 +453,33 @@ export const translationAPI = {
   evaluate: (id, translation) => apiClient.post(`/translation/cards/${id}/evaluate`, { translation }),
 }
 
+
+// ==================== 同步 V2 API ====================
+export const syncV2API = {
+  getHubInfo: () => apiClient.get('/sync/hub-info'),
+  register: (data) => apiClient.post('/sync/register', data),
+  removeDevice: (deviceId) => apiClient.delete(`/sync/devices/${deviceId}`),
+  listDevices: () => apiClient.get('/sync/devices'),
+  push: (data) => apiClient.post('/sync/push', data),
+  pull: (data) => apiClient.post('/sync/pull', data),
+  getStatus: () => apiClient.get('/sync/status'),
+  discover: () => apiClient.get('/sync/discover'),
+  switchRole: (data) => apiClient.post('/sync/switch-role', data),
+  applyRemote: (data) => apiClient.post('/sync/apply-remote', data),
+  getUnsynced: () => apiClient.get('/sync/unsynced'),
+  getConflicts: () => apiClient.get('/sync/conflicts'),
+  resolveConflict: (data) => apiClient.post('/sync/resolve-conflict', data),
+  resolveAllConflicts: (resolution) => apiClient.post('/sync/resolve-all-conflicts', { resolution }),
+}
+
+// ==================== 配对 API ====================
+export const pairingAPI = {
+  generateCode: () => apiClient.post('/pairing/generate'),
+  verifyCode: (code) => apiClient.post('/pairing/verify', null, { params: { code } }),
+  connect: (code, url) => apiClient.post('/pairing/connect', null, { params: { code, url } }),
+  relayConfigure: (url) => apiClient.post('/pairing/relay-configure', null, { params: { url } }),
+  relayStatus: () => apiClient.get('/pairing/relay-status'),
+  relayConnect: () => apiClient.post('/pairing/relay-connect'),
+}
+
 export default apiClient
