@@ -1,5 +1,5 @@
 """文献相关 API 路由"""
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, or_, and_
@@ -66,7 +66,7 @@ def create_literature_entry(data: LiteratureEntryCreate, db: Session = Depends(g
 
 
 @router.put("/entries/{doi}", response_model=LiteratureEntryResponse)
-def update_literature_entry(doi: str, data: LiteratureEntryUpdate, db: Session = Depends(get_db)):
+def update_literature_entry(doi: str = Path(...), data: LiteratureEntryUpdate = Body(...), db: Session = Depends(get_db)):
     """更新文献条目"""
     entry = db.query(LiteratureEntry).filter(LiteratureEntry.doi == doi).first()
     if not entry:
@@ -380,7 +380,7 @@ def batch_create_literature_table_entries(
 
 
 @router.put("/table/{doi}", response_model=LiteratureTableEntryResponse)
-def update_literature_table_entry(doi: str, data: LiteratureTableEntryUpdate, db: Session = Depends(get_db)):
+def update_literature_table_entry(doi: str = Path(...), data: LiteratureTableEntryUpdate = Body(...), db: Session = Depends(get_db)):
     """更新文献表条目"""
     entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
     if not entry:

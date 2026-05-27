@@ -1,5 +1,5 @@
 """结构性文献相关 API 路由"""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
@@ -77,7 +77,7 @@ def create_structured_note(data: StructuredNoteCreate, db: Session = Depends(get
     return note
 
 @router.put("/notes/{id}", response_model=StructuredNoteResponse)
-def update_structured_note(id: int, data: StructuredNoteUpdate, db: Session = Depends(get_db)):
+def update_structured_note(id: int = Path(...), data: StructuredNoteUpdate = Body(...), db: Session = Depends(get_db)):
     note = db.query(StructuredNote).filter(StructuredNote.id == id).first()
     if not note:
         raise HTTPException(status_code=404, detail="结构性笔记不存在")
@@ -88,7 +88,7 @@ def update_structured_note(id: int, data: StructuredNoteUpdate, db: Session = De
     return note
 
 @router.delete("/notes/{id}")
-def delete_structured_note(id: int, db: Session = Depends(get_db)):
+def delete_structured_note(id: int = Path(...), db: Session = Depends(get_db)):
     note = db.query(StructuredNote).filter(StructuredNote.id == id).first()
     if not note:
         raise HTTPException(status_code=404, detail="结构性笔记不存在")
