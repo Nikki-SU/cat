@@ -6,7 +6,7 @@ from .tracking import TrackingRecord
 from .card import LiteratureCard, CardPromptTemplate, CardTemplate
 from .attachment import LiteratureAttachment
 from .structured import StructuredLiterature, StructuredNote
-from .learning import Word, LongSentence, TranslationCard, WordList, SentenceList, StudySession, StudySettings
+from .learning import Word, LongSentence, TranslationCard, WordList, SentenceList, StudySession, StudySettings, SentenceStudyStatus
 from .note import GeneralNote, NoteTemplate
 from .organization import Tag, Collection, CollectionItem, JournalGroup, KeywordGroup
 from .sync import Device, SyncLog, SyncState
