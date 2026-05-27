@@ -22,7 +22,7 @@
  * }
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
@@ -1218,30 +1218,68 @@ export default function SmartEditor({
         />
       )}
 
-      {/* Bubble Menu for formatting */}
+      {/* 格式化工具栏（编辑模式固定显示） */}
       {!readOnly && editor && (
-        <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
-          <div className="bg-white border rounded-lg shadow-lg flex overflow-hidden">
-            <button
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              className={`px-3 py-2 text-sm hover:bg-gray-100 ${editor.isActive('bold') ? 'bg-gray-100' : ''}`}
-            >
-              <strong>B</strong>
-            </button>
-            <button
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              className={`px-3 py-2 text-sm hover:bg-gray-100 ${editor.isActive('italic') ? 'bg-gray-100' : ''}`}
-            >
-              <em>I</em>
-            </button>
-            <button
-              onClick={() => editor.chain().focus().toggleUnderline().run()}
-              className={`px-3 py-2 text-sm hover:bg-gray-100 ${editor.isActive('underline') ? 'bg-gray-100' : ''}`}
-            >
-              <u>U</u>
-            </button>
-          </div>
-        </BubbleMenu>
+        <div className="flex items-center gap-1 px-3 py-1.5 border-b bg-gray-50 flex-wrap">
+          <button
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            className={`px-2 py-1 text-sm rounded ${editor.isActive('bold') ? 'bg-gray-300' : 'hover:bg-gray-200'}`}
+            title="加粗"
+          >
+            <strong>B</strong>
+          </button>
+          <button
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            className={`px-2 py-1 text-sm rounded ${editor.isActive('italic') ? 'bg-gray-300' : 'hover:bg-gray-200'}`}
+            title="斜体"
+          >
+            <em>I</em>
+          </button>
+          <button
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            className={`px-2 py-1 text-sm rounded ${editor.isActive('underline') ? 'bg-gray-300' : 'hover:bg-gray-200'}`}
+            title="下划线"
+          >
+            <u>U</u>
+          </button>
+          <span className="text-gray-300 mx-1">|</span>
+          <button
+            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            className={`px-2 py-1 text-sm rounded ${editor.isActive('heading', { level: 2 }) ? 'bg-gray-300' : 'hover:bg-gray-200'}`}
+            title="标题"
+          >H2</button>
+          <button
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            className={`px-2 py-1 text-sm rounded ${editor.isActive('bulletList') ? 'bg-gray-300' : 'hover:bg-gray-200'}`}
+            title="列表"
+          >• 列表</button>
+          <span className="text-gray-300 mx-1">|</span>
+          <button
+            onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+            className="px-2 py-1 text-sm rounded hover:bg-gray-200"
+            title="插入表格"
+          >⊞ 表格</button>
+          <button
+            onClick={() => {
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.accept = 'image/*'
+              input.onchange = async (e) => {
+                const file = e.target.files[0]
+                if (!file) return
+                try {
+                  const result = await noteAPI.uploadImage(file)
+                  editor.chain().focus().setImage({ src: result.url || result.path }).run()
+                } catch (err) {
+                  console.error('图片上传失败', err)
+                }
+              }
+              input.click()
+            }}
+            className="px-2 py-1 text-sm rounded hover:bg-gray-200"
+            title="插入图片"
+          >🖼 图片</button>
+        </div>
       )}
     </div>
   )
