@@ -2,7 +2,7 @@
 import os
 import uuid
 import aiofiles
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Path
 from typing import List
 from config import settings
 
@@ -98,7 +98,7 @@ async def upload_note_images_batch(files: List[UploadFile] = File(...)):
 
 
 @router.delete("/images/{filename}")
-async def delete_note_image(filename: str):
+async def delete_note_image(filename: str = Path(...)):
     """
     删除笔记图片
     
