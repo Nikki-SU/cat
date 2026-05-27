@@ -24,7 +24,7 @@ class StructuredNoteBase(BaseModel):
     anchor_text: Optional[str] = None  # 锚点原文
     note_type: str = "markdown"  # markdown | image | code | mermaid | link
     content: Optional[str] = None
-    metadata: Optional[dict] = None  # { imageUrl, codeLanguage, linkTarget, mermaidType }
+    meta_data: Optional[dict] = None  # { imageUrl, codeLanguage, linkTarget, mermaidType }
     tags: Optional[List[str]] = None
     position_start: Optional[int] = None
     position_end: Optional[int] = None
@@ -39,7 +39,7 @@ class StructuredNoteUpdate(BaseModel):
     anchor_text: Optional[str] = None
     note_type: Optional[str] = None
     content: Optional[str] = None
-    metadata: Optional[dict] = None
+    meta_data: Optional[dict] = None
     tags: Optional[List[str]] = None
     position_start: Optional[int] = None
     position_end: Optional[int] = None
