@@ -257,6 +257,10 @@ async def search_by_journal(
     """
     import json
     
+    # 兼容空keywords数组字符串
+    if keywords and keywords in ('[]', ''):
+        keywords = None
+    
     keyword_list = None
     if keywords:
         try:
@@ -314,89 +318,94 @@ async def add_by_doi(
     db: Session = Depends(get_db)
 ):
     """通过DOI直接添加文献到追踪列表（自动获取信息并翻译）"""
-    crossref = get_crossref()
-    ai = get_ai_service()
-    
-    # 1. 获取DOI信息（含可选摘要翻译）
-    paper_info = await crossref.search_and_translate_abstract(doi, translate_abstract=translate_abstract)
-    if not paper_info:
-        raise HTTPException(status_code=404, detail="未找到该DOI对应的文献")
-    
-    title_en = paper_info.get("title_en", "")
-    journal = paper_info.get("journal", "")
-    abstract_en = paper_info.get("abstract_en")
-    abstract_cn = paper_info.get("abstract_cn")  # 已翻译的摘要
-    
-    # 2. 翻译标题（如果需要）
-    title_cn = None
-    if translate_title and title_en:
-        try:
-            # 构建翻译提示
-            prompt = f"""请将以下学术论文标题翻译成中文，只需返回翻译结果，不需要其他解释：
+    try:
+        crossref = get_crossref()
+        ai = get_ai_service()
+        
+        # 1. 获取DOI信息（含可选摘要翻译）
+        paper_info = await crossref.search_and_translate_abstract(doi, translate_abstract=translate_abstract)
+        if not paper_info:
+            raise HTTPException(status_code=404, detail="未找到该DOI对应的文献，请检查DOI或网络")
+        
+        title_en = paper_info.get("title_en", "")
+        journal = paper_info.get("journal", "")
+        abstract_en = paper_info.get("abstract_en")
+        abstract_cn = paper_info.get("abstract_cn")
+        
+        # 2. 翻译标题（如果需要）
+        title_cn = None
+        if translate_title and title_en:
+            try:
+                prompt = f"""请将以下学术论文标题翻译成中文，只需返回翻译结果，不需要其他解释：
 
 标题：{title_en}
 
 期刊：{journal}"""
+                
+                translated = await ai.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    system="你是一个专业的学术翻译助手，擅长翻译学术论文标题。要求翻译准确、专业、简洁。"
+                )
+                
+                if translated and not translated.startswith("翻译失败"):
+                    title_cn = translated.strip()
+            except Exception as e:
+                print(f"翻译失败: {e}")
+                title_cn = None
+        
+        # 3. 创建或更新文献表记录
+        existing_entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
+        if not existing_entry:
+            authors = paper_info.get("authors", "")
+            first_author = ""
+            if authors:
+                author_list = [a.strip() for a in authors.split(",")]
+                if author_list:
+                    first_author = author_list[0]
             
-            translated = await ai.chat(
-                messages=[{"role": "user", "content": prompt}],
-                system="你是一个专业的学术翻译助手，擅长翻译学术论文标题。要求翻译准确、专业、简洁。"
+            pub_date = paper_info.get("published_date", "")
+            
+            table_entry = LiteratureTableEntry(
+                doi=doi,
+                title_cn=title_cn,
+                title_en=title_en,
+                journal=journal,
+                pubdate=pub_date,
+                first_author=first_author,
+                has_attachment=False,
+                has_structured=False,
+                has_card=False,
+                has_notes=False,
             )
-            
-            if translated and not translated.startswith("翻译失败"):
-                title_cn = translated.strip()
-        except Exception as e:
-            print(f"翻译失败: {e}")
-            title_cn = None
-    
-    # 3. 创建或更新文献表记录
-    existing_entry = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi == doi).first()
-    if not existing_entry:
-        # 提取作者信息
-        authors = paper_info.get("authors", "")
-        first_author = ""
-        if authors:
-            author_list = [a.strip() for a in authors.split(",")]
-            if author_list:
-                first_author = author_list[0]
+            db.add(table_entry)
+        else:
+            if title_cn:
+                existing_entry.title_cn = title_cn
+            if title_en:
+                existing_entry.title_en = title_en
         
-        pub_date = paper_info.get("published_date", "")
-        
-        table_entry = LiteratureTableEntry(
-            doi=doi,
+        # 4. 创建追踪记录
+        record = TrackingRecord(
+            date=tracking_date,
+            journal=journal,
             title_cn=title_cn,
             title_en=title_en,
-            journal=journal,
-            pubdate=pub_date,
-            first_author=first_author,
-            has_attachment=False,
-            has_structured=False,
-            has_card=False,
-            has_notes=False,
+            doi=doi,
+            action="added"
         )
-        db.add(table_entry)
-    else:
-        # 更新已有记录的翻译
-        if title_cn:
-            existing_entry.title_cn = title_cn
-        if title_en:
-            existing_entry.title_en = title_en
-    
-    # 4. 创建追踪记录
-    record = TrackingRecord(
-        date=tracking_date,
-        journal=journal,
-        title_cn=title_cn,
-        title_en=title_en,
-        doi=doi,
-        action="added"
-    )
-    
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-    
-    return record
+        
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        
+        return record
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"添加文献失败: {str(e)}")
 
 
 # ==================== 导出功能 ====================
