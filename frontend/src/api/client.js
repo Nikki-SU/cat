@@ -460,16 +460,17 @@ export const syncV2API = {
   register: (data) => apiClient.post('/sync/register', data),
   removeDevice: (deviceId) => apiClient.delete(`/sync/devices/${deviceId}`),
   listDevices: () => apiClient.get('/sync/devices'),
-  push: (data) => apiClient.post('/sync/push', data),
-  pull: (data) => apiClient.post('/sync/pull', data),
+  push: (deviceId, changes) => apiClient.post('/sync/push', { device_id: deviceId, changes }),
+  pull: (deviceId, sinceLogId) => apiClient.post('/sync/pull', { device_id: deviceId, since_log_id: sinceLogId }),
   getStatus: () => apiClient.get('/sync/status'),
   discover: () => apiClient.get('/sync/discover'),
   switchRole: (data) => apiClient.post('/sync/switch-role', data),
   applyRemote: (data) => apiClient.post('/sync/apply-remote', data),
-  getUnsynced: () => apiClient.get('/sync/unsynced'),
+  getUnsynced: (deviceId) => apiClient.get('/sync/unsynced', { params: { device_id: deviceId } }),
   getConflicts: () => apiClient.get('/sync/conflicts'),
   resolveConflict: (data) => apiClient.post('/sync/resolve-conflict', data),
   resolveAllConflicts: (resolution) => apiClient.post('/sync/resolve-all-conflicts', { resolution }),
+  getAttachmentManifest: () => apiClient.get('/attachments/manifest'),
 }
 
 // ==================== 配对 API ====================
