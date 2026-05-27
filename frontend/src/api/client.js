@@ -129,7 +129,7 @@ export const cardAPI = {
   
   // 使用模板生成卡片
   generateFromTemplate: (templateId, doi) => 
-    apiClient.post(`/cards/templates/${templateId}/generate`),
+    apiClient.post(`/ai/generate-card-from-template/${templateId}`, null, { params: { doi } }),
 }
 
 // ==================== 附件 API ====================
@@ -202,6 +202,10 @@ export const settingsAPI = {
   // 学习配置
   getLearningConfig: () => apiClient.get('/settings/learning-config'),
   updateLearningConfig: (config) => apiClient.post('/settings/learning-config', config),
+
+  // OCR配置（实际在notes路由下）
+  getOcrConfig: () => apiClient.get('/notes/ocr-config'),
+  updateOcrConfig: (config) => apiClient.post('/notes/ocr-config', config),
 }
 
 // ==================== 结构性文献 API ====================
@@ -331,6 +335,16 @@ export const noteAPI = {
     })
     return response
   },
+
+  // 公式OCR识别
+  ocrFormula: async (file, model = 'turbo') => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('model', model)
+    return apiClient.post('/notes/ocr', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 // ==================== 组织 API ====================
@@ -436,11 +450,77 @@ export const backupAPI = {
 }
 
 export const syncAPI = {
-  push: (changes) => apiClient.post('/sync/push', { changes }),
-  pull: (lastSyncTime) => apiClient.post('/sync/pull', null, { params: { last_sync_time: lastSyncTime } }),
+  // 注意：这些是旧版同步接口，与 syncV2API 共享 /sync/ 前缀
+  // 新代码应使用 syncV2API，这里保留仅为 Settings.jsx 兼容
+  push: (deviceId, changes) => apiClient.post('/sync/push', { device_id: deviceId, changes }),
+  pull: (deviceId, sinceLogId) => apiClient.post('/sync/pull', { device_id: deviceId, since_log_id: sinceLogId }),
   getStatus: () => apiClient.get('/sync/status'),
-  resolveConflict: (tableName, recordId, resolution, localData, remoteData) => 
-    apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_id: recordId, resolution, local_data: localData, remote_data: remoteData }),
+  resolveConflict: (tableName, recordPk, resolution, localData, remoteData) => 
+    apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_pk: recordPk, resolution, local_data: localData, remote_data: remoteData }),
+}
+
+// ==================== 配对 API ====================
+export const pairingAPI = {
+  // 生成配对码
+  generateCode: () => apiClient.post('/pairing/generate'),
+  // 验证配对码
+  verifyCode: (code) => apiClient.post('/pairing/verify', null, { params: { code } }),
+  // 连接Hub
+  connectWithCode: (code, deviceInfo) => apiClient.post('/pairing/connect', deviceInfo, { params: { code } }),
+  // 获取中继状态
+  getRelayStatus: () => apiClient.get('/pairing/relay-status'),
+  // 配置中继
+  configureRelay: (url) => apiClient.post('/pairing/relay-configure', null, { params: { url } }),
+}
+
+// ==================== 同步V2 API ====================
+export const syncV2API = {
+  // 获取同步状态
+  getStatus: () => apiClient.get('/sync/status'),
+  // 获取设备列表
+  getDevices: () => apiClient.get('/sync/devices'),
+  // 发现Hub
+  discover: () => apiClient.get('/sync/discover'),
+  // 注册设备
+  register: (data) => apiClient.post('/sync/register', data),
+  // 注销设备
+  unregister: (deviceId) => apiClient.delete('/sync/devices/' + deviceId),
+  // 切换角色
+  switchRole: (role, hubUrl) => apiClient.post('/sync/switch-role', { role, hub_url: hubUrl }),
+  // 拉取变更
+  pull: (deviceId, sinceLogId) => apiClient.post('/sync/pull', { device_id: deviceId, since_log_id: sinceLogId }),
+  // 推送变更
+  push: (deviceId, changes) => apiClient.post('/sync/push', { device_id: deviceId, changes }),
+  // 应用远程变更
+  applyRemote: (deviceId, sinceLogId) => apiClient.post('/sync/apply-remote', { device_id: deviceId, since_log_id: sinceLogId }),
+  // 获取未同步变更
+  getUnsynced: (deviceId) => apiClient.get('/sync/unsynced', { params: { device_id: deviceId } }),
+  // 获取冲突列表
+  getConflicts: () => apiClient.get('/sync/conflicts'),
+  // 解决冲突
+  resolveConflict: (tableName, recordPk, resolution, chosenData) => 
+    apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_pk: recordPk, resolution, chosen_data: chosenData }),
+  // 批量解决冲突
+  resolveAllConflicts: (resolution) => apiClient.post('/sync/resolve-all-conflicts', { resolution }),
+  // 附件清单（后端暂无此路由，预留）
+  getAttachmentManifest: () => apiClient.get('/sync/attachment-manifest'),
+}
+
+// ==================== 笔记图片 OCR API ====================
+export const noteOCRAPI = {
+  // 公式OCR识别
+  recognizeFormula: (file, model = 'turbo') => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('model', model)
+    return apiClient.post('/notes/ocr', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  // 获取OCR配置
+  getConfig: () => apiClient.get('/notes/ocr-config'),
+  // 更新OCR配置
+  updateConfig: (config) => apiClient.post('/notes/ocr-config', config),
 }
 
 // ==================== 翻译练习 API（兼容旧版） ====================
@@ -451,40 +531,6 @@ export const translationAPI = {
   update: (id, data) => apiClient.put(`/translation/cards/${id}`, data),
   delete: (id) => apiClient.delete(`/translation/cards/${id}`),
   evaluate: (id, translation) => apiClient.post(`/translation/cards/${id}/evaluate`, { translation }),
-}
-
-
-// ==================== 同步 V2 API ====================
-export const syncV2API = {
-  getHubInfo: () => apiClient.get('/sync/hub-info'),
-  register: (data) => apiClient.post('/sync/register', data),
-  removeDevice: (deviceId) => apiClient.delete(`/sync/devices/${deviceId}`),
-  unregister: (deviceId) => apiClient.delete(`/sync/devices/${deviceId}`),
-  listDevices: () => apiClient.get('/sync/devices'),
-  getDevices: () => apiClient.get('/sync/devices'),
-  push: (deviceId, changes) => apiClient.post('/sync/push', { device_id: deviceId, changes }),
-  pull: (deviceId, sinceLogId) => apiClient.post('/sync/pull', { device_id: deviceId, since_log_id: sinceLogId }),
-  getStatus: () => apiClient.get('/sync/status'),
-  discover: () => apiClient.get('/sync/discover'),
-  switchRole: (newRole) => apiClient.post('/sync/switch-role', { role: newRole }),
-  applyRemote: (data) => apiClient.post('/sync/apply-remote', data),
-  getUnsynced: (deviceId) => apiClient.get('/sync/unsynced', { params: { device_id: deviceId } }),
-  getConflicts: () => apiClient.get('/sync/conflicts'),
-  resolveConflict: (tableName, recordPk, resolution, chosenData) => 
-    apiClient.post('/sync/resolve-conflict', { table_name: tableName, record_pk: recordPk, resolution, chosen_data: chosenData }),
-  resolveAllConflicts: (resolution) => apiClient.post('/sync/resolve-all-conflicts', { resolution }),
-  getAttachmentManifest: () => apiClient.get('/attachments/manifest'),
-}
-
-// ==================== 配对 API ====================
-export const pairingAPI = {
-  generateCode: () => apiClient.post('/pairing/generate'),
-  verifyCode: (code) => apiClient.post('/pairing/verify', null, { params: { code } }),
-  connect: (code, url) => apiClient.post('/pairing/connect', null, { params: { code, url } }),
-  connectWithCode: (code, leafInfo) => apiClient.post('/pairing/connect', null, { params: { code, ...leafInfo } }),
-  relayConfigure: (url) => apiClient.post('/pairing/relay-configure', null, { params: { url } }),
-  relayStatus: () => apiClient.get('/pairing/relay-status'),
-  relayConnect: () => apiClient.post('/pairing/relay-connect'),
 }
 
 export default apiClient
