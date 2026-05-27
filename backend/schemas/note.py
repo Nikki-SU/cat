@@ -8,7 +8,7 @@ class GeneralNoteBase(BaseModel):
     content: Optional[str] = None
     doi: Optional[str] = None
     file_type: Optional[str] = "markdown"
-    file_data: Optional[List[Dict[str, Any]]] = None
+    file_data: Optional[Any] = None  # Excel: List[List], other: List[Dict]
     file_path: Optional[str] = None
     attachments: Optional[List[Dict[str, Any]]] = None
     template_id: Optional[int] = None
@@ -20,7 +20,7 @@ class GeneralNoteUpdate(BaseModel):
     content: Optional[str] = None
     doi: Optional[str] = None
     file_type: Optional[str] = None
-    file_data: Optional[List[Dict[str, Any]]] = None
+    file_data: Optional[Any] = None  # Excel: List[List], other: List[Dict]
     file_path: Optional[str] = None
     attachments: Optional[List[Dict[str, Any]]] = None
     template_id: Optional[int] = None
