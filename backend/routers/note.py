@@ -2,7 +2,7 @@
 import os
 import json
 import shutil
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Path, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
@@ -41,7 +41,7 @@ def list_general_notes(skip: int = 0, limit: int = 100, doi: str = None, file_ty
     return query.order_by(GeneralNote.updated_at.desc()).offset(skip).limit(limit).all()
 
 @router.get("/general/{id}", response_model=GeneralNoteResponse)
-def get_general_note(id: int, db: Session = Depends(get_db)):
+def get_general_note(id: int = Path(...), db: Session = Depends(get_db)):
     note = db.query(GeneralNote).filter(GeneralNote.id == id).first()
     if not note:
         raise HTTPException(status_code=404, detail="笔记不存在")
@@ -65,7 +65,7 @@ def create_general_note(data: GeneralNoteCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"创建笔记失败: {str(e)}")
 
 @router.put("/general/{id}", response_model=GeneralNoteResponse)
-def update_general_note(id: int, data: GeneralNoteUpdate, db: Session = Depends(get_db)):
+def update_general_note(id: int = Path(...), data: GeneralNoteUpdate = Body(...), db: Session = Depends(get_db)):
     note = db.query(GeneralNote).filter(GeneralNote.id == id).first()
     if not note:
         raise HTTPException(status_code=404, detail="笔记不存在")
@@ -81,7 +81,7 @@ def update_general_note(id: int, data: GeneralNoteUpdate, db: Session = Depends(
     return note
 
 @router.delete("/general/{id}")
-def delete_general_note(id: int, db: Session = Depends(get_db)):
+def delete_general_note(id: int = Path(...), db: Session = Depends(get_db)):
     note = db.query(GeneralNote).filter(GeneralNote.id == id).first()
     if not note:
         raise HTTPException(status_code=404, detail="笔记不存在")
@@ -153,7 +153,7 @@ async def upload_note_file(
 
 
 @router.get("/files/{note_id}")
-def download_note_file(note_id: int, db: Session = Depends(get_db)):
+def download_note_file(note_id: int = Path(...), db: Session = Depends(get_db)):
     """下载笔记关联的文件"""
     note = db.query(GeneralNote).filter(GeneralNote.id == note_id).first()
     if not note:
@@ -177,7 +177,7 @@ def list_note_templates(skip: int = 0, limit: int = 100, db: Session = Depends(g
     return db.query(NoteTemplate).offset(skip).limit(limit).all()
 
 @router.get("/templates/{id}", response_model=NoteTemplateResponse)
-def get_note_template(id: int, db: Session = Depends(get_db)):
+def get_note_template(id: int = Path(...), db: Session = Depends(get_db)):
     template = db.query(NoteTemplate).filter(NoteTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="笔记模板不存在")
@@ -192,7 +192,7 @@ def create_note_template(data: NoteTemplateCreate, db: Session = Depends(get_db)
     return template
 
 @router.put("/templates/{id}", response_model=NoteTemplateResponse)
-def update_note_template(id: int, data: NoteTemplateUpdate, db: Session = Depends(get_db)):
+def update_note_template(id: int = Path(...), data: NoteTemplateUpdate = Body(...), db: Session = Depends(get_db)):
     template = db.query(NoteTemplate).filter(NoteTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="笔记模板不存在")
@@ -203,7 +203,7 @@ def update_note_template(id: int, data: NoteTemplateUpdate, db: Session = Depend
     return template
 
 @router.delete("/templates/{id}")
-def delete_note_template(id: int, db: Session = Depends(get_db)):
+def delete_note_template(id: int = Path(...), db: Session = Depends(get_db)):
     template = db.query(NoteTemplate).filter(NoteTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="笔记模板不存在")
