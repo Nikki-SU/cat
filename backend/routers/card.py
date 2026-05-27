@@ -1,5 +1,5 @@
 """文献卡片相关 API 路由"""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Body
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
@@ -18,7 +18,7 @@ def list_literature_cards(skip: int = 0, limit: int = 100, db: Session = Depends
     return db.query(LiteratureCard).offset(skip).limit(limit).all()
 
 @router.get("/literature/{doi}", response_model=LiteratureCardResponse)
-def get_literature_card(doi: str, db: Session = Depends(get_db)):
+def get_literature_card(doi: str = Path(...), db: Session = Depends(get_db)):
     card = db.query(LiteratureCard).filter(LiteratureCard.doi == doi).first()
     if not card:
         raise HTTPException(status_code=404, detail="文献卡片不存在")
@@ -33,7 +33,7 @@ def create_literature_card(data: LiteratureCardCreate, db: Session = Depends(get
     return card
 
 @router.put("/literature/{doi}", response_model=LiteratureCardResponse)
-def update_literature_card(doi: str, data: LiteratureCardUpdate, db: Session = Depends(get_db)):
+def update_literature_card(doi: str = Path(...), data: LiteratureCardUpdate = Body(...), db: Session = Depends(get_db)):
     card = db.query(LiteratureCard).filter(LiteratureCard.doi == doi).first()
     if not card:
         raise HTTPException(status_code=404, detail="文献卡片不存在")
@@ -44,7 +44,7 @@ def update_literature_card(doi: str, data: LiteratureCardUpdate, db: Session = D
     return card
 
 @router.delete("/literature/{doi}")
-def delete_literature_card(doi: str, db: Session = Depends(get_db)):
+def delete_literature_card(doi: str = Path(...), db: Session = Depends(get_db)):
     card = db.query(LiteratureCard).filter(LiteratureCard.doi == doi).first()
     if not card:
         raise HTTPException(status_code=404, detail="文献卡片不存在")
@@ -58,7 +58,7 @@ def list_prompt_templates(skip: int = 0, limit: int = 100, db: Session = Depends
     return db.query(CardPromptTemplate).offset(skip).limit(limit).all()
 
 @router.get("/prompt-templates/{id}", response_model=CardPromptTemplateResponse)
-def get_prompt_template(id: int, db: Session = Depends(get_db)):
+def get_prompt_template(id: int = Path(...), db: Session = Depends(get_db)):
     template = db.query(CardPromptTemplate).filter(CardPromptTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="提示词模板不存在")
@@ -73,7 +73,7 @@ def create_prompt_template(data: CardPromptTemplateCreate, db: Session = Depends
     return template
 
 @router.put("/prompt-templates/{id}", response_model=CardPromptTemplateResponse)
-def update_prompt_template(id: int, data: CardPromptTemplateUpdate, db: Session = Depends(get_db)):
+def update_prompt_template(id: int = Path(...), data: CardPromptTemplateUpdate = Body(...), db: Session = Depends(get_db)):
     template = db.query(CardPromptTemplate).filter(CardPromptTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="提示词模板不存在")
@@ -84,7 +84,7 @@ def update_prompt_template(id: int, data: CardPromptTemplateUpdate, db: Session 
     return template
 
 @router.delete("/prompt-templates/{id}")
-def delete_prompt_template(id: int, db: Session = Depends(get_db)):
+def delete_prompt_template(id: int = Path(...), db: Session = Depends(get_db)):
     template = db.query(CardPromptTemplate).filter(CardPromptTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="提示词模板不存在")
@@ -98,7 +98,7 @@ def list_card_templates(skip: int = 0, limit: int = 100, db: Session = Depends(g
     return db.query(CardTemplate).offset(skip).limit(limit).all()
 
 @router.get("/templates/{id}", response_model=CardTemplateResponse)
-def get_card_template(id: int, db: Session = Depends(get_db)):
+def get_card_template(id: int = Path(...), db: Session = Depends(get_db)):
     template = db.query(CardTemplate).filter(CardTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="卡片模板不存在")
@@ -113,7 +113,7 @@ def create_card_template(data: CardTemplateCreate, db: Session = Depends(get_db)
     return template
 
 @router.put("/templates/{id}", response_model=CardTemplateResponse)
-def update_card_template(id: int, data: CardTemplateUpdate, db: Session = Depends(get_db)):
+def update_card_template(id: int = Path(...), data: CardTemplateUpdate = Body(...), db: Session = Depends(get_db)):
     template = db.query(CardTemplate).filter(CardTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="卡片模板不存在")
@@ -124,7 +124,7 @@ def update_card_template(id: int, data: CardTemplateUpdate, db: Session = Depend
     return template
 
 @router.delete("/templates/{id}")
-def delete_card_template(id: int, db: Session = Depends(get_db)):
+def delete_card_template(id: int = Path(...), db: Session = Depends(get_db)):
     template = db.query(CardTemplate).filter(CardTemplate.id == id).first()
     if not template:
         raise HTTPException(status_code=404, detail="卡片模板不存在")
