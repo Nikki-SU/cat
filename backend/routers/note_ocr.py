@@ -1,7 +1,7 @@
 """笔记公式OCR识别 API 路由 - 代理SimpleTex API"""
 import httpx
 import os
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from services.config_service import get_config_service
 
 router = APIRouter(prefix="/notes", tags=["公式OCR"])
@@ -87,7 +87,7 @@ async def ocr_formula(
 
 
 @router.post("/ocr-config")
-async def update_ocr_config(app_id: str = None, app_secret: str = None):
+async def update_ocr_config(app_id: str = Query(None), app_secret: str = Query(None)):
     """更新OCR配置"""
     cs = get_config_service()
     if app_id is not None:
