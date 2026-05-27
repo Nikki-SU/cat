@@ -484,13 +484,14 @@ function Settings() {
     
     setSyncing(true)
     try {
+      const deviceId = syncStatus?.device_id || 'unknown'
+      const sinceLogId = syncStatus?.last_sync_log_id || 0
       // 推送本地变更
-      const localChanges = {} // 从IndexedDB获取
-      await syncAPI.push(localChanges)
+      const localChanges = [] // 从变更追踪获取
+      await syncAPI.push(deviceId, localChanges)
       
       // 拉取远程变更
-      const lastSync = localStorage.getItem('lastSyncTime')
-      await syncAPI.pull(lastSync)
+      await syncAPI.pull(deviceId, sinceLogId)
       
       localStorage.setItem('lastSyncTime', new Date().toISOString())
       alert('同步完成')
@@ -507,6 +508,32 @@ function Settings() {
     localStorage.setItem('syncInterval', syncInterval)
     localStorage.setItem('syncServer', syncServer)
     alert('同步配置已保存')
+  }
+
+  // 配置中继服务器
+  const handleConfigureRelay = async () => {
+    localStorage.setItem('relayUrl', relayUrl)
+    try {
+      await pairingAPI.configureRelay(relayUrl)
+      alert('中继服务器配置已保存')
+      fetchRelayStatus()
+    } catch (error) {
+      alert('配置失败: ' + error.message)
+    }
+  }
+
+  // 测试中继连接
+  const handleTestRelay = async () => {
+    try {
+      const status = await pairingAPI.getRelayStatus()
+      if (status && status.configured) {
+        alert('中继连接正常')
+      } else {
+        alert('中继未配置或连接失败')
+      }
+    } catch (error) {
+      alert('测试失败: ' + error.message)
+    }
   }
 
   // 数据导出
