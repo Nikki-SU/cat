@@ -123,7 +123,7 @@ async def restore_backup(file: UploadFile = File(...), db: Session = Depends(get
 
 
 @router.get("/download/{filename}")
-def download_backup(filename: str):
+def download_backup(filename: str = Path(...)):
     """下载备份文件"""
     if ".." in filename or "/" in filename:
         raise HTTPException(status_code=400, detail="无效的文件名")
