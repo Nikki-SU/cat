@@ -1,5 +1,5 @@
 """设置相关 API 路由 - 配置持久化到本地JSON文件"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path, Query, Body
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -96,7 +96,7 @@ def update_mineru_config(config: MinerUConfig):
     return {"success": True, "message": "MinerU配置已更新"}
 
 @router.post("/mineru-token")
-def update_mineru_token(token: str):
+def update_mineru_token(token: str = Query(...)):
     if not token:
         raise HTTPException(status_code=400, detail="Token不能为空")
     cs = get_config_service()
@@ -168,7 +168,7 @@ def add_search_engine(engine: SearchEngine):
     return {"success": True, "engine": engine.model_dump()}
 
 @router.put("/search-engines/{engine_id}")
-def update_search_engine(engine_id: str, engine: SearchEngine):
+def update_search_engine(engine_id: str = Path(...), engine: SearchEngine = Body(...)):
     """更新搜索引擎"""
     cs = get_config_service()
     engines = cs.get("search_engines", "engines", [])
@@ -187,7 +187,7 @@ def update_search_engine(engine_id: str, engine: SearchEngine):
     raise HTTPException(status_code=404, detail="搜索引擎不存在")
 
 @router.delete("/search-engines/{engine_id}")
-def delete_search_engine(engine_id: str):
+def delete_search_engine(engine_id: str = Path(...)):
     """删除搜索引擎"""
     cs = get_config_service()
     engines = cs.get("search_engines", "engines", [])
