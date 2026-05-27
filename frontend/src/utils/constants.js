@@ -184,10 +184,18 @@ export const DISPLAY_DETAILS = [
 
 // 追踪间隔选项
 export const TRACKING_INTERVALS = [
-  { key: 'daily', name: '每日', days: 1 },
-  { key: 'weekly', name: '每周', days: 7 },
-  { key: 'biweekly', name: '两周一次', days: 14 },
-  { key: 'monthly', name: '每月', days: 30 }
+  { key: 'daily', name: '每日', hours: 24 },
+  { key: 'weekly', name: '每周', hours: 168 },
+  { key: 'biweekly', name: '两周一次', hours: 336 },
+  { key: 'monthly', name: '每月', hours: 720 }
+]
+
+// 追踪间隔选项（小时数值版本，用于直接使用）
+export const TRACKING_INTERVAL_HOURS = [
+  { key: 24, name: '每日' },
+  { key: 168, name: '每周' },
+  { key: 336, name: '两周一次' },
+  { key: 720, name: '每月' }
 ]
 
 // 单词队列长度选项
@@ -195,7 +203,8 @@ export const WORD_QUEUE_LENGTHS = [
   { key: 5, name: '5个' },
   { key: 7, name: '7个' },
   { key: 9, name: '9个' },
-  { key: 10, name: '10个' }
+  { key: 10, name: '10个' },
+  { key: 20, name: '20个' }
 ]
 
 // 跳转模式
