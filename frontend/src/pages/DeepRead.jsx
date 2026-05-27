@@ -20,7 +20,7 @@ import useDeepReadStore, {
   SENTENCE_COLOR_SCHEMES
 } from '../stores/useDeepReadStore'
 import useAppStore from '../stores/useAppStore'
-import ObsidianEditor from '../components/ObsidianEditor'
+import SmartEditor from '../components/SmartEditor'
 import { splitSentences, getSentenceBackgroundColor, isSentenceColoringEnabled } from '../utils/sentenceColors.jsx'
 import { aiAPI } from '../api/client'
 
@@ -401,7 +401,7 @@ const Heading = ({ level, text, words, sentences, colorScheme }) => {
 // 行间笔记
 const InlineNote = ({ note }) => (
   <div className="p-2 bg-blue-50 border-l-4 border-blue-400 rounded my-2">
-    <ObsidianEditor value={note.content} readOnly />
+    <SmartEditor value={note.content} readOnly />
   </div>
 )
 
@@ -412,7 +412,7 @@ const SidebarNote = ({ note, paragraph, onEdit, onDelete }) => (
       段落 {(paragraph?.index ?? 0) + 1}
     </div>
     <div className="prose prose-sm max-w-none">
-      <ObsidianEditor value={note.content} readOnly />
+      <SmartEditor value={note.content} readOnly />
     </div>
     <div className="flex gap-2 mt-2">
       <button onClick={() => onEdit(note)} className="text-xs text-blue-500">编辑</button>
@@ -427,7 +427,7 @@ const NoteEditor = ({ onSave, onCancel, initialContent = '' }) => {
   
   return (
     <div className="p-3 bg-yellow-50 rounded border border-yellow-200">
-      <ObsidianEditor
+      <SmartEditor
         value={content}
         onChange={setContent}
         placeholder="输入笔记（支持图片、代码、思维导图、双链引用等）..."

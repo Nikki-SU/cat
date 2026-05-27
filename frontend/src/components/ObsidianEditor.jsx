@@ -852,7 +852,7 @@ const ObsidianEditor = ({
     // 标签 #xxx
     p({ node, children, ...props }) {
       // 处理标签
-      const processed = children?.map((child, i) => {
+      const processed = (Array.isArray(children) ? children : [children])?.map((child, i) => {
         if (typeof child === 'string') {
           const parts = child.split(/(#[\w\u4e00-\u9fa5]+)/g)
           return parts.map((part, j) => {
@@ -895,34 +895,11 @@ const ObsidianEditor = ({
       {/* 工具栏 */}
       <EditorToolbar onInsert={handleInsert} readOnly={false} />
       
-      {/* 编辑/预览切换 */}
-      <div className="flex border-b bg-gray-50">
-        <button
-          onClick={() => setShowPreview(false)}
-          className={`px-4 py-1 text-sm ${!showPreview ? 'bg-white border-b-2 border-blue-500' : ''}`}
-        >
-          编辑
-        </button>
-        <button
-          onClick={() => setShowPreview(true)}
-          className={`px-4 py-1 text-sm ${showPreview ? 'bg-white border-b-2 border-blue-500' : ''}`}
-        >
-          预览
-        </button>
-      </div>
-      
-      {/* 编辑器或预览 */}
-      <div className="bg-white">
-        {showPreview ? (
-          <div className="p-4 prose prose-sm max-w-none min-h-[150px]">
-            <ReactMarkdown 
-              remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
-              components={MarkdownComponents}
-            >
-              {content}
-            </ReactMarkdown>
-          </div>
-        ) : (
+      {/* 左右分栏：编辑 + 实时预览 */}
+      <div className="bg-white flex" style={{ minHeight: "300px" }}>
+        {/* 左侧编辑区 */}
+        <div className="w-1/2 border-r">
+          <div className="px-3 py-1 text-xs text-gray-400 border-b bg-gray-50">编辑</div>
           <textarea
             ref={textareaRef}
             value={content}
@@ -932,10 +909,23 @@ const ObsidianEditor = ({
             onKeyUp={handleSelect}
             onPaste={handleEditorPaste}
             placeholder={placeholder}
-            className="w-full min-h-[150px] p-4 resize-y font-mono text-sm focus:outline-none"
+            className="w-full min-h-[280px] p-4 resize-y font-mono text-sm focus:outline-none"
           />
-        )}
+        </div>
+        {/* 右侧实时预览 */}
+        <div className="w-1/2 overflow-auto">
+          <div className="px-3 py-1 text-xs text-gray-400 border-b bg-gray-50">预览</div>
+          <div className="p-4 prose prose-sm max-w-none min-h-[280px]">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
+              components={MarkdownComponents}
+            >
+              {content}
+            </ReactMarkdown>
+          </div>
+        </div>
       </div>
+
       
       {/* 弹窗 */}
       {dialog === 'image' && (

@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { noteAPI } from '../api/client'
-import ObsidianEditor from '../components/ObsidianEditor'
+import SmartEditor from '../components/SmartEditor'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -16,8 +16,7 @@ import { TableHeader } from '@tiptap/extension-table-header'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
-import { TextStyle } from '@tiptap/extension-text-style'
-import Color from '@tiptap/extension-color'
+import { TextStyle, Color } from '@tiptap/extension-text-style'
 import * as XLSX from 'xlsx'
 
 // ==================== Word编辑器工具栏 ====================
@@ -601,7 +600,7 @@ function Notes() {
               {/* 编辑器内容区 */}
               <div className="flex-1 overflow-auto">
                 {(selectedNote.file_type === 'markdown' || !selectedNote.file_type) && (
-                  <ObsidianEditor
+                  <SmartEditor
                     value={mdContent}
                     onChange={handleMarkdownChange}
                     placeholder="开始写作..."
