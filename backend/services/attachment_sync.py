@@ -45,8 +45,8 @@ class AttachmentSyncService:
                 "filename": att.filename,
                 "size": file_size,
                 "hash": file_hash,
-                "content_type": att.content_type,
-                "uploaded_at": att.uploaded_at.isoformat() if att.uploaded_at else None
+                "content_type": att.file_type or "application/octet-stream",
+                "uploaded_at": att.created_at.isoformat() if att.created_at else None
             })
         return manifest
     
