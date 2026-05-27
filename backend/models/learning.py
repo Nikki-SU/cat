@@ -121,3 +121,22 @@ class StudySettings(Base):
     voice_enabled = Column(Boolean, default=True)  # 朗读发音开关
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SentenceStudyStatus(Base):
+    """长难句学习状态"""
+    __tablename__ = "sentence_study_status"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    sentence_id = Column(Integer, nullable=False, index=True)
+    status = Column(String(20), default="new")  # new/studying/learned/mastered
+    review_stage = Column(Integer, default=0)  # 当前复习阶段
+    next_review_at = Column(DateTime(timezone=True), nullable=True)  # 下次复习时间
+    last_review_at = Column(DateTime(timezone=True), nullable=True)  # 上次复习时间
+    learned_at = Column(DateTime(timezone=True), nullable=True)  # 学习完成时间
+    mastered_at = Column(DateTime(timezone=True), nullable=True)  # 掌握时间
+    error_count = Column(Integer, default=0)  # 错误次数
+    in_error_book = Column(Boolean, default=False)  # 是否在错题本
+    card_shown = Column(Boolean, default=False)  # 是否已展示卡片
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
