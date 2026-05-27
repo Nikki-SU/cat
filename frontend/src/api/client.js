@@ -412,7 +412,7 @@ export const aiAPI = {
   
   // 通用对话
   chat: (messages, temperature, maxTokens) => 
-    apiClient.post('/ai/chat', { messages }, { params: { temperature, max_tokens: maxTokens } }),
+    apiClient.post('/ai/chat', { messages, temperature, max_tokens: maxTokens }),
   
   // 笔记辅助
   summarizeContent: (content, maxLength) => 
