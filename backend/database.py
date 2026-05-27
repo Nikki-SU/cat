@@ -78,6 +78,7 @@ def _migrate_db():
     # 定义每个表可能缺失的列
     migrations = {
         "general_notes": [
+            ("file_type", "VARCHAR(50) DEFAULT 'markdown'),
             ("file_data", "JSON"),
             ("file_path", "VARCHAR(500)"),
             ("attachments", "JSON"),
