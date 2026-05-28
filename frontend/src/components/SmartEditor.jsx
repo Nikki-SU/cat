@@ -7,8 +7,8 @@
  * 
  * 禁止：左右分屏预览、prompt()、块渲染在TipTap外面
  */
-import { useState, useEffect, useRef, useCallback, forwardRef } from 'react'
-import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { Node, mergeAttributes } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -457,7 +457,7 @@ const LinkedListComponent = ({ node, updateAttributes }) => {
       ctx.strokeStyle = '#38bdf8'
       ctx.lineWidth = 1.5
       ctx.beginPath()
-      ctx.roundRect(x, startY, nodeW, nodeH, 4)
+      ctx.fillRect(x, startY, nodeW, nodeH)
       ctx.fill()
       ctx.stroke()
       ctx.fillStyle = '#0c4a6e'
@@ -782,6 +782,7 @@ export default function SmartEditor({
 }) {
   const [slashMenu, setSlashMenu] = useState(null)
   const slashFilterRef = useRef('')
+  const skipNextValueRef = useRef(false)  // 跳过自己触发的 onChange 循环
 
   const content = parseValueToContent(value)
 
@@ -807,10 +808,30 @@ export default function SmartEditor({
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       if (onChange) {
+        skipNextValueRef.current = true
         onChange(JSON.stringify(editor.getJSON()))
       }
     },
   })
+
+  // 当 value 外部变化时（如切换笔记），重新加载内容
+  useEffect(() => {
+    if (!editor || !value) return
+    // 跳过自己 onChange 触发的循环更新
+    if (skipNextValueRef.current) {
+      skipNextValueRef.current = false
+      return
+    }
+    const newContent = parseValueToContent(value)
+    editor.commands.setContent(newContent)
+  }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // readOnly 变化时同步
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(!readOnly)
+    }
+  }, [readOnly, editor])
 
   // 处理 / 斜杠命令
   useEffect(() => {
