@@ -37,17 +37,20 @@ async def lifespan(app: FastAPI):
         manager = get_hub_manager()
         role = manager.detect_role(db)
         
-        if role == "hub":
-            # Hub启动广播
-            start_broadcaster(
-                device_id=manager.get_device_id(),
-                device_name=manager.get_device_name()
-            )
-            print(f"[Cat] Started as Hub: {manager.get_device_id()}")
+        if settings.ENABLE_DISCOVERY:
+            if role == "hub":
+                # Hub启动广播
+                start_broadcaster(
+                    device_id=manager.get_device_id(),
+                    device_name=settings.DEVICE_NAME
+                )
+                print(f"[Cat] Started as Hub: {manager.get_device_id()}")
+            else:
+                # Leaf启动扫描
+                start_scanner()
+                print(f"[Cat] Started as Leaf: {manager.get_device_id()}")
         else:
-            # Leaf启动扫描
-            start_scanner()
-            print(f"[Cat] Started as Leaf: {manager.get_device_id()}")
+            print(f"[Cat] Network discovery disabled - running in isolated mode")
     finally:
         db.close()
     
@@ -73,9 +76,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -131,6 +134,12 @@ app.mount("/note-images", StaticFiles(directory=NOTE_IMAGES_DIR), name="note-ima
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+
+@app.get("/privacy-status")
+def privacy_status():
+    """获取当前隐私状态"""
+    return settings.get_privacy_status()
 
 
 # Serve root-level static files (cat.svg, manifest.json, sw.js, icons)

@@ -7,6 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 from io import BytesIO
 import os
+import re
 
 from database import get_db
 from models.literature import LiteratureEntry, LiteratureTableEntry
@@ -19,6 +20,17 @@ from schemas.literature import (
 from services.export_service import export_service
 
 router = APIRouter(prefix="/literature", tags=["文献"])
+
+# 允许的排序字段白名单
+ALLOWED_SORT_COLUMNS = {"created_at", "pubdate", "title_cn", "title_en", "journal", "first_author", "updated_at"}
+
+
+def sanitize_search_input(text: str) -> str:
+    """清理搜索输入，防止 SQL 注入"""
+    if not text:
+        return ""
+    # 只允许字母、数字、中文、空格和基本标点
+    return re.sub(r"[^\w\s\u4e00-\u9fff@.+-]", "", text)
 
 
 # ==================== Literature Entry CRUD ====================
@@ -97,7 +109,7 @@ def list_literature_table(
     skip: int = 0, 
     limit: int = 100, 
     search: str = None,
-    sort_by: str = Query(default="created_at", pattern="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_by: str = Query(default="created_at"),
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     from_date: str = None,
     until_date: str = None,
@@ -106,8 +118,9 @@ def list_literature_table(
     """获取文献表列表"""
     query = db.query(LiteratureTableEntry)
     
-    # 搜索
+    # 搜索 - 使用清理后的输入
     if search:
+        search = sanitize_search_input(search)
         search_pattern = f"%{search}%"
         query = query.filter(
             or_(
@@ -125,12 +138,15 @@ def list_literature_table(
     if until_date:
         query = query.filter(LiteratureTableEntry.created_at <= until_date)
     
-    # 排序
-    sort_column = getattr(LiteratureTableEntry, sort_by)
-    if sort_order == "desc":
-        query = query.order_by(desc(sort_column))
+    # 排序 - 使用白名单验证
+    if sort_by in ALLOWED_SORT_COLUMNS:
+        sort_column = getattr(LiteratureTableEntry, sort_by)
+        if sort_order == "desc":
+            query = query.order_by(desc(sort_column))
+        else:
+            query = query.order_by(asc(sort_column))
     else:
-        query = query.order_by(asc(sort_column))
+        query = query.order_by(desc(LiteratureTableEntry.created_at))
     
     return query.offset(skip).limit(limit).all()
 
@@ -201,7 +217,7 @@ def search_literature_table(
 @router.get("/table/export")
 def export_literature_table(
     format: str = Query(default="xlsx", pattern="^(xlsx|csv)$"),
-    sort_by: str = Query(default="created_at", pattern="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_by: str = Query(default="created_at"),
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     from_date: str = None,
     until_date: str = None,
@@ -219,12 +235,15 @@ def export_literature_table(
     if until_date:
         query = query.filter(LiteratureTableEntry.created_at <= until_date)
     
-    # 排序
-    sort_column = getattr(LiteratureTableEntry, sort_by)
-    if sort_order == "desc":
-        query = query.order_by(desc(sort_column))
+    # 排序 - 使用白名单验证
+    if sort_by in ALLOWED_SORT_COLUMNS:
+        sort_column = getattr(LiteratureTableEntry, sort_by)
+        if sort_order == "desc":
+            query = query.order_by(desc(sort_column))
+        else:
+            query = query.order_by(asc(sort_column))
     else:
-        query = query.order_by(asc(sort_column))
+        query = query.order_by(desc(LiteratureTableEntry.created_at))
     
     entries = [e.__dict__ for e in query.all()]
     
@@ -259,7 +278,7 @@ def export_literature_table(
 def export_literature_table_by_tags(
     tags: str,
     format: str = Query(default="xlsx", pattern="^(xlsx|csv)$"),
-    sort_by: str = Query(default="created_at", pattern="^(created_at|pubdate|title_cn|title_en|journal)$"),
+    sort_by: str = Query(default="created_at"),
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_db)
 ):
@@ -268,18 +287,21 @@ def export_literature_table_by_tags(
     """
     from models.organization import Tag, CollectionItem
     
-    tag_names = [t.strip() for t in tags.split(",")]
+    tag_names = [sanitize_search_input(t.strip()) for t in tags.split(",")]
     dois = db.query(Tag.doi).filter(Tag.name.in_(tag_names)).distinct().all()
     dois = [d[0] for d in dois]
     
     query = db.query(LiteratureTableEntry).filter(LiteratureTableEntry.doi.in_(dois))
     
-    # 排序
-    sort_column = getattr(LiteratureTableEntry, sort_by)
-    if sort_order == "desc":
-        query = query.order_by(desc(sort_column))
+    # 排序 - 使用白名单验证
+    if sort_by in ALLOWED_SORT_COLUMNS:
+        sort_column = getattr(LiteratureTableEntry, sort_by)
+        if sort_order == "desc":
+            query = query.order_by(desc(sort_column))
+        else:
+            query = query.order_by(asc(sort_column))
     else:
-        query = query.order_by(asc(sort_column))
+        query = query.order_by(desc(LiteratureTableEntry.created_at))
     
     entries = [e.__dict__ for e in query.all()]
     

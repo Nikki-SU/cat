@@ -91,14 +91,14 @@ class MainActivity : AppCompatActivity() {
             var attempts = 0
             val maxAttempts = 60 // Wait up to 30 seconds
             while (attempts < maxAttempts && !isServerReady) {
+                var conn: HttpURLConnection? = null
                 try {
                     val url = URL("http://localhost:8000/health")
-                    val conn = url.openConnection() as HttpURLConnection
+                    conn = url.openConnection() as HttpURLConnection
                     conn.requestMethod = "GET"
                     conn.connectTimeout = 1000
                     conn.readTimeout = 1000
                     val code = conn.responseCode
-                    conn.disconnect()
                     if (code == 200) {
                         isServerReady = true
                         runOnUiThread {
@@ -108,6 +108,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 } catch (e: Exception) {
                     // Server not ready yet
+                } finally {
+                    conn?.disconnect()
                 }
                 Thread.sleep(500)
                 attempts++

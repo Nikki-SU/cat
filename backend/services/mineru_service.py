@@ -1,6 +1,11 @@
 """
 MinerU API 集成服务 - 基于官方API文档
 支持 Precision Extract API（需Token）和 Agent Lightweight API（免Token）
+
+⚠️ 隐私提示：
+- 使用此服务会将PDF文件发送到MinerU服务器处理
+- 敏感文档（如未发表的论文）请使用本地OCR或本地模型
+- 可通过设置 OFFLINE_MODE=true 完全禁用外部PDF解析
 """
 import httpx
 import asyncio
@@ -9,10 +14,13 @@ import re
 import time
 import zipfile
 import tempfile
+import logging
 from typing import Optional, Dict, Any
 from pathlib import Path
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class MinerUService:
@@ -33,6 +41,24 @@ class MinerUService:
         self.model_version = settings.MINERU_MODEL_VERSION
         self.language = settings.MINERU_LANGUAGE
         self.client = httpx.AsyncClient(timeout=300.0)
+        
+        # 隐私警告
+        self._log_privacy_warning()
+    
+    def _log_privacy_warning(self):
+        """记录隐私警告"""
+        if self.api_token:
+            logger.warning(
+                "⚠️ [隐私] MinerU Precision API 已启用。"
+                "PDF文件将被上传到MinerU服务器处理。"
+                "敏感文档建议使用本地OCR或本地模型。"
+            )
+        else:
+            logger.warning(
+                "⚠️ [隐私] MinerU Agent API 已启用。"
+                "PDF文件将被上传到MinerU服务器处理。"
+                "如需完全本地处理，请设置 OFFLINE_MODE=true 或使用本地OCR。"
+            )
     
     def _get_headers(self) -> dict:
         """获取请求头"""
